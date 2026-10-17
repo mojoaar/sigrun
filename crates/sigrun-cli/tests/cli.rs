@@ -3,14 +3,21 @@ use predicates::prelude::*;
 use std::time::{Duration, Instant};
 
 fn wait_for(mut f: impl FnMut() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
         if f() {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(Duration::from_millis(50));
     }
-    panic!("condition not met within 5s");
+    panic!("condition not met within 10s");
+}
+
+// Poll a command until it exits successfully. Used to wait for the host: on
+// Windows the IPC socket is a named pipe (not a file), so `sock.exists()`
+// never becomes true — probe the host by asking it for status instead.
+fn wait_until_succeeds(mut cmd: impl FnMut() -> std::process::Output) {
+    wait_for(|| cmd().status.success());
 }
 
 #[test]
@@ -50,7 +57,17 @@ fn end_to_end_host_vault_key_and_connection() {
         .arg(&sock)
         .spawn()
         .unwrap();
-    wait_for(|| sock.exists());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
 
     let run = |args: &[&str], stdin: &str| {
         let mut cmd = Command::cargo_bin("sigrun").unwrap();
