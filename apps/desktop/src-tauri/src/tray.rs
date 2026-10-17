@@ -85,12 +85,18 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                     let (app, st, cid) = (app.clone(), st.clone(), cid.to_string());
                     tauri::async_runtime::spawn(async move {
                         // Unknown/mismatched keys and any other error surface in the window.
-                        if crate::commands::connect_guarded(st, cid, false)
-                            .await
-                            .is_err()
-                        {
-                            show_main(&app);
-                        }
+                        let title = match crate::commands::connect_guarded(st, cid, false).await {
+                            Ok(_) => NORMAL_TITLE,
+                            Err(e) => {
+                                show_main(&app);
+                                if e.code.starts_with("host_key_") {
+                                    ATTENTION_TITLE
+                                } else {
+                                    NORMAL_TITLE
+                                }
+                            }
+                        };
+                        set_title(&app, title);
                     });
                 }
             }
