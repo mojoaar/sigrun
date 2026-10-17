@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the Sigrun desktop app — a Tauri 2 window + system tray over the existing headless core, with the four Norse themes, EN/DA i18n, the GitHub SSH-key wizard, and a multi-OS installer release workflow.
+**Goal:** Ship the Sigrun desktop app — a Tauri 2 window + system tray over the existing headless core, with the four Norse themes, EN/DA i18n, and a multi-OS installer release workflow. (The GitHub SSH-key wizard is deferred: it needs a publisher-owned OAuth App, which the owner has not committed to.)
 
 **Architecture:** The Tauri app **is** the long-lived host: it owns the vault, the SSH agent, and the IPC socket (reusing `sigrun-core` verbatim), exposes the core to the React frontend through `#[tauri::command]` functions, and closes-to-tray. The React + TypeScript + Tailwind UI drives the same `Request`/`Response` model the CLI uses. Plan 1 (`crates/sigrun-core`, `crates/sigrun-cli`) is unchanged except where a task's Interfaces block says otherwise.
 
-**Tech Stack:** Tauri 2.x (`tray-icon`, `single-instance` plugin), React 19 + TypeScript + Tailwind CSS v4, i18next/react-i18next, Vite. Backend reuses `sigrun-core` (`host`, `ipc::protocol`, `model`, `vault`, `agent`, `terminal`). Wizard: GitHub REST API via OAuth device flow. Release: `tauri-action`.
+**Tech Stack:** Tauri 2.x (`tray-icon`, `single-instance` plugin), React 19 + TypeScript + Tailwind CSS v4, i18next/react-i18next, Vite. Backend reuses `sigrun-core` (`host`, `ipc::protocol`, `model`, `vault`, `agent`, `terminal`). Release: `tauri-action`. (No external service integration in Plan 2 — the GitHub wizard is deferred.)
 
 **Spec:** `docs/superpowers/specs/2026-10-17-sigrun-design.md`
 
@@ -32,8 +32,8 @@ The five input classes / failure modes the spec implies but no single task's tes
 1. **Locked vault at every surface.** A user clicks a tray connection while the vault is locked → they get a clear "unlock Sigrun" affordance, not a silent failure or a stack trace. (Owner: Task 6.)
 2. **Host-key it has never seen.** First connect to a brand-new host must surface an explicit fingerprint confirmation (TOFU), never auto-accept, and fail closed on a later mismatch. (Owner: Task 7.)
 3. **Theme + language switching at runtime.** Switching theme or language must re-render every visible string/color without a restart and without leaking the previous locale's strings. (Owner: Tasks 4, 5.)
-4. **GitHub device-flow edge cases.** Expired code, user denial, network failure, and a token with insufficient scope each produce a human-readable recovery, not a hang. (Owner: Task 8.)
-5. **Two instances / second launch.** Double-clicking the app while it runs must focus the existing window and never spawn a second host or corrupt the vault lock. (Owner: Task 2.)
+4. **Two instances / second launch.** Double-clicking the app while it runs must focus the existing window and never spawn a second host or corrupt the vault lock. (Owner: Task 2.)
+5. **Window closed but connections in tray.** With the window minimized to the tray, the tray menu still lists connections and connects; quitting is explicit and does not strand a locked vault mid-write. (Owner: Task 7.)
 
 ---
 
@@ -275,7 +275,7 @@ Expected: FAIL — i18n module not initialized.
 
 - [ ] **Step 3: Implement**
 
-`en.json` holds every UI string for the screens built in Tasks 6-8 (keys: `app.*`, `nav.*`, `vault.*`, `connections.*`, `keys.*`, `wizard.github.*`, `settings.*`, `common.*`). `da.json` mirrors it. `i18n/index.ts` initializes i18next with `react-i18next`, `lng: "en"`, `fallbackLng: "en"`, and both resources. The completeness test (above) guards against drift — add new keys to both files together.
+`en.json` holds every UI string for the screens built in Tasks 6-7 (keys: `app.*`, `nav.*`, `vault.*`, `connections.*`, `keys.*`, `settings.*`, `common.*`). `da.json` mirrors it. `i18n/index.ts` initializes i18next with `react-i18next`, `lng: "en"`, `fallbackLng: "en"`, and both resources. The completeness test (above) guards against drift — add new keys to both files together.
 
 - [ ] **Step 4: Run tests**
 
@@ -395,53 +395,7 @@ git commit -m "feat(tray,trust): system tray menu and TOFU host-key trust"
 
 ---
 
-### Task 8: GitHub SSH-key wizard (device flow)
-
-**Files:**
-- Create: `apps/desktop/src/views/wizard/GitHubWizard.tsx`, `apps/desktop/src-tauri/src/github.rs`
-- Modify: `apps/desktop/src-tauri/src/commands.rs`, `apps/desktop/src-tauri/src/lib.rs`
-- Test: `apps/desktop/src-tauri/src/github.rs` inline (state machine, no network), `apps/desktop/src/views/wizard/GitHubWizard.test.tsx`
-
-**Interfaces:**
-- Consumes: GitHub OAuth device flow endpoints, the `keys generate` + `connect` commands, the core's `trust` (Task 7) for verifying `github.com`.
-- Produces: commands `github_device_start() -> { user_code, verification_uri, device_code, expires_in, interval }`, `github_device_poll(device_code) -> { status, token? }`; a wizard view that generates a key, uploads the public key to GitHub (REST `POST /user/keys` with the token), and verifies by connecting to `github.com`. Handles expired/denied/network/insufficient-scope with human-readable recovery (Review Focus 4).
-
-- [ ] **Step 1: Write the failing test**
-
-```rust
-#[test]
-fn device_poll_maps_denied_and_expired_to_recoverable_errors() {
-    use crate::github::DevicePoll;
-    assert!(matches!(DevicePoll::from_error("access_denied"), DevicePoll::Denied));
-    assert!(matches!(DevicePoll::from_error("expired_token"), DevicePoll::Expired));
-    assert!(matches!(DevicePoll::from_error("authorization_pending"), DevicePoll::Pending));
-}
-```
-
-- [ ] **Step 2: Run to verify it fails**
-
-Run: `cargo test -p sigrun-desktop github`
-Expected: FAIL — module not found.
-
-- [ ] **Step 3: Implement**
-
-`github.rs`: a `DeviceFlow` client (no secrets logged; the client id is a public constant for Sigrun's registered OAuth App, scoped to `write:public_key` minimum). `from_error` maps GitHub's `error` field to a `DevicePoll` state. The wizard view: start device flow → show `user_code` + a button opening `verification_uri` → poll on the returned interval → on success, generate a key (`generate_key`), upload `public_openssh` via `POST /user/keys`, then verify with `connect` to `github.com` (TOFU via Task 7). Denied/expired/network errors render a retry/abort message. Note for the implementer: the OAuth App + client id must be registered on the GitHub org — mark the constant `GITHUB_CLIENT_ID` with a `// TODO(owner): register Sigrun OAuth App` if it is a placeholder.
-
-- [ ] **Step 4: Run tests**
-
-Run: `cargo test -p sigrun-desktop github && (cd apps/desktop && npm test -- --run wizard && npm run typecheck)`.
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add apps/desktop
-git commit -m "feat(wizard): GitHub SSH-key setup via OAuth device flow"
-```
-
----
-
-### Task 9: Installer release workflow
+### Task 8: Installer release workflow
 
 **Files:**
 - Create: `.github/workflows/release.yml`
@@ -463,7 +417,7 @@ Expected: actionlint clean; release build succeeds.
 
 - [ ] **Step 3: Update the changelog**
 
-Add the desktop app, themes, i18n, wizard, and installers to `CHANGELOG.md` under `## [Unreleased]` → `### Added`.
+Add the desktop app, themes, i18n, the tray, host-key trust, and installers to `CHANGELOG.md` under `## [Unreleased]` → `### Added`.
 
 - [ ] **Step 4: Commit**
 
@@ -476,7 +430,6 @@ git commit -m "ci(release): build and publish desktop installers on tag"
 
 ## Self-Review Notes
 
-- **Spec coverage:** window+tray (Tasks 1,2,7), themes (4), i18n (5), main UI (6), GitHub wizard (8), installers (9), host-as-app + single instance (2), TOFU (7). v2-only items (provisioning hardening, fingerprint, Gitea/Forgejo/Codeberg, auto-update) are intentionally out.
+- **Spec coverage:** window+tray (Tasks 1,2,7), themes (4), i18n (5), main UI (6), installers (8), host-as-app + single instance (2), TOFU (7). v2-only items (provisioning hardening, fingerprint, Gitea/Forgejo/Codeberg, auto-update) are intentionally out; the GitHub wizard is deferred pending a publisher-owned OAuth App.
 - **Type consistency:** commands reuse Plan 1's `Request`/`Response`; the frontend consumes `Response` variants by the adjacently-tagged shape (`{"type":…,"value":…}`) established in Plan 1.
 - **Review Focus:** each of the five has a test in its owning task (noted inline).
-- **Open dependency for the user:** the GitHub wizard needs a registered OAuth App and its `GITHUB_CLIENT_ID` before Task 8's wizard can run against the real GitHub (device flow). Flagged in Task 8 Step 3.
