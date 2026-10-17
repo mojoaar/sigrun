@@ -170,16 +170,29 @@ pub async fn list_terminals(state: St<'_>) -> CmdResult {
     list_terminals_inner(state.inner().clone()).await
 }
 #[tauri::command]
-pub async fn add_connection(state: St<'_>, conn: Connection) -> CmdResult {
-    add_connection_inner(state.inner().clone(), conn).await
+pub async fn add_connection(state: St<'_>, app: tauri::AppHandle, conn: Connection) -> CmdResult {
+    let st = state.inner().clone();
+    let out = add_connection_inner(st.clone(), conn).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 #[tauri::command]
-pub async fn update_connection(state: St<'_>, conn: Connection) -> CmdResult {
-    update_connection_inner(state.inner().clone(), conn).await
+pub async fn update_connection(
+    state: St<'_>,
+    app: tauri::AppHandle,
+    conn: Connection,
+) -> CmdResult {
+    let st = state.inner().clone();
+    let out = update_connection_inner(st.clone(), conn).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 #[tauri::command]
-pub async fn remove_connection(state: St<'_>, id: String) -> CmdResult {
-    remove_connection_inner(state.inner().clone(), id).await
+pub async fn remove_connection(state: St<'_>, app: tauri::AppHandle, id: String) -> CmdResult {
+    let st = state.inner().clone();
+    let out = remove_connection_inner(st.clone(), id).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");

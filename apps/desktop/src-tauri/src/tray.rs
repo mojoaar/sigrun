@@ -235,9 +235,18 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
         tauri::image::Image::from_bytes(TRAY_LIGHT)?
     };
     let is_template = cfg!(target_os = "macos");
+    // Attach a locked-shape menu up front: the async sync fills in the real one,
+    // and on Linux the icon is not always shown until a menu is set.
+    let language = state
+        .store
+        .load_settings()
+        .map(|s| s.language)
+        .unwrap_or_else(|_| "en".to_string());
+    let initial = tray_menu_model(&[], false, &labels(&language), cfg!(target_os = "linux"));
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(tray_icon)
         .icon_as_template(is_template)
+        .menu(&build_menu(app, &initial)?)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};

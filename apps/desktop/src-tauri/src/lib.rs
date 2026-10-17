@@ -78,9 +78,11 @@ pub fn run() {
                         }
                         let unlocked = tray::is_unlocked(&st).await;
                         if last_unlocked != Some(unlocked) {
-                            last_unlocked = Some(unlocked);
-                            if let Err(e) = tray::sync_tray_now(&handle, &st).await {
-                                eprintln!("sigrun: could not update the tray: {e}");
+                            // Only remember the state once the tray really has it,
+                            // so a failed sync is retried on the next tick.
+                            match tray::sync_tray_now(&handle, &st).await {
+                                Ok(()) => last_unlocked = Some(unlocked),
+                                Err(e) => eprintln!("sigrun: could not update the tray: {e}"),
                             }
                         }
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
