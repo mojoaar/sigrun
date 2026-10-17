@@ -56,6 +56,23 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// A read-only connection adopted from a discovered `~/.ssh/config` host.
+    /// No Sigrun `key_id` on purpose: plain `ssh` still honors the user's own
+    /// config (including `IdentityFile`).
+    pub fn from_ssh_host(host: &super::ssh_config::SshHost, id: String) -> Self {
+        Self {
+            id,
+            label: host.alias.clone(),
+            host: host.host_name.clone(),
+            user: host.user.clone().unwrap_or_default(),
+            port: host.port.unwrap_or(22),
+            key_id: None,
+            group: None,
+            tags: Vec::new(),
+            source: ConnectionSource::Discovered,
+        }
+    }
+
     /// A new managed connection pointing at `label` with SSH defaults.
     pub fn managed(id: impl Into<String>, label: impl Into<String>) -> Self {
         let (id, label) = (id.into(), label.into());
