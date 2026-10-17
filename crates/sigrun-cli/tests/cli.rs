@@ -101,8 +101,11 @@ fn provision_reaches_the_host_without_leaking_the_password() {
         .stderr(predicate::str::contains("hunter2").not());
 }
 
+// `--force` must parse, and a host error must surface as `code: message`.
+// `bogus` is resolved by the host (not by `resolve_connection`, which passes an
+// unknown arg through), so this also proves no reachability probe ran first.
 #[test]
-fn connect_with_force_still_resolves_the_connection_first() {
+fn connect_with_force_parses_and_surfaces_a_host_error() {
     let dir = tempfile::tempdir().unwrap();
     let (mut host, sock) = spawn_host(dir.path());
     wait_until_succeeds(|| {
@@ -126,7 +129,7 @@ fn connect_with_force_still_resolves_the_connection_first() {
         .args(["connections", "connect", "bogus", "--force"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not_found"));
+        .stderr(predicate::str::contains("not_found: not found: bogus"));
 
     host.kill().unwrap();
     host.wait().unwrap();

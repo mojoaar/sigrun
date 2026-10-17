@@ -405,9 +405,6 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
             match resp {
                 Response::Command(cmd) => println!("{cmd}"),
                 Response::Ok => println!("connection launched"),
-                // Surface the host's code: `unreachable` and friends would
-                // otherwise collapse into a useless "unexpected response".
-                Response::Error { code, message } => anyhow::bail!("{code}: {message}"),
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }
