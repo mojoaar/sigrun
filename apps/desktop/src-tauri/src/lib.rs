@@ -58,12 +58,14 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
-            // Tell the UI when the idle auto-lock fires, so it re-gates.
+            // Tell the UI when the idle auto-lock fires, so it re-gates, and keep
+            // the tray menu in step with the vault state (the CLI can change it).
             {
                 use tauri::Emitter;
                 let handle = app.handle().clone();
                 let st = state.clone();
                 tauri::async_runtime::spawn(async move {
+                    let mut last_unlocked = None;
                     loop {
                         if st.shutdown.is_cancelled() {
                             return;
@@ -73,6 +75,15 @@ pub fn run() {
                             .swap(false, std::sync::atomic::Ordering::Relaxed)
                         {
                             let _ = handle.emit("vault-locked", ());
+                        }
+                        let unlocked = tray::is_unlocked(&st).await;
+                        if last_unlocked != Some(unlocked) {
+                            // Only remember the state once the tray really has it,
+                            // so a failed sync is retried on the next tick.
+                            match tray::sync_tray_now(&handle, &st).await {
+                                Ok(()) => last_unlocked = Some(unlocked),
+                                Err(e) => eprintln!("sigrun: could not update the tray: {e}"),
+                            }
                         }
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     }
@@ -84,6 +95,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Sigrun")
         .run(|app_handle, event| {
+            // Clicking the dock icon with no visible window reopens it on macOS.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_main(app_handle);
+            }
             if matches!(
                 event,
                 tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit

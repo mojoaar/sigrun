@@ -87,6 +87,12 @@
     "cancel": "Annullér",
     "mismatch": "Advarsel: værtens fingeraftryk er ændret. Det kan være et man-in-the-middle-angreb."
   },
+  "tray": {
+    "open": "Åbn Sigrun",
+    "quit": "Afslut",
+    "unlock": "Lås Sigrun op…",
+    "discovered": "Fundet automatisk"
+  },
   "common": {
     "save": "Gem",
     "cancel": "Annullér",

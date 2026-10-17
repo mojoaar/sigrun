@@ -33,11 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-key provisioning: install several vault keys on a connection over password authentication, verifying each key by logging in with it.
 - Per-connection password-auth hardening (`--disable-password-auth`), with backup and rollback and a no-sudo skip.
 - The CLI `connections provision` subcommand, with repeatable `--key` and `--password-stdin`.
+- Tray connect menu groups connections by their group, lists `~/.ssh/config` hosts under "Discovered", and shows no connections while the vault is locked.
 
 ### Fixed
 
 - Keys view and the connection key-select no longer blank the app (the flattened `KeyView` wire shape is re-nested; views are wrapped in an error boundary).
 - Void commands (`vault lock`, `vault init`, removals, host trust) now actually run — the response unwrap no longer rejects a payload-less `Ok`.
+- Clicking the dock icon with the window hidden now reopens it on macOS.
+- Tray labels follow the app language instead of always being English, and tray left-click shows the app when the vault is locked instead of toggling the window.
 - The dock shows `Sigrun`, not `sigrun-desktop`.
 
 ### Notes
