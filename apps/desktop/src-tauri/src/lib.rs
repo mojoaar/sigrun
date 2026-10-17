@@ -1,5 +1,6 @@
 mod commands;
 mod host;
+mod tray;
 
 use tauri::Manager;
 
@@ -21,6 +22,7 @@ pub fn run() {
             commands::update_connection,
             commands::remove_connection,
             commands::connect,
+            commands::trust_host,
             commands::list_keys,
             commands::generate_key,
             commands::import_key,
@@ -31,7 +33,8 @@ pub fn run() {
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;
             let state = tauri::async_runtime::block_on(host::start_host(paths))?;
-            app.manage(state);
+            app.manage(state.clone());
+            tray::build_tray(app.handle(), state)?;
             Ok(())
         })
         .build(tauri::generate_context!())

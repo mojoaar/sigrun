@@ -50,6 +50,9 @@ export const updateConnection = (conn: Connection) => call<void>("update_connect
 export const removeConnection = (id: string) => call<void>("remove_connection", { id });
 export const connect = (id: string, printOnly = false) =>
   call<string | undefined>("connect", { id, printOnly }).then((v) => (printOnly ? v : undefined));
+export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false });
+export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>
+  call<void>("trust_host", { host, port, algo, keyB64 });
 export const listKeys = () => call<KeyView[]>("list_keys");
 export const generateKey = (name: string, algorithm: KeyAlgorithm, passphrase?: string) =>
   call<void>("generate_key", { name, algorithm, passphrase: passphrase || null });

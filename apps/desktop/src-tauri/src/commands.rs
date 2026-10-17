@@ -4,6 +4,7 @@ use serde::Serialize;
 use sigrun_core::host::{handle, HostState};
 use sigrun_core::ipc::protocol::{Request, Response};
 use sigrun_core::model::{Connection, KeyAlgorithm, Settings};
+use sigrun_core::trust::{self, TrustStatus};
 use tauri::State;
 
 #[derive(Debug, Serialize)]
@@ -146,9 +147,91 @@ pub async fn update_connection(state: St<'_>, conn: Connection) -> CmdResult {
 pub async fn remove_connection(state: St<'_>, id: String) -> CmdResult {
     remove_connection_inner(state.inner().clone(), id).await
 }
+async fn probe_host_key(host: &str, port: u16) -> Option<(String, String)> {
+    let mut cmd = tokio::process::Command::new("ssh-keyscan");
+    cmd.args([
+        "-p",
+        &port.to_string(),
+        "-T",
+        "5",
+        "-t",
+        "ed25519,ecdsa,rsa",
+        "--",
+        host,
+    ])
+    .stdin(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .kill_on_drop(true);
+    let out = tokio::time::timeout(std::time::Duration::from_secs(5), cmd.output())
+        .await
+        .ok()?
+        .ok()?;
+    parse_keyscan(&String::from_utf8_lossy(&out.stdout))
+}
+
+fn parse_keyscan(out: &str) -> Option<(String, String)> {
+    let line = out
+        .lines()
+        .find(|l| !l.trim().is_empty() && !l.starts_with('#'))?;
+    let mut p = line.split_whitespace();
+    let (_, algo, key) = (p.next()?, p.next()?, p.next()?);
+    Some((algo.to_string(), key.to_string()))
+}
+
+async fn check_trust(state: &HostState, host: &str, port: u16) -> Result<(), CommandError> {
+    let Some((algo, key)) = probe_host_key(host, port).await else {
+        eprintln!("sigrun: host-key probe unavailable; skipping trust check");
+        return Ok(());
+    };
+    let kh = state.paths.data_dir.join("known_hosts");
+    match trust::check(&kh, host, port, &algo, &key).map_err(config_err)? {
+        TrustStatus::Trusted => Ok(()),
+        TrustStatus::Unknown => Err(CommandError {
+            code: "host_key_unknown".into(),
+            message: format!(
+                "{} {algo} {key}",
+                trust::fingerprint(&algo, &key).unwrap_or_else(|| "unknown".into())
+            ),
+        }),
+        TrustStatus::Mismatch => Err(CommandError {
+            code: "host_key_mismatch".into(),
+            message: format!(
+                "{} {algo} {key}",
+                trust::fingerprint(&algo, &key).unwrap_or_else(|| "unknown".into())
+            ),
+        }),
+    }
+}
+
+/// Connect after the TOFU host-key check. `print_only` contacts nothing, so it skips it.
+pub async fn connect_guarded(state: Arc<HostState>, id: String, print_only: bool) -> CmdResult {
+    if !print_only {
+        let conns = match list_connections_inner(state.clone()).await? {
+            Response::Connections(c) => c,
+            _ => Vec::new(),
+        };
+        if let Some(c) = conns.iter().find(|c| c.id == id) {
+            check_trust(&state, &c.host, c.port).await?;
+        }
+    }
+    connect_inner(state, id, print_only).await
+}
+
 #[tauri::command]
 pub async fn connect(state: St<'_>, id: String, print_only: bool) -> CmdResult {
-    connect_inner(state.inner().clone(), id, print_only).await
+    connect_guarded(state.inner().clone(), id, print_only).await
+}
+#[tauri::command]
+pub async fn trust_host(
+    state: St<'_>,
+    host: String,
+    port: u16,
+    algo: String,
+    key_b64: String,
+) -> CmdResult {
+    let kh = state.paths.data_dir.join("known_hosts");
+    trust::record(&kh, &host, port, &algo, &key_b64).map_err(config_err)?;
+    Ok(Response::Ok)
 }
 #[tauri::command]
 pub async fn list_keys(state: St<'_>) -> CmdResult {
@@ -187,6 +270,16 @@ pub async fn save_settings(state: St<'_>, settings: Settings) -> CmdResult {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn parses_keyscan_output() {
+        let out = "# h:22 SSH-2.0-x\nh ssh-ed25519 AAAA\n";
+        assert_eq!(
+            super::parse_keyscan(out),
+            Some(("ssh-ed25519".into(), "AAAA".into()))
+        );
+        assert_eq!(super::parse_keyscan("# only comment\n"), None);
+    }
+
     #[tokio::test]
     async fn vault_unlock_roundtrip_through_commands() {
         let dir = tempfile::tempdir().unwrap();

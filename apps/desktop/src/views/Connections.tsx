@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { addConnection, connect, listConnections, listKeys, removeConnection, updateConnection, type CommandError, type Connection, type KeyView } from "../api";
+import { addConnection, connectGuarded, listConnections, listKeys, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "w-full rounded border border-border bg-bg px-2 py-1 text-text";
@@ -50,6 +50,8 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
   const [error, setError] = useState(false);
+  const [trust, setTrust] = useState<{ conn: Connection; fp: string; algo: string; key: string } | null>(null);
+  const [mismatch, setMismatch] = useState(false);
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -62,6 +64,27 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
   }, [handle]);
   useEffect(refresh, [refresh]);
 
+  const doConnect = (c: Connection) =>
+    connectGuarded(c.id).catch((err: unknown) => {
+      const e = err as CommandError;
+      if (e?.code === "host_key_unknown") {
+        const [fp, algo, key] = e.message.split(" ");
+        setTrust({ conn: c, fp, algo, key });
+      } else if (e?.code === "host_key_mismatch") setMismatch(true);
+      else handle(err);
+    });
+  const accept = async () => {
+    if (!trust) return;
+    const { conn, algo, key } = trust;
+    setTrust(null);
+    try {
+      await trustHost(conn.host, conn.port, algo, key);
+      await doConnect(conn);
+    } catch (err) {
+      handle(err);
+    }
+  };
+
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -69,13 +92,25 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
         <button className="rounded bg-accent px-3 py-1 text-bg" onClick={() => setForm({ edit: null })}>{t("connections.add")}</button>
       </div>
       {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+      {mismatch && <p role="alert" className="text-danger">{t("trust.mismatch")}</p>}
+      {trust && (
+        <div role="dialog" aria-label={t("trust.title")} className="rounded border border-border bg-surface p-3">
+          <h3 className="font-semibold">{t("trust.title")}</h3>
+          <p>{t("trust.body")}</p>
+          <p>{t("trust.fingerprint")}: <code>{trust.fp}</code></p>
+          <div className="flex gap-2">
+            <button onClick={() => setTrust(null)}>{t("trust.cancel")}</button>
+            <button className="rounded bg-accent px-3 py-1 text-bg" onClick={accept}>{t("trust.accept")}</button>
+          </div>
+        </div>
+      )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {conns.map((c) => (
           <ConnectionRow
             key={c.id}
             conn={c}
-            onConnect={() => connect(c.id, false).catch(handle)}
+            onConnect={() => { setMismatch(false); void doConnect(c); }}
             onEdit={() => setForm({ edit: c })}
             onRemove={() => { if (window.confirm(t("connections.removeConfirm"))) removeConnection(c.id).then(refresh).catch(handle); }}
           />
