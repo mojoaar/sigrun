@@ -91,21 +91,33 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
     Ok(argv)
 }
 
+/// Build the `Unreachable` error for a failed probe, keeping the OS message for
+/// every failure except a plain refusal (where the concise wording is enough).
+fn probe_failure(host: &str, port: u16, err: Option<&std::io::Error>) -> Error {
+    Error::Unreachable(match err {
+        None => format!("could not resolve {host}"),
+        Some(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+            format!("connection refused on {host}:{port}")
+        }
+        Some(e) => format!("cannot reach {host}:{port}: {e}"),
+    })
+}
+
 /// Check that a TCP connection to `host:port` can be established within
 /// `timeout`. Carries no secret: the message names host and port only.
 pub async fn probe_reachable(host: &str, port: u16, timeout: std::time::Duration) -> Result<()> {
     let attempt = async {
         let addrs = tokio::net::lookup_host((host, port))
             .await
-            .map_err(|_| Error::Unreachable(format!("could not resolve {host}")))?;
+            .map_err(|e| probe_failure(host, port, Some(&e)))?;
+        let mut last_error = None;
         for addr in addrs {
-            if tokio::net::TcpStream::connect(addr).await.is_ok() {
-                return Ok(());
+            match tokio::net::TcpStream::connect(addr).await {
+                Ok(_) => return Ok(()),
+                Err(e) => last_error = Some(e),
             }
         }
-        Err(Error::Unreachable(format!(
-            "connection refused on {host}:{port}"
-        )))
+        Err(probe_failure(host, port, last_error.as_ref()))
     };
     match tokio::time::timeout(timeout, attempt).await {
         Ok(result) => result,
@@ -437,6 +449,21 @@ mod tests {
     }
 
     #[test]
+    fn probe_failures_keep_the_os_error() {
+        let denied = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "not permitted");
+        let Error::Unreachable(m) = probe_failure("h", 22, Some(&denied)) else {
+            panic!("expected unreachable");
+        };
+        assert_eq!(m, "cannot reach h:22: not permitted");
+
+        let refused = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
+        let Error::Unreachable(m) = probe_failure("h", 22, Some(&refused)) else {
+            panic!("expected unreachable");
+        };
+        assert_eq!(m, "connection refused on h:22");
+    }
+
+    #[test]
     fn ssh_invocation_uses_port_and_disk_key() {
         let mut c = Connection::managed("id", "web");
         c.host = "example.com".into();
@@ -520,13 +547,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
-        let script = specs[0].args.join("\n");
+        let script = &specs[0].args[3];
         assert!(
             script.contains("create tab with default profile"),
             "script was {script:?}"
         );
         assert!(
-            script.contains("create window with default profile"),
+            script.contains("(count of windows) is 0"),
             "script was {script:?}"
         );
     }

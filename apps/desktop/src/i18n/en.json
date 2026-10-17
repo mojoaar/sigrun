@@ -29,7 +29,6 @@
     "connect": "Connect",
     "unreachable": "Host is not reachable",
     "connectAnyway": "Connect anyway",
-    "copyCommand": "Copy SSH command",
     "label": "Label",
     "host": "Host",
     "user": "User",
@@ -56,7 +55,7 @@
   },
   "provision": {
     "title": "Install SSH key",
-    "body": "Install one of your vault keys on this server using its password.",
+    "body": "Install one of your vault or disk keys on this server using its password.",
     "password": "Password",
     "selectKeys": "Keys to install",
     "diskKeys": "Keys on disk",

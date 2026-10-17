@@ -187,9 +187,9 @@ you select into the vault first.
 - `Include` is not followed when parsing `ssh_config`.
 - The reachability probe is a plain TCP connect, so it can report a host as
   unreachable when it is only reachable through a VPN or an `~/.ssh/config`
-  ProxyJump. It runs before any terminal opens and reports the failure as an
-  error; it does not prevent connecting — choose **Connect anyway** (CLI:
-  `--force`) to open the terminal regardless.
+  ProxyJump. It runs before a terminal opens from the app's **Connect** action
+  and offers **Connect anyway** (CLI: `--force`) rather than blocking; the
+  tray/menu-bar connect skips the check.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served

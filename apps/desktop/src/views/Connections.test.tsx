@@ -316,4 +316,26 @@ describe("Connections", () => {
     expect(api.importKey).toHaveBeenCalledTimes(1);
     expect(api.provisionConnection).toHaveBeenLastCalledWith("c1", "pw", ["k-new"], false);
   });
+
+  it("shows the import error and never provisions when a disk key needs a passphrase", async () => {
+    vi.mocked(api.provisionConnection).mockClear();
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([
+      { key: { ...diskKey.key, has_passphrase: true }, available: true },
+    ]);
+    vi.mocked(api.importKey).mockReset().mockRejectedValueOnce({ code: "invalid_input", message: "key is encrypted; a passphrase is required" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "laptop" }));
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install/i }));
+
+    const alert = await within(panel).findByRole("alert");
+    expect(alert.textContent).toContain("key is encrypted; a passphrase is required");
+    expect(api.provisionConnection).not.toHaveBeenCalled();
+  });
 });

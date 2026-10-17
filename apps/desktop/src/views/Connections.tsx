@@ -5,7 +5,8 @@ import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
-// Mirrors tray_menu_model: blank groups are ungrouped, groups and labels sorted.
+// Same grouping rules as tray_menu_model (blank groups are ungrouped), but
+// sorted case-insensitively for the UI.
 export function groupConnections(conns: Connection[]): { group: string | null; items: Connection[] }[] {
   const loose: Connection[] = [];
   const groups = new Map<string, Connection[]>();

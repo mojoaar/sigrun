@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray connect menu groups connections by their group, lists `~/.ssh/config` hosts under "Discovered", and shows no connections while the vault is locked.
 - The Connections list shows one section per group (the tray menu groups connections too).
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
-- A host that is unreachable is reported before a terminal opens, with "Connect anyway".
+- The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect skips the check.
 - iTerm opens a tab in the current window.
 
 ### Fixed
