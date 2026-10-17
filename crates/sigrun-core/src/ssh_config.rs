@@ -1,6 +1,6 @@
 //! Read-only parsing of `~/.ssh/config` hosts. Sigrun never writes to it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::error::Result;
@@ -28,6 +28,7 @@ pub fn parse_ssh_config(text: &str) -> Vec<SshHost> {
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut current: Vec<usize> = Vec::new();
     let mut after_match = false;
+    let mut explicit_hostname: HashSet<String> = HashSet::new();
 
     for raw in text.lines() {
         let line = raw.split('#').next().unwrap_or_default().trim();
@@ -77,7 +78,7 @@ pub fn parse_ssh_config(text: &str) -> Vec<SshHost> {
             _ if after_match || current.is_empty() => {}
             _ => {
                 for &i in &current {
-                    apply_option(&mut hosts[i], &key, &value);
+                    apply_option(&mut hosts[i], &key, &value, &mut explicit_hostname);
                 }
             }
         }
@@ -86,13 +87,22 @@ pub fn parse_ssh_config(text: &str) -> Vec<SshHost> {
 }
 
 /// Record an option into a host slot, keeping only the first value per field.
-fn apply_option(host: &mut SshHost, key: &str, value: &str) {
+fn apply_option(
+    host: &mut SshHost,
+    key: &str,
+    value: &str,
+    explicit_hostname: &mut HashSet<String>,
+) {
     if value.is_empty() {
         return;
     }
     match key {
-        // An alias-equal HostName means "not explicitly set yet".
-        "hostname" if host.host_name == host.alias => host.host_name = value.to_string(),
+        // Explicit `HostName` wins only once; the alias default must not make
+        // a later block think the first block's value was unset.
+        "hostname" if !explicit_hostname.contains(&host.alias) => {
+            explicit_hostname.insert(host.alias.clone());
+            host.host_name = value.to_string();
+        }
         "user" if host.user.is_none() => host.user = Some(value.to_string()),
         "port" if host.port.is_none() => host.port = value.parse().ok(),
         "identityfile" if host.identity_file.is_none() => {
@@ -198,6 +208,17 @@ Host db
         assert_eq!(hosts.len(), 2);
         assert_eq!(hosts[0].user, None);
         assert_eq!(hosts[1].user.as_deref(), Some("bob"));
+    }
+
+    #[test]
+    fn explicit_hostname_equal_to_alias_beats_later_block() {
+        // First block's explicit HostName equals its alias; the alias
+        // default must not make the second block overwrite it.
+        let text =
+            "Host github.com\n  HostName github.com\nHost github.com\n  HostName 192.168.1.5\n";
+        let hosts = parse_ssh_config(text);
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].host_name, "github.com");
     }
 
     #[test]
