@@ -152,10 +152,13 @@ mod tests {
     #[test]
     fn with_roots_builds_expected_files() {
         let p = Paths::with_roots("/c".into(), "/d".into(), "/h/.ssh".into());
-        assert_eq!(p.settings_file(), PathBuf::from("/c/settings.toml"));
-        assert_eq!(p.data_file(), PathBuf::from("/d/data.toml"));
-        assert_eq!(p.vault_file(), PathBuf::from("/d/vault.json"));
-        assert_eq!(p.lock_file(), PathBuf::from("/d/data.lock"));
+        // Join expected file names onto the roots so the separator is
+        // platform-neutral (Windows joins with `\`).
+        let (c, d) = (PathBuf::from("/c"), PathBuf::from("/d"));
+        assert_eq!(p.settings_file(), c.join("settings.toml"));
+        assert_eq!(p.data_file(), d.join("data.toml"));
+        assert_eq!(p.vault_file(), d.join("vault.json"));
+        assert_eq!(p.lock_file(), d.join("data.lock"));
     }
 
     #[test]
