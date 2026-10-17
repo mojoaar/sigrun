@@ -13,10 +13,41 @@ in `~/.ssh`, serves vault-backed keys to `ssh` through an in-process OpenSSH
 agent, and launches connections — replacing scattered `~/.ssh` bookkeeping with
 one tool that works the same on macOS, Linux, and Windows.
 
+It has three faces that share one vault: a **desktop app** (window + system
+tray), a **CLI** (`sigrun`), and a long-lived host that owns the vault, the
+agent, and the local IPC they both talk to.
+
 ## Requirements
 
-- Rust 1.85 or newer
+- Rust 1.85 or newer (plus Node 22+ to build the desktop app)
 - macOS, Linux, or Windows
+
+## The desktop app
+
+The app is the long-lived host: it owns the vault, agent, and IPC, runs as a
+single instance, and closing the window minimizes it to the tray — quitting is
+explicit, from the tray menu.
+
+```bash
+cd apps/desktop && npm run tauri dev
+```
+
+On first run it asks you to create the vault (choose a master passphrase). From
+there you can manage connections and keys, and connect — which opens your
+terminal with `ssh` running.
+
+- **Tray:** a connection menu to connect directly, plus Open and Quit.
+  Left-clicking the tray icon shows or hides the window.
+- **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
+  and dark, following the OS by default with an override.
+- **i18n:** English and Danish.
+- **Settings:** appearance, language, terminal, "start minimized to tray", and
+  an idle **auto-lock** for the vault (default 30 minutes; 0 disables it).
+
+The **terminal** for connect is auto-detected: Settings lists the launchable
+terminals actually installed (Terminal, iTerm, Ghostty, kitty, Alacritty,
+WezTerm on macOS; the known terminals on Linux and Windows), or "System
+default" to use the OS fallback order.
 
 ## Install
 
@@ -26,13 +57,14 @@ Build from source:
 cargo build --release
 ```
 
-The `sigrun` binary lands at `target/release/sigrun`.
+The `sigrun` binary lands at `target/release/sigrun`. Installers (macOS, Linux,
+Windows) are produced by pushing a `v*` tag.
 
-## Quick start
+## Quick start (CLI)
 
-Run the host first, in its own terminal. It is the long-lived process that owns
-the vault, the agent, and the IPC socket that every other `sigrun` command talks
-to.
+The CLI talks to the running host (the desktop app, or a headless `sigrun
+host`). To run headless, start the host in its own terminal — it owns the
+vault, the agent, and the IPC socket every other `sigrun` command talks to.
 
 ```bash
 # Terminal 1 — the long-lived host (leave it running)
@@ -73,6 +105,8 @@ Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
   modifies, or deletes anything there.
 - The vault is encrypted with Argon2id (key derivation) and XChaCha20-Poly1305
   (authenticated encryption). It is written at `0600` with an atomic replace.
+- The vault auto-locks after an idle timeout (default 30 minutes), clearing the
+  agent; it can be changed or disabled in Settings.
 - No telemetry, no cloud, no network calls. Everything stays on your machine.
 
 ## Current limitations
@@ -81,7 +115,6 @@ Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
   The `ssh` inside that terminal still verifies the host against your own
   `~/.ssh/known_hosts`; Sigrun does not override it. The pre-flight probe is
   skipped if `ssh-keyscan` is missing or fails.
-- Desktop app: run with `cd apps/desktop && npm run tauri dev`. Closing the window minimizes to the tray; quit explicitly from the tray menu. Installers are produced by pushing a `v*` tag.
 - `Include` is not followed when parsing `ssh_config`.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
