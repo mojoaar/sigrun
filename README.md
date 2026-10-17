@@ -112,6 +112,12 @@ imported (`sigrun keys import ~/.ssh/id_ed25519 --name personal`). Sigrun needs
 the private key to verify the install, and it will not copy a key out of
 `~/.ssh`.
 
+The CLI has no way to record a first-seen host key. `sigrun connections
+provision` therefore works only for a host Sigrun already trusts: trust it
+first from the desktop app's Connect flow (where the fingerprint is shown and
+confirmed), or add the line to Sigrun's `known_hosts` manually. This is a known
+limitation.
+
 `--disable-password-auth` turns password login off on the server after the keys
 are verified. This will lock you out if key login fails, so make sure key login
 works first.

@@ -105,7 +105,28 @@ describe("Connections", () => {
 
     await waitFor(() => expect(api.trustHost).toHaveBeenCalledWith("h", 22, "ssh-ed25519", "AAAA"));
     await waitFor(() => expect(api.provisionConnection).toHaveBeenCalledTimes(2));
+    // The retry must reuse the typed password and the fingerprint parsed off the wire.
+    expect(api.provisionConnection).toHaveBeenLastCalledWith("c1", "pw", ["k1"], false);
     expect((await screen.findByRole("status")).textContent).toMatch(/sudo is not available/);
+  });
+
+  it("does not persist the flag when hardening was skipped", async () => {
+    vi.mocked(api.updateConnection).mockClear();
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.provisionConnection).mockResolvedValue({ installed: ["work"], verified: ["work"], hardening: { skipped: "sudo is not available" } });
+    render(<Connections onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByLabelText(/disable password auth/i));
+    fireEvent.click(within(panel).getByRole("button", { name: /install ssh key/i }));
+
+    await waitFor(() => expect(api.updateConnection).toHaveBeenCalled());
+    expect(api.updateConnection).toHaveBeenLastCalledWith(expect.objectContaining({ id: "c1", disable_password_auth: false }));
   });
 
   it("ignores a disk key_id when preselecting vault keys", async () => {

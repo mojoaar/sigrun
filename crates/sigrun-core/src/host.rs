@@ -470,11 +470,13 @@ async fn connections_provision(
                     "import the key into the vault to provision it".into(),
                 ));
             }
-            let Some(Secret::PrivateKey { pem, passphrase }) = vault.get(key_id) else {
-                return Err(Error::NotFound(key_id.clone()));
+            let (pem, passphrase) = match vault.get(key_id) {
+                Some(Secret::PrivateKey { pem, passphrase }) => (
+                    Zeroizing::new(pem.clone()),
+                    passphrase.as_ref().map(|p| Zeroizing::new(p.clone())),
+                ),
+                _ => return Err(Error::NotFound(key_id.clone())),
             };
-            let pem = Zeroizing::new(pem.clone());
-            let passphrase = passphrase.clone().map(Zeroizing::new);
             let private_pem = tokio::task::spawn_blocking(move || {
                 decrypt_pem(&pem, passphrase.as_ref().map(|p| p.as_str()))
             })

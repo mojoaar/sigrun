@@ -97,10 +97,13 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
     const pw = password;
     try {
       const outcome = await provisionConnection(conn.id, pw, keyIds, disable);
-      onDone(outcome, disable);
+      // A skipped or unrequested hardening leaves sshd as it was, so it must not
+      // be recorded as if password auth were off.
+      const persisted = outcome.hardening === "applied" ? disable : conn.disable_password_auth;
+      onDone(outcome, persisted);
       // Persisted after the install is reported, so a failure here cannot hide it.
       try {
-        await updateConnection({ ...conn, disable_password_auth: disable });
+        await updateConnection({ ...conn, disable_password_auth: persisted });
       } catch (err) {
         onError(err);
       }

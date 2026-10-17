@@ -147,7 +147,7 @@ pub fn authorized_keys_script(keys: &[String]) -> Result<String> {
         "set -e\numask 077\nmkdir -p \"$HOME/.ssh\"\nchmod 700 \"$HOME/.ssh\"\n\
          touch \"$HOME/.ssh/authorized_keys\"\nchmod 600 \"$HOME/.ssh/authorized_keys\"\n\
          if [ -s \"$HOME/.ssh/authorized_keys\" ] && [ -n \"$(tail -c1 \"$HOME/.ssh/authorized_keys\")\" ]; then echo >> \"$HOME/.ssh/authorized_keys\"; fi\n\
-         add() { grep -qxF -- \"$1\" \"$HOME/.ssh/authorized_keys\" || printf '%s\\n' \"$1\" >> \"$HOME/.ssh/authorized_keys\"; }\n",
+         add() { awk -v k=\"$1\" '($1\" \"$2)==k{found=1} END{exit !found}' \"$HOME/.ssh/authorized_keys\" || printf '%s\\n' \"$1\" >> \"$HOME/.ssh/authorized_keys\"; }\n",
     );
     for k in keys {
         // Normalized to `algo b64` (validated charset), so single quotes are safe.
@@ -386,10 +386,46 @@ mod tests {
         assert!(s.contains("chmod 600 \"$HOME/.ssh/authorized_keys\""));
         assert!(s.contains(&format!("add '{ed}'")));
         assert!(s.contains(&format!("add '{rsa}'")));
-        assert!(s.contains("grep -qxF -- \"$1\""));
+        assert!(s.contains("add() { awk -v k=\"$1\" '($1\" \"$2)==k{found=1} END{exit !found}'"));
+        assert!(s.contains("printf '%s\\n' \"$1\" >> \"$HOME/.ssh/authorized_keys\""));
         assert_eq!(s.matches("add '").count(), 2);
         assert!(s.contains("tail -c1"));
         assert!(s.contains("echo >> \"$HOME/.ssh/authorized_keys\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn script_does_not_duplicate_a_key_that_carries_a_comment() {
+        let dir = tempfile::tempdir().unwrap();
+        let ssh = dir.path().join(".ssh");
+        std::fs::create_dir_all(&ssh).unwrap();
+        let ed = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKKEEWQJy/IdduM5HglENeKuk+5Am8lcPpdlUdvxDWqq";
+        let rsa = "ssh-rsa AAAAB3NzaC1yc2EAAAABAwAAAAEF";
+        // An `ssh-copy-id` line: same key material, but with a trailing comment.
+        let existing = format!("{ed} me@laptop\n");
+        std::fs::write(ssh.join("authorized_keys"), &existing).unwrap();
+        let script = authorized_keys_script(&[ed.to_string(), rsa.to_string()]).unwrap();
+        let p = dir.path().join("install.sh");
+        std::fs::write(&p, script).unwrap();
+
+        let st = std::process::Command::new("sh")
+            .arg(&p)
+            .env("HOME", dir.path())
+            .status()
+            .unwrap();
+        assert!(st.success());
+
+        let out = std::fs::read_to_string(ssh.join("authorized_keys")).unwrap();
+        assert_eq!(out.matches(ed).count(), 1, "duplicate key line: {out}");
+        assert!(
+            out.starts_with(&existing),
+            "existing line was rewritten: {out}"
+        );
+        assert_eq!(
+            out.matches(rsa).count(),
+            1,
+            "new key was not added once: {out}"
+        );
     }
 
     #[test]
@@ -432,6 +468,28 @@ mod tests {
             .unwrap();
         let _ = std::fs::remove_file(&p);
         assert!(st.success());
+    }
+
+    #[tokio::test]
+    async fn untrusted_host_message_is_the_bare_fingerprint_triple() {
+        // The desktop UI splits this IPC message on spaces into (fp, algo, key),
+        // so a Display prefix would make it trust the wrong host key.
+        let dir = tempfile::tempdir().unwrap();
+        let generated = crate::keys::generate(crate::model::KeyAlgorithm::Ed25519, None).unwrap();
+        let pubkey = russh::keys::PublicKey::from_openssh(&generated.public_openssh).unwrap();
+        let mut gate = Gate {
+            known_hosts: dir.path().join("known_hosts"),
+            host: "example.com".into(),
+            port: 22,
+        };
+        let err = gate
+            .check_server_key(&pubkey.into())
+            .await
+            .expect_err("an unknown host key must be refused");
+        let msg = err.to_string();
+        assert_eq!(msg.split(' ').count(), 3, "not a bare triple: {msg}");
+        assert!(msg.starts_with("SHA256:"), "not a fingerprint: {msg}");
+        assert_eq!(error_code(&err), "host_key_unknown");
     }
 
     #[test]

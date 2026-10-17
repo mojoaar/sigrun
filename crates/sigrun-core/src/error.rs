@@ -36,9 +36,11 @@ pub enum Error {
     AlreadyRunning,
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
-    #[error("host key is not trusted: {0}")]
+    // Bare `<fingerprint> <algo> <key>`: the IPC `code` carries the meaning and
+    // the desktop UI splits the message on spaces, so a prefix would break it.
+    #[error("{0}")]
     HostKeyUnknown(String),
-    #[error("host key does not match known_hosts: {0}")]
+    #[error("{0}")]
     HostKeyMismatch(String),
     #[error("ssh error: {0}")]
     Ssh(#[from] russh::Error),
