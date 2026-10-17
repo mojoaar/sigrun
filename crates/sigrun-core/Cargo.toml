@@ -14,8 +14,10 @@ chacha20poly1305 = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 fs2 = { workspace = true }
+rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ssh-key = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 toml = { workspace = true }
