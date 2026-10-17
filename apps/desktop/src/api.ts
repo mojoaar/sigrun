@@ -13,6 +13,7 @@ export type Connection = {
   group: string | null;
   tags: string[];
   source: "managed" | "discovered";
+  disable_password_auth: boolean;
 };
 export type KeyMetadata = {
   id: string;
@@ -29,6 +30,8 @@ export type KeyMetadata = {
   created_at: string;
 };
 export type KeyView = { key: KeyMetadata; available: boolean };
+export type Hardening = "not_requested" | "applied" | { skipped: string };
+export type ProvisionOutcome = { installed: string[]; verified: string[]; hardening: Hardening };
 export type KeyAlgorithm = "ed25519" | "rsa" | "ecdsa";
 export type Settings = { version: number; theme: string; language: string; terminal: string | null; agent_enabled: boolean; start_minimized: boolean; auto_lock_minutes: number };
 export type TerminalInfo = { id: string; name: string };
@@ -57,6 +60,8 @@ export const connect = (id: string, printOnly = false) =>
 export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false });
 export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>
   call<void>("trust_host", { host, port, algo, keyB64 });
+export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>
+  call<ProvisionOutcome>("provision_connection", { id, password, keyIds, disablePasswordAuth });
 // Rust `KeyView` flattens `key` onto the wire; re-nest it for the UI.
 export const listKeys = async (): Promise<KeyView[]> => {
   const rows = await call<Array<KeyMetadata & { available: boolean }>>("list_keys");

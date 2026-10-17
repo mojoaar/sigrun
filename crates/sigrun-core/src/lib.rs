@@ -7,6 +7,7 @@ pub mod ipc;
 pub mod keys;
 pub mod model;
 pub mod paths;
+pub mod provision;
 pub mod ssh_config;
 pub mod store;
 pub mod terminal;

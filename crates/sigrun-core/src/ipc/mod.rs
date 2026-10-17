@@ -133,4 +133,52 @@ mod tests {
         .expect("handle timed out — the host lock deadlocked against the store lock");
         assert!(matches!(out, Response::Ok));
     }
+
+    #[tokio::test]
+    async fn provisioning_unknown_connection_is_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().join("ssh"));
+        let state = HostState::new(paths).await.unwrap();
+        let resp = handle(
+            &state,
+            Request::ConnectionsProvision {
+                id: "missing".into(),
+                password: "x".into(),
+                key_ids: vec![],
+                disable_password_auth: false,
+            },
+        )
+        .await;
+        match resp {
+            Response::Error { code, .. } => assert_eq!(code, "not_found"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn provisioning_a_locked_vault_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().join("ssh"));
+        let state = HostState::new(paths).await.unwrap();
+        let mut c = crate::model::Connection::managed("c1", "web");
+        c.host = "example.com".into();
+        c.user = "deploy".into();
+        state.store.upsert_connection(c).unwrap();
+        let resp = handle(
+            &state,
+            Request::ConnectionsProvision {
+                id: "c1".into(),
+                password: "x".into(),
+                key_ids: vec!["k1".into()],
+                disable_password_auth: false,
+            },
+        )
+        .await;
+        match resp {
+            Response::Error { code, .. } => assert_eq!(code, "vault_locked"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
 }

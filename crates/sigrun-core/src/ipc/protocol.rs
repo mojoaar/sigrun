@@ -34,6 +34,12 @@ pub enum Request {
         id: String,
         print_only: bool,
     },
+    ConnectionsProvision {
+        id: String,
+        password: String,
+        key_ids: Vec<String>,
+        disable_password_auth: bool,
+    },
     KeysList,
     KeysGenerate {
         name: String,
@@ -64,6 +70,7 @@ pub enum Response {
     Key(KeyView),
     Terminals(Vec<crate::terminal::TerminalInfo>),
     Command(String),
+    Provisioned(crate::provision::ProvisionOutcome),
     Unlocked { warnings: Vec<String> },
     Error { code: String, message: String },
 }
@@ -106,6 +113,9 @@ pub fn error_code(err: &Error) -> &'static str {
         Error::Config(_) => "invalid_config",
         Error::AlreadyRunning => "already_running",
         Error::Ipc(_) => "ipc",
+        Error::HostKeyUnknown(_) => "host_key_unknown",
+        Error::HostKeyMismatch(_) => "host_key_mismatch",
+        Error::Ssh(_) => "ssh",
         _ => "internal",
     }
 }

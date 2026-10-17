@@ -7,6 +7,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use sigrun_core::ipc::{Request, Response};
 use sigrun_core::model::{Connection, ConnectionSource, KeyAlgorithm, KeySource, KeyView};
 use sigrun_core::paths::Paths;
+use sigrun_core::provision::Hardening;
 use sigrun_core::vault::VaultStatus;
 
 use crate::client;
@@ -110,6 +111,21 @@ pub enum ConnectionsCommand {
         #[arg(long)]
         print: bool,
     },
+    /// Install keys on a connection, resolved by id or label.
+    ///
+    /// Key ids come from `sigrun keys list`. The password is read from stdin
+    /// with `--password-stdin`, or prompted for; it never appears on argv.
+    Provision {
+        id_or_label: String,
+        /// Key id to install; repeat for several keys.
+        #[arg(long)]
+        key: Vec<String>,
+        /// After installing, disable password authentication on the server.
+        #[arg(long)]
+        disable_password_auth: bool,
+        #[arg(long)]
+        password_stdin: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -198,7 +214,8 @@ async fn vault(socket: &Option<PathBuf>, cmd: VaultCommand) -> anyhow::Result<()
     let addr = resolve_addr(socket)?;
     match cmd {
         VaultCommand::Init { passphrase_stdin } => {
-            let passphrase = require_passphrase(read_passphrase(passphrase_stdin, true)?)?;
+            let passphrase =
+                require_passphrase(read_passphrase("passphrase: ", passphrase_stdin, true)?)?;
             let resp = client::request(&addr, &Request::VaultInit { passphrase }).await?;
             match resp {
                 Response::Ok => println!("vault initialized"),
@@ -206,7 +223,8 @@ async fn vault(socket: &Option<PathBuf>, cmd: VaultCommand) -> anyhow::Result<()
             }
         }
         VaultCommand::Unlock { passphrase_stdin } => {
-            let passphrase = require_passphrase(read_passphrase(passphrase_stdin, false)?)?;
+            let passphrase =
+                require_passphrase(read_passphrase("passphrase: ", passphrase_stdin, false)?)?;
             let resp = client::request(&addr, &Request::VaultUnlock { passphrase }).await?;
             match resp {
                 Response::Unlocked { warnings } => {
@@ -297,6 +315,7 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 group,
                 tags: tag,
                 source: ConnectionSource::Managed,
+                disable_password_auth: false,
             };
             let resp = client::request(&addr, &Request::ConnectionsAdd { connection }).await?;
             match resp {
@@ -381,6 +400,46 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }
+        ConnectionsCommand::Provision {
+            id_or_label,
+            key,
+            disable_password_auth,
+            password_stdin,
+        } => {
+            // Read the secret before any network call; argv is never used.
+            let password = match read_passphrase("password: ", password_stdin, false)? {
+                Some(p) => p,
+                None => anyhow::bail!("invalid_input: password must not be empty"),
+            };
+            let resp = client::request(&addr, &Request::ConnectionsList).await?;
+            let conns = match resp {
+                Response::Connections(c) => c,
+                _ => anyhow::bail!("internal: unexpected response"),
+            };
+            let id = resolve_connection(&conns, &id_or_label)?;
+            let resp = client::request(
+                &addr,
+                &Request::ConnectionsProvision {
+                    id,
+                    password,
+                    key_ids: key,
+                    disable_password_auth,
+                },
+            )
+            .await?;
+            match resp {
+                Response::Provisioned(outcome) => {
+                    println!("installed: {}", outcome.installed.join(", "));
+                    println!("verified: {}", outcome.verified.join(", "));
+                    match outcome.hardening {
+                        Hardening::NotRequested => {}
+                        Hardening::Applied => println!("disabled password authentication"),
+                        Hardening::Skipped(reason) => println!("hardening skipped: {reason}"),
+                    }
+                }
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
     }
     Ok(())
 }
@@ -415,7 +474,7 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
             algorithm,
             passphrase_stdin,
         } => {
-            let passphrase = read_passphrase(passphrase_stdin, false)?;
+            let passphrase = read_passphrase("passphrase: ", passphrase_stdin, false)?;
             let resp = client::request(
                 &addr,
                 &Request::KeysGenerate {
@@ -435,7 +494,7 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
             name,
             passphrase_stdin,
         } => {
-            let passphrase = read_passphrase(passphrase_stdin, false)?;
+            let passphrase = read_passphrase("passphrase: ", passphrase_stdin, false)?;
             let resp = client::request(
                 &addr,
                 &Request::KeysImport {
@@ -495,7 +554,7 @@ fn source_str(s: KeySource) -> &'static str {
 
 /// Read a passphrase from stdin (`stdin == true`) or an interactive prompt.
 /// Empty input yields `Ok(None)`.
-fn read_passphrase(stdin: bool, confirm: bool) -> anyhow::Result<Option<String>> {
+fn read_passphrase(prompt: &str, stdin: bool, confirm: bool) -> anyhow::Result<Option<String>> {
     if stdin {
         let mut line = String::new();
         std::io::stdin().read_line(&mut line)?;
@@ -507,7 +566,7 @@ fn read_passphrase(stdin: bool, confirm: bool) -> anyhow::Result<Option<String>>
         }
         Ok(if line.is_empty() { None } else { Some(line) })
     } else {
-        let first = rpassword::prompt_password("passphrase: ")?;
+        let first = rpassword::prompt_password(prompt)?;
         if first.is_empty() {
             return Ok(None);
         }
