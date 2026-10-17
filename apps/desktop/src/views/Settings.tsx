@@ -4,7 +4,7 @@ import { getSettings, saveSettings, listTerminals, type Settings as S, type Term
 import { setLanguage, type Language } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
-const field = "rounded border border-border bg-surface px-2 py-1 text-text";
+const field = "h-9 rounded border border-border bg-bg px-2 text-text";
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const [s, setS] = useState<S | null>(null);
