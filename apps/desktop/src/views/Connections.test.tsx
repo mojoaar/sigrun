@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import "../i18n";
-import Connections from "./Connections";
+import Connections, { groupConnections } from "./Connections";
 import * as api from "../api";
 
 vi.mock("../api", () => ({
@@ -27,7 +27,25 @@ const diskKey = {
   available: true,
 };
 
+const conn: api.Connection = { id: "c0", label: "base", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false };
+
 describe("Connections", () => {
+  it("groups connections under headings", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "pve01", group: "PVE" },
+      { ...conn, id: "c2", label: "web", group: null },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "PVE" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Ungrouped" })).toBeNull();
+  });
+
+  it("treats a blank group as ungrouped", () => {
+    const out = groupConnections([{ ...conn, id: "a", group: "   " }]);
+    expect(out).toHaveLength(1);
+    expect(out[0].group).toBeNull();
+  });
+
   it("renders rows from listConnections", async () => {
     render(<Connections onVaultLocked={() => {}} />);
     expect(await screen.findByText("Prod")).toBeTruthy();

@@ -5,6 +5,22 @@ import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
+// Mirrors tray_menu_model: blank groups are ungrouped, groups and labels sorted.
+export function groupConnections(conns: Connection[]): { group: string | null; items: Connection[] }[] {
+  const loose: Connection[] = [];
+  const groups = new Map<string, Connection[]>();
+  for (const c of conns) {
+    const group = c.group?.trim();
+    if (group) groups.set(group, [...(groups.get(group) ?? []), c]);
+    else loose.push(c);
+  }
+  const byLabel = (a: Connection, b: Connection) => a.label.localeCompare(b.label);
+  return [
+    { group: null, items: loose.sort(byLabel) },
+    ...[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([group, items]) => ({ group, items: items.sort(byLabel) })),
+  ].filter((s) => s.items.length > 0);
+}
+
 function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }: {
   initial: Connection | null;
   keys: KeyView[];
@@ -14,6 +30,7 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }:
   // Lets the parent push the persisted disable-password-auth flag back in, so a
   // later Save on this still-open form cannot revert it.
   bindProvisioned: (sync: ((disablePasswordAuth: boolean) => void) | null) => void;
+  onGoToKeys?: () => void;
 }) {
   const { t } = useTranslation();
   const [c, setC] = useState<Connection>(
@@ -153,7 +170,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   );
 }
 
-export default function Connections({ onVaultLocked }: { onVaultLocked: () => void }) {
+export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLocked: () => void; onGoToKeys?: () => void }) {
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
   const [keys, setKeys] = useState<KeyView[]>([]);
@@ -239,20 +256,26 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
         </div>
       )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
-      <ul className="flex flex-col gap-2">
-        {conns.map((c) => (
-          <ConnectionRow
-            key={c.id}
-            conn={c}
-            canProvision={hasVaultKey}
-            onProvision={() => openProvision(c)}
-            onConnect={() => { setMismatch(false); void doConnect(c); }}
-            onEdit={() => setForm({ edit: c })}
-            onRemove={() => { if (window.confirm(t("connections.removeConfirm"))) removeConnection(c.id).then(refresh).catch(handle); }}
-          />
-        ))}
-      </ul>
-      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} />}
+      {groupConnections(conns).map(({ group, items }) => (
+        <section key={group ?? ""} className="flex flex-col gap-2">
+          {group !== null && <h3 className="text-sm font-semibold text-muted">{group}</h3>}
+          <ul className="flex flex-col gap-2">
+            {items.map((c) => (
+              <ConnectionRow
+                key={c.id}
+                conn={c}
+                canProvision={hasVaultKey}
+                onProvision={() => openProvision(c)}
+                onConnect={() => { setMismatch(false); void doConnect(c); }}
+                onEdit={() => setForm({ edit: c })}
+                onRemove={() => { if (window.confirm(t("connections.removeConfirm"))) removeConnection(c.id).then(refresh).catch(handle); }}
+                onGoToKeys={onGoToKeys}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} />}
       {provision && (
         <ProvisionPanel
           conn={provision}
