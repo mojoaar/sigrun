@@ -60,7 +60,9 @@
     "modeSystem": "System",
     "modeLight": "Lys",
     "modeDark": "Mørk",
-    "terminal": "Terminal"
+    "terminal": "Terminal",
+    "terminalDefault": "Systemstandard",
+    "startMinimized": "Start minimeret i systembakken"
   },
   "trust": {
     "title": "Stoler du på denne vært?",

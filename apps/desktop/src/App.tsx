@@ -8,6 +8,7 @@ import Connections from "./views/Connections";
 import Keys from "./views/Keys";
 import Settings from "./views/Settings";
 import VaultGate from "./views/VaultGate";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 type Tab = "connections" | "keys" | "settings";
 const TABS: Tab[] = ["connections", "keys", "settings"];
@@ -61,9 +62,15 @@ export default function App() {
         {vault === null && <p className="text-muted">{t("common.loading")}</p>}
         {vault === "Uninitialized" && <VaultGate mode="create" onDone={done} />}
         {vault === "Locked" && <VaultGate notice={notice} onDone={done} />}
-        {vault === "Unlocked" && tab === "connections" && <Connections onVaultLocked={locked} />}
-        {vault === "Unlocked" && tab === "keys" && <Keys onVaultLocked={locked} />}
-        {vault === "Unlocked" && tab === "settings" && <Settings />}
+        {vault === "Unlocked" && tab === "connections" && (
+          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} /></ErrorBoundary>
+        )}
+        {vault === "Unlocked" && tab === "keys" && (
+          <ErrorBoundary key="keys"><Keys onVaultLocked={locked} /></ErrorBoundary>
+        )}
+        {vault === "Unlocked" && tab === "settings" && (
+          <ErrorBoundary key="settings"><Settings /></ErrorBoundary>
+        )}
       </main>
     </div>
   );

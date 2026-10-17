@@ -67,13 +67,45 @@ fn refresh(app: &AppHandle, state: &Arc<HostState>) {
     });
 }
 
+const TRAY_TEMPLATE: &[u8] = include_bytes!("../icons/tray-template.png");
+const TRAY_LIGHT: &[u8] = include_bytes!("../icons/tray-light.png");
+
 pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
     let menu = build_menu(app, &[])?;
     let st = state.clone();
+    // macOS recolours a template icon white/dark to match the menu bar; the
+    // light variant is the fallback for trays without template recolouring.
+    let tray_icon = if cfg!(target_os = "macos") {
+        tauri::image::Image::from_bytes(TRAY_TEMPLATE)?
+    } else {
+        tauri::image::Image::from_bytes(TRAY_LIGHT)?
+    };
+    let is_template = cfg!(target_os = "macos");
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
+        .icon_as_template(is_template)
         .menu(&menu)
         .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            // Left-click toggles the window: show+focus if hidden, hide if visible.
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(w) = app.get_webview_window("main") {
+                    match (w.is_visible(), w.is_minimized()) {
+                        (Ok(true), Ok(false)) => {
+                            let _ = w.hide();
+                        }
+                        _ => show_main(app),
+                    }
+                }
+            }
+        })
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "open" => show_main(app),
             "quit" => {

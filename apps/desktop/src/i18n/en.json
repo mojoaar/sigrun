@@ -60,7 +60,9 @@
     "modeSystem": "System",
     "modeLight": "Light",
     "modeDark": "Dark",
-    "terminal": "Terminal"
+    "terminal": "Terminal",
+    "terminalDefault": "System default",
+    "startMinimized": "Start minimized to tray"
   },
   "trust": {
     "title": "Trust this host?",
