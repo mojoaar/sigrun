@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { listen } from "@tauri-apps/api/event";
+import { act } from "@testing-library/react";
 import i18n from "./i18n";
 import App from "./App";
+
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 
 vi.mock("./api", () => ({
   getStatus: vi.fn().mockResolvedValue({ vault: "Locked", agent_socket: null, host_addr: "x", version: "0.1.0" }),
@@ -25,4 +29,13 @@ test("applies persisted theme and language before showing the gate", async () =>
   expect(screen.getByRole("heading", { name: "Sigrun" })).toBeTruthy();
   expect(document.documentElement.getAttribute("data-theme")).toBe("ravn");
   expect(i18n.language).toBe("da");
+});
+
+test("vault-locked event re-gates the UI with a notice", async () => {
+  render(<App />);
+  await screen.findByRole("button", { name: /lås op|unlock/i });
+  expect(screen.queryByRole("status")).toBeNull();
+  const handler = vi.mocked(listen).mock.calls.at(-1)![1] as () => void;
+  act(() => handler());
+  expect(await screen.findByRole("status")).toBeTruthy();
 });

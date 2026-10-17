@@ -34,6 +34,15 @@ pub fn run() {
             let paths = sigrun_core::paths::Paths::resolve()?;
             let state = tauri::async_runtime::block_on(host::start_host(paths))?;
             app.manage(state.clone());
+            if let Some(window) = app.get_webview_window("main") {
+                let w = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
             tray::build_tray(app.handle(), state)?;
             Ok(())
         })

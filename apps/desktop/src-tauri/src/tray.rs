@@ -5,7 +5,7 @@ use sigrun_core::ipc::protocol::Response;
 use sigrun_core::model::Connection;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 const NORMAL_TITLE: &str = "Sigrun";
 const ATTENTION_TITLE: &str = "Sigrun — connection needs attention";
@@ -89,6 +89,9 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                             Ok(_) => NORMAL_TITLE,
                             Err(e) => {
                                 show_main(&app);
+                                if e.code == "vault_locked" {
+                                    let _ = app.emit("vault-locked", ());
+                                }
                                 if e.code.starts_with("host_key_") {
                                     ATTENTION_TITLE
                                 } else {

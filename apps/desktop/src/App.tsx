@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
 import i18n from "./i18n";
@@ -29,6 +30,16 @@ export default function App() {
     }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    let gone = false;
+    try {
+      listen("vault-locked", () => { setNotice(true); setVault("Locked"); })
+        .then((f) => { if (gone) f(); else un = f; })
+        .catch(() => {});
+    } catch { /* not running under Tauri */ }
+    return () => { gone = true; un?.(); };
+  }, []);
 
   const locked = () => { setNotice(true); void refresh(); };
   const done = () => { setNotice(false); void refresh(); };

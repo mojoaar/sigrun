@@ -49,5 +49,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bin=target/${{ matrix.target }}/release/sigrun
-          if [ "$RUNNER_OS" = "Windows" ]; then bin="$bin.exe"; fi
-          gh release upload "${{ github.ref_name }}" "$bin" --clobber
+          name="sigrun-${{ matrix.target }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then bin="$bin.exe"; name="$name.exe"; fi
+          gh release upload "${{ github.ref_name }}" "$bin#$name" --clobber

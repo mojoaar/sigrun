@@ -310,18 +310,19 @@ mod tests {
 
     #[test]
     fn multi_key_trust_precedence() {
+        const KEY: &str = "AAAAC3NzaC1lZDI1NTE5AAAAIKKEEWQJy/IdduM5HglENeKuk+5Am8lcPpdlUdvxDWqq";
         let dir = tempfile::tempdir().unwrap();
         let kh = dir.path().join("known_hosts");
-        sigrun_core::trust::record(&kh, "h", 22, "ssh-ed25519", "AAAA").unwrap();
+        sigrun_core::trust::record(&kh, "h", 22, "ssh-ed25519", KEY).unwrap();
         let k = |a: &str, b: &str| (a.to_string(), b.to_string());
-        let ok = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "AAAA")];
+        let ok = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", KEY)];
         assert!(super::evaluate_trust(&kh, "h", 22, &ok).is_ok());
         let bad = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "BBBB")];
         assert_eq!(
             super::evaluate_trust(&kh, "h", 22, &bad).unwrap_err().code,
             "host_key_mismatch"
         );
-        let fresh = [k("ssh-ed25519", "AAAA")];
+        let fresh = [k("ssh-ed25519", KEY)];
         assert_eq!(
             super::evaluate_trust(&kh, "other", 22, &fresh)
                 .unwrap_err()
