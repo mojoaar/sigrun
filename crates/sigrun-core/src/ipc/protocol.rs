@@ -106,6 +106,9 @@ pub fn error_code(err: &Error) -> &'static str {
         Error::Config(_) => "invalid_config",
         Error::AlreadyRunning => "already_running",
         Error::Ipc(_) => "ipc",
+        Error::HostKeyUnknown(_) => "host_key_unknown",
+        Error::HostKeyMismatch(_) => "host_key_mismatch",
+        Error::Ssh(_) => "ssh",
         _ => "internal",
     }
 }

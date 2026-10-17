@@ -36,6 +36,12 @@ pub enum Error {
     AlreadyRunning,
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+    #[error("host key is not trusted: {0}")]
+    HostKeyUnknown(String),
+    #[error("host key does not match known_hosts: {0}")]
+    HostKeyMismatch(String),
+    #[error("ssh error: {0}")]
+    Ssh(#[from] russh::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
