@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { addConnection, connectGuarded, listConnections, listKeys, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
-const field = "w-full rounded border border-border bg-bg px-2 py-1 text-text";
+const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
 function Form({ initial, keys, onClose, onSaved }: { initial: Connection | null; keys: KeyView[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation();
