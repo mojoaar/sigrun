@@ -7,6 +7,7 @@ use crate::error::{Error, Result};
 
 /// Resolved filesystem locations. `~/.ssh` is discovery-only; Sigrun never
 /// creates, modifies, or deletes anything in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paths {
     pub config_dir: PathBuf,
     pub data_dir: PathBuf,
