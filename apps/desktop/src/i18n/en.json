@@ -27,6 +27,8 @@
     "edit": "Edit connection",
     "remove": "Remove connection",
     "connect": "Connect",
+    "unreachable": "Host is not reachable",
+    "connectAnyway": "Connect anyway",
     "copyCommand": "Copy SSH command",
     "label": "Label",
     "host": "Host",

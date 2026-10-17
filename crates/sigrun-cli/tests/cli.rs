@@ -21,6 +21,33 @@ fn wait_until_succeeds(mut cmd: impl FnMut() -> std::process::Output) {
     wait_for(|| cmd().status.success());
 }
 
+// Spawn a `sigrun host` rooted at `dir`, returning it with its IPC socket. On
+// Windows the IPC socket is a named pipe (a filesystem path makes the server
+// reject it), so the pipe name is per-process; elsewhere it lives in `dir`.
+fn spawn_host(dir: &std::path::Path) -> (std::process::Child, PathBuf) {
+    let sock = if cfg!(windows) {
+        PathBuf::from(format!(
+            r"\\.\pipe\sigrun-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    } else {
+        dir.join("host.sock")
+    };
+    let host = std::process::Command::new(assert_cmd::cargo::cargo_bin("sigrun"))
+        .env("SIGRUN_CONFIG_DIR", dir)
+        .env("SIGRUN_DATA_DIR", dir)
+        .env("SIGRUN_SSH_DIR", dir.join("ssh"))
+        .args(["host", "--socket"])
+        .arg(&sock)
+        .spawn()
+        .unwrap();
+    (host, sock)
+}
+
 #[test]
 fn prints_version() {
     Command::cargo_bin("sigrun")
@@ -75,31 +102,40 @@ fn provision_reaches_the_host_without_leaking_the_password() {
 }
 
 #[test]
-fn end_to_end_host_vault_key_and_connection() {
+fn connect_with_force_still_resolves_the_connection_first() {
     let dir = tempfile::tempdir().unwrap();
-    // On Windows the IPC socket is a named pipe, which must be a `\\.\pipe\`
-    // path — a filesystem path would make the server reject it. Use a
-    // per-test pipe name there; a filesystem path everywhere else.
-    let sock = if cfg!(windows) {
-        PathBuf::from(format!(
-            r"\\.\pipe\sigrun-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ))
-    } else {
-        dir.path().join("host.sock")
-    };
-    let mut host = std::process::Command::new(assert_cmd::cargo::cargo_bin("sigrun"))
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    Command::cargo_bin("sigrun")
+        .unwrap()
         .env("SIGRUN_CONFIG_DIR", dir.path())
         .env("SIGRUN_DATA_DIR", dir.path())
-        .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
-        .args(["host", "--socket"])
+        .arg("--socket")
         .arg(&sock)
-        .spawn()
-        .unwrap();
+        .args(["connections", "connect", "bogus", "--force"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not_found"));
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
+#[test]
+fn end_to_end_host_vault_key_and_connection() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
     wait_until_succeeds(|| {
         Command::cargo_bin("sigrun")
             .unwrap()

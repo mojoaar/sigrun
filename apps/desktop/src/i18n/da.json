@@ -27,6 +27,8 @@
     "edit": "Rediger forbindelse",
     "remove": "Fjern forbindelse",
     "connect": "Forbind",
+    "unreachable": "Værten kan ikke nås",
+    "connectAnyway": "Forbind alligevel",
     "copyCommand": "Kopiér SSH-kommando",
     "label": "Navn",
     "host": "Vært",

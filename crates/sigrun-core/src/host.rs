@@ -12,7 +12,7 @@ use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
 use crate::terminal::{
-    launch_first, render_command, ssh_invocation, terminal_launch_specs, Platform,
+    launch_first, probe_reachable, render_command, ssh_invocation, terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
 use zeroize::Zeroizing;
@@ -199,9 +199,11 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         Request::TerminalsList => Ok(Response::Terminals(crate::terminal::detect_terminals(
             crate::terminal::Platform::current(),
         ))),
-        Request::ConnectionsConnect { id, print_only } => {
-            connections_connect(state, id, print_only).await
-        }
+        Request::ConnectionsConnect {
+            id,
+            print_only,
+            force,
+        } => connections_connect(state, id, print_only, force).await,
         Request::ConnectionsProvision {
             id,
             password,
@@ -373,7 +375,12 @@ async fn keys_remove(state: &HostState, id: String) -> Result<Response> {
     Ok(Response::Ok)
 }
 
-async fn connections_connect(state: &HostState, id: String, print_only: bool) -> Result<Response> {
+async fn connections_connect(
+    state: &HostState,
+    id: String,
+    print_only: bool,
+    force: bool,
+) -> Result<Response> {
     let data = state.store.load_data()?;
     let conn = data
         .connections
@@ -407,6 +414,12 @@ async fn connections_connect(state: &HostState, id: String, print_only: bool) ->
             Some(meta)
         }
     };
+
+    // Key and vault are validated first (unchanged order); only then does the
+    // host get contacted, so a bad key never costs a probe round trip.
+    if !print_only && !force {
+        probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await?;
+    }
 
     let argv = ssh_invocation(&conn, meta.as_ref())?;
     if print_only {

@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   updateConnection: vi.fn(),
   removeConnection: vi.fn(),
   connectGuarded: vi.fn(),
+  connectForce: vi.fn(),
   trustHost: vi.fn().mockResolvedValue(undefined),
   importKey: vi.fn(),
   provisionConnection: vi.fn(),
@@ -67,6 +68,19 @@ describe("Connections", () => {
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
     expect(await screen.findByText("SHA256:abc")).toBeTruthy();
+  });
+
+  it("offers to connect anyway when the host is unreachable", async () => {
+    vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "unreachable", message: "connection refused on h:22" });
+    vi.mocked(api.connectForce).mockResolvedValueOnce(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Host is not reachable" });
+    expect(within(dialog).getByText("connection refused on h:22")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Connect anyway" }));
+
+    await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("1"));
   });
 
   it("warns before disabling password auth", async () => {

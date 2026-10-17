@@ -283,7 +283,9 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                     tauri::async_runtime::spawn(async move {
                         // Unknown/mismatched keys and any other error surface in the window.
                         let title =
-                            match crate::commands::connect_guarded(st.clone(), cid, false).await {
+                            match crate::commands::connect_guarded(st.clone(), cid, false, false)
+                                .await
+                            {
                                 Ok(_) => NORMAL_TITLE,
                                 Err(e) => {
                                     show_main(&app);

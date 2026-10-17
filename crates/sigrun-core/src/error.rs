@@ -42,6 +42,10 @@ pub enum Error {
     HostKeyUnknown(String),
     #[error("{0}")]
     HostKeyMismatch(String),
+    // Bare message for the same reason as `HostKeyUnknown`: the IPC `code`
+    // (`unreachable`) carries the meaning.
+    #[error("{0}")]
+    Unreachable(String),
     #[error("ssh error: {0}")]
     Ssh(#[from] russh::Error),
 }

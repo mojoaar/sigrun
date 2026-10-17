@@ -91,6 +91,30 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
     Ok(argv)
 }
 
+/// Check that a TCP connection to `host:port` can be established within
+/// `timeout`. Carries no secret: the message names host and port only.
+pub async fn probe_reachable(host: &str, port: u16, timeout: std::time::Duration) -> Result<()> {
+    let attempt = async {
+        let addrs = tokio::net::lookup_host((host, port))
+            .await
+            .map_err(|_| Error::Unreachable(format!("could not resolve {host}")))?;
+        for addr in addrs {
+            if tokio::net::TcpStream::connect(addr).await.is_ok() {
+                return Ok(());
+            }
+        }
+        Err(Error::Unreachable(format!(
+            "connection refused on {host}:{port}"
+        )))
+    };
+    match tokio::time::timeout(timeout, attempt).await {
+        Ok(result) => result,
+        Err(_) => Err(Error::Unreachable(format!(
+            "connection timed out on {host}:{port}"
+        ))),
+    }
+}
+
 fn shell_safe_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric()
         || matches!(
@@ -383,6 +407,27 @@ mod tests {
     use super::*;
     use crate::error::Error;
     use crate::model::KeyAlgorithm;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn probe_reports_a_closed_port() {
+        let err = probe_reachable("127.0.0.1", 1, Duration::from_millis(500))
+            .await
+            .unwrap_err();
+        let Error::Unreachable(m) = err else {
+            panic!("unexpected {err:?}");
+        };
+        assert!(m.contains("127.0.0.1"), "message was {m:?}");
+    }
+
+    #[tokio::test]
+    async fn probe_reachability_resolves_a_bad_name() {
+        // `.invalid` is reserved and never resolves.
+        let err = probe_reachable("sigrun.invalid", 22, Duration::from_millis(500))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::Unreachable(_)));
+    }
 
     #[test]
     fn ssh_invocation_uses_port_and_disk_key() {

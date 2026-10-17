@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { addConnection, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
@@ -214,6 +214,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
   const [error, setError] = useState(false);
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
+  const [unreachable, setUnreachable] = useState<{ message: string; retry: () => Promise<void> } | null>(null);
   const formSync = useRef<((disablePasswordAuth: boolean) => void) | null>(null);
   const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
     formSync.current = sync;
@@ -239,10 +240,16 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
     else handle(err);
   }, [handle]);
 
-  const doConnect = (c: Connection): Promise<void> =>
-    connectGuarded(c.id).catch((err: unknown) =>
-      handleTrustError(err, { host: c.host, port: c.port, run: () => doConnect(c) }),
-    );
+  const doConnect = (c: Connection, force = false): Promise<void> => {
+    setUnreachable(null);
+    const attempt = force ? connectForce(c.id) : connectGuarded(c.id);
+    return attempt.catch((err: unknown) => {
+      const e = err as CommandError;
+      if (e?.code === "unreachable")
+        setUnreachable({ message: e.message, retry: () => doConnect(c, true) });
+      else handleTrustError(err, { host: c.host, port: c.port, run: () => doConnect(c, force) });
+    });
+  };
   const accept = async () => {
     if (!trust) return;
     const { host, port, algo, key, run } = trust;
@@ -285,6 +292,18 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
             <div className="flex gap-2">
               <button onClick={() => setTrust(null)}>{t("trust.cancel")}</button>
               <button className="rounded bg-accent px-3 py-1 text-bg" onClick={accept}>{t("trust.accept")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {unreachable && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-label={t("connections.unreachable")} className="rounded border border-border bg-surface p-3">
+            <h3 className="font-semibold">{t("connections.unreachable")}</h3>
+            <p>{unreachable.message}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setUnreachable(null)}>{t("common.cancel")}</button>
+              <button className="rounded bg-accent px-3 py-1 text-bg" onClick={() => void unreachable.retry()}>{t("connections.connectAnyway")}</button>
             </div>
           </div>
         </div>
