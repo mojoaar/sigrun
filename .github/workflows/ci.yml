@@ -1,6 +1,12 @@
 name: CI
 on: [push, pull_request]
 jobs:
+  lint-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - run: ./actionlint -color
   rust:
     strategy:
       fail-fast: false
