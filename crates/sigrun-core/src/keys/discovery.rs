@@ -129,7 +129,8 @@ pub fn discover_keys(dir: &Path) -> Result<DiscoveryResult> {
     }
 
     keys.sort_by(|a, b| a.path.cmp(&b.path));
-    keys.dedup_by(|a, b| a.fingerprint == b.fingerprint);
+    let mut seen = std::collections::HashSet::new();
+    keys.retain(|k| seen.insert(k.fingerprint.clone()));
 
     Ok(DiscoveryResult { keys, warnings })
 }
@@ -284,6 +285,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(discover_keys(dir.path()).unwrap().keys.len(), 1);
+    }
+
+    #[test]
+    fn dedupes_by_fingerprint_non_adjacent() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_key(dir.path(), "a_key", None);
+        write_key(dir.path(), "b_key", None);
+        std::fs::copy(&a, dir.path().join("c_key")).unwrap();
+        std::fs::copy(dir.path().join("a_key.pub"), dir.path().join("c_key.pub")).unwrap();
+        let found = discover_keys(dir.path()).unwrap();
+        assert_eq!(found.keys.len(), 2);
     }
 
     #[test]
