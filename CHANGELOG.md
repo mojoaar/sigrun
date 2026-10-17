@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - System tray connection menu.
 - TOFU host-key trust with a Sigrun-owned `known_hosts`.
 - Multi-OS installer releases (macOS, Linux, Windows) built and published on `v*` tags.
+- Raven line-art tray icon (macOS template) and app-icon set; tray left-click toggles the window.
+- A "Start minimized to tray" setting.
+- Auto-detected terminal picker in Settings, listing the launchable terminals installed on the machine.
+
+### Fixed
+
+- Keys view and the connection key-select no longer blank the app (the flattened `KeyView` wire shape is re-nested; views are wrapped in an error boundary).
+- Void commands (`vault lock`, `vault init`, removals, host trust) now actually run — the response unwrap no longer rejects a payload-less `Ok`.
+- The dock shows `Sigrun`, not `sigrun-desktop`.
 
 ### Notes
 
