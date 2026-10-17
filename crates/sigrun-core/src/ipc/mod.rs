@@ -19,7 +19,21 @@ mod tests {
     #[tokio::test]
     async fn status_and_vault_roundtrip_over_ipc() {
         let dir = tempfile::tempdir().unwrap();
-        let sock = dir.path().join("host.sock");
+        // On Windows the IPC socket is a named pipe (`\\.\pipe\…`), not a file;
+        // a filesystem path makes the server reject it. Use a per-test pipe
+        // name there, a filesystem path elsewhere.
+        let sock = if cfg!(windows) {
+            std::path::PathBuf::from(format!(
+                r"\\.\pipe\sigrun-ipc-test-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ))
+        } else {
+            dir.path().join("host.sock")
+        };
         let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
         let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
         let server = tokio::spawn({
