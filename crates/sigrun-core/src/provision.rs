@@ -181,6 +181,68 @@ async fn run(handle: &mut Handle<Gate>, script: &str) -> Result<(Option<u32>, St
     Ok((status, stderr))
 }
 
+pub const DROPIN: &str =
+    "# Installed by Sigrun. Remove this file to re-enable password authentication.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+";
+
+pub fn hardening_script() -> String {
+    format!(
+        r#"D=/etc/ssh/sshd_config.d/99-sigrun.conf
+C=/etc/ssh/sshd_config
+command -v sudo >/dev/null || {{ echo "sudo is not available" >&2; exit 3; }}
+sudo -n true 2>/dev/null || {{ echo "non-interactive sudo is required" >&2; exit 4; }}
+B="$C.sigrun-bak.$(date +%s)"
+sudo -n cp -p "$C" "$B" || {{ echo "could not back up sshd_config" >&2; exit 5; }}
+rollback() {{ sudo -n rm -f "$D"; sudo -n cp -p "$B" "$C"; }}
+dropin() {{ cat <<'SIGRUN_EOF'
+{DROPIN}SIGRUN_EOF
+}}
+if grep -q '^Include /etc/ssh/sshd_config.d/\*.conf' "$C"; then
+  dropin | sudo -n tee "$D" >/dev/null || {{ rollback; echo "could not write drop-in" >&2; exit 5; }}
+else
+  {{ echo '# BEGIN sigrun'; dropin; echo '# END sigrun'; }} | sudo -n tee -a "$C" >/dev/null || {{ rollback; echo "could not update sshd_config" >&2; exit 5; }}
+fi
+sudo -n sshd -t || {{ rollback; echo "sshd config test failed" >&2; exit 5; }}
+sudo -n systemctl reload sshd || sudo -n systemctl reload ssh || sudo -n service ssh reload || {{ rollback; echo "sshd reload failed" >&2; exit 6; }}
+"#
+    )
+}
+
+async fn harden(handle: &mut Handle<Gate>) -> Result<Hardening> {
+    let (code, stderr) = run(handle, &hardening_script()).await?;
+    let reason = stderr.trim();
+    match code {
+        Some(0) => Ok(Hardening::Applied),
+        Some(3) => Ok(Hardening::Skipped(
+            if reason.is_empty() {
+                "sudo is not available"
+            } else {
+                reason
+            }
+            .into(),
+        )),
+        Some(4) => Ok(Hardening::Skipped(
+            if reason.is_empty() {
+                "non-interactive sudo is required"
+            } else {
+                reason
+            }
+            .into(),
+        )),
+        Some(5 | 6) => Err(Error::Config(format!("sshd hardening failed: {reason}"))),
+        Some(c) => Err(Error::Config(format!(
+            "sshd hardening failed (exit {c}): {reason}"
+        ))),
+        None => Err(Error::Config(format!(
+            "sshd hardening failed (exit unknown): {reason}"
+        ))),
+    }
+}
+
 pub async fn install_keys(
     opts: &ProvisionOptions,
     keys: &[ProvisionKey],
@@ -266,7 +328,12 @@ pub async fn install_keys(
         )));
     }
     let hardening = if opts.disable_password_auth {
-        Hardening::Skipped("hardening not implemented".into())
+        let mut h = authenticate(opts).await?;
+        let r = harden(&mut h).await;
+        let _ = h
+            .disconnect(russh::Disconnect::ByApplication, "", "en")
+            .await;
+        r?
     } else {
         Hardening::NotRequested
     };
@@ -315,6 +382,24 @@ mod tests {
     fn script_rejects_unsafe_keys() {
         assert!(authorized_keys_script(&["ssh-ed25519 AAAA'; rm -rf / #".to_string()]).is_err());
         assert!(authorized_keys_script(&[]).is_err());
+    }
+
+    #[test]
+    fn dropin_disables_only_password_auth() {
+        assert!(DROPIN.contains("PasswordAuthentication no"));
+        assert!(DROPIN.contains("PubkeyAuthentication yes"));
+        assert!(DROPIN.contains("KbdInteractiveAuthentication no"));
+        assert!(DROPIN.contains("ChallengeResponseAuthentication no"));
+    }
+
+    #[test]
+    fn hardening_script_backs_up_and_rolls_back() {
+        let s = hardening_script();
+        assert!(s.contains("sshd_config.d/99-sigrun.conf"));
+        assert!(s.contains("cp -p"));
+        assert!(s.contains("sshd -t"));
+        assert!(s.contains("grep -q '^Include /etc/ssh/sshd_config.d"));
+        assert!(s.contains("rm -f"));
     }
 
     #[test]
