@@ -65,6 +65,18 @@ async fn serve_windows(addr: &Path, state: Arc<HostState>) -> Result<()> {
     use tokio::net::windows::named_pipe::ServerOptions;
 
     let name = addr.as_os_str();
+    // A named-pipe path must be `\\.\pipe\<name>`; a filesystem path is a
+    // caller error. Fail fast instead of spinning in the accept loop below.
+    let valid = addr
+        .to_str()
+        .map(|s| s.starts_with(r"\\.\pipe\"))
+        .unwrap_or(false);
+    if !valid {
+        return Err(crate::error::Error::InvalidInput(format!(
+            "ipc socket on Windows must be a named pipe (\\\\.\\pipe\\<name>), got {}",
+            addr.display()
+        )));
+    }
     loop {
         // A second pipe with the same name fails to create (already running).
         let server = match ServerOptions::new().create(name) {

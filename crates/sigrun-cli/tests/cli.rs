@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 fn wait_for(mut f: impl FnMut() -> bool) {
@@ -48,7 +49,21 @@ fn status_without_a_host_explains_what_to_do() {
 #[test]
 fn end_to_end_host_vault_key_and_connection() {
     let dir = tempfile::tempdir().unwrap();
-    let sock = dir.path().join("host.sock");
+    // On Windows the IPC socket is a named pipe, which must be a `\\.\pipe\`
+    // path — a filesystem path would make the server reject it. Use a
+    // per-test pipe name there; a filesystem path everywhere else.
+    let sock = if cfg!(windows) {
+        PathBuf::from(format!(
+            r"\\.\pipe\sigrun-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    } else {
+        dir.path().join("host.sock")
+    };
     let mut host = std::process::Command::new(assert_cmd::cargo::cargo_bin("sigrun"))
         .env("SIGRUN_CONFIG_DIR", dir.path())
         .env("SIGRUN_DATA_DIR", dir.path())
