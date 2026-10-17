@@ -14,10 +14,10 @@
   "dependencies": {
     "@tailwindcss/vite": "^4",
     "@tauri-apps/api": "^2",
-    "i18next": "^25",
+    "i18next": "^25.10.10",
     "react": "^19",
     "react-dom": "^19",
-    "react-i18next": "^16",
+    "react-i18next": "^16.6.6",
     "tailwindcss": "^4"
   },
   "devDependencies": {
