@@ -52,11 +52,14 @@ default" to use the OS fallback order.
 ## First time connecting to a server
 
 A connection assumes a key is already installed on the server. If there is none,
-Sigrun installs one as part of connecting: it copies the public key into the
-server's `~/.ssh/authorized_keys`, which needs the server **password once** —
-typed into Sigrun, used for that one login, and never stored. Keys that already
-live on disk can be used for this step too; they are **imported into the vault**
-as part of the same install, and `~/.ssh` itself is never modified.
+install one explicitly — with **Install SSH key…** on the connection row or in
+the connection's edit form. Sigrun then copies the public key into the server's
+`~/.ssh/authorized_keys`, which needs the server **password once** — typed into
+Sigrun, used to install the key (and, if you also disable password
+authentication, to harden the server in a second session), and never stored.
+Keys that already live on disk can be used for this step too; they are
+**imported into the vault** as part of the same install, and `~/.ssh` itself is
+never modified.
 
 Once the terminal is open, `ssh` stays the authority on the connection: Sigrun
 only hands it the argv and `SSH_AUTH_SOCK`.
@@ -64,8 +67,8 @@ only hands it the argv and `SSH_AUTH_SOCK`.
 ### Where the terminal opens
 
 - **iTerm** opens a **tab in the current window** (a window when none is open).
-- **Terminal.app** opens a **new tab/window on each connect**; tab reuse did not
-  reproduce in testing.
+- **Terminal.app** opens a **new window on each connect** (`do script` without
+  `in window`); tab reuse did not reproduce in testing.
 - **Ghostty** and **Alacritty** open a **new window** (`-e`); neither exposes a
   tab API on macOS. Support for them is retained, not a fallback we intend to
   drop.
@@ -131,9 +134,9 @@ printf '%s\n' "$PASSWORD" | sigrun connections provision web --key <key-id> --pa
 ```
 
 Only vault keys can be provisioned: a key that lives on disk must first be
-imported (`sigrun keys import ~/.ssh/id_ed25519 --name personal`). Sigrun needs
-the private key to verify the install, and it will not copy a key out of
-`~/.ssh`.
+imported (`sigrun keys import ~/.ssh/id_ed25519 --name personal`), which stores
+a vault-encrypted copy. Sigrun needs the private key to verify the install, and
+`provision` itself never copies one out of `~/.ssh`.
 
 The CLI has no way to record a first-seen host key. `sigrun connections
 provision` therefore works only for a host Sigrun already trusts: trust it
@@ -161,7 +164,9 @@ disk.
 `sigrun connections connect` sets `SSH_AUTH_SOCK` to that socket on the terminal
 it launches, so `ssh` asks the agent to sign instead of reading a key file.
 Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
-`-i`, because Sigrun never copies or re-encrypts them.
+`-i`, and connecting never copies or re-encrypts them. Installing a key on a
+server is the one step that needs a vault copy: the desktop imports the disk key
+you select into the vault first.
 
 ## Security notes
 
@@ -182,7 +187,8 @@ Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
 - `Include` is not followed when parsing `ssh_config`.
 - The reachability probe is a plain TCP connect, so it can report a host as
   unreachable when it is only reachable through a VPN or an `~/.ssh/config`
-  ProxyJump. The check warns and never blocks: use **Connect anyway** (CLI:
+  ProxyJump. It runs before any terminal opens and reports the failure as an
+  error; it does not prevent connecting — choose **Connect anyway** (CLI:
   `--force`) to open the terminal regardless.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
