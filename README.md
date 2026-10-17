@@ -2,6 +2,11 @@
 
 Sigrun — victory over key chaos.
 
+The name comes from Sigrún, a valkyrie in Norse mythology. It breaks into
+*sigr* — "victory" — and *rún* — "secret" or "rune". A "secret victory" felt
+right for a tool whose whole job is secrets: the same *rún* that runs through
+cryptography and keys. Pronounced SIG-roon.
+
 Sigrun is a cross-platform SSH key and connection manager. It keeps your private
 keys in an encrypted local vault, generates new keys, discovers the ones already
 in `~/.ssh`, serves vault-backed keys to `ssh` through an in-process OpenSSH
