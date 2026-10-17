@@ -191,23 +191,46 @@ PubkeyAuthentication yes
 
 pub fn hardening_script() -> String {
     format!(
-        r#"D=/etc/ssh/sshd_config.d/99-sigrun.conf
+        r#"D=/etc/ssh/sshd_config.d/00-sigrun.conf
 C=/etc/ssh/sshd_config
+SSHD=$(command -v sshd || echo /usr/sbin/sshd)
 command -v sudo >/dev/null || {{ echo "sudo is not available" >&2; exit 3; }}
 sudo -n true 2>/dev/null || {{ echo "non-interactive sudo is required" >&2; exit 4; }}
-B="$C.sigrun-bak.$(date +%s)"
+TS=$(date +%s)
+B="$C.sigrun-bak.$TS"
+PB=
+W=0
+DONE=0
 sudo -n cp -p "$C" "$B" || {{ echo "could not back up sshd_config" >&2; exit 5; }}
-rollback() {{ sudo -n rm -f "$D"; sudo -n cp -p "$B" "$C"; }}
+if sudo -n test -e "$D"; then
+  PB="$D.sigrun-bak.$TS"
+  sudo -n cp -p "$D" "$PB" || {{ echo "could not back up existing drop-in" >&2; exit 5; }}
+fi
+rollback() {{
+  f=0
+  if [ -n "$PB" ]; then sudo -n cp -p "$PB" "$D" || f=1; else sudo -n rm -f "$D" || f=1; fi
+  sudo -n cp -p "$B" "$C" || f=1
+  if [ "$f" != 0 ]; then echo "rollback failed: could not restore the previous sshd configuration" >&2; exit 8; fi
+}}
+rollback_if_needed() {{
+  if [ "$W" = 1 ] && [ "$DONE" != 1 ]; then rollback; fi
+  exit 1
+}}
+trap 'rollback_if_needed' INT TERM HUP
 dropin() {{ cat <<'SIGRUN_EOF'
 {DROPIN}SIGRUN_EOF
 }}
-if grep -q '^Include /etc/ssh/sshd_config.d/\*.conf' "$C"; then
+W=1
+if grep -Eq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/' "$C"; then
   dropin | sudo -n tee "$D" >/dev/null || {{ rollback; echo "could not write drop-in" >&2; exit 5; }}
 else
   {{ echo '# BEGIN sigrun'; dropin; echo '# END sigrun'; }} | sudo -n tee -a "$C" >/dev/null || {{ rollback; echo "could not update sshd_config" >&2; exit 5; }}
 fi
-sudo -n sshd -t || {{ rollback; echo "sshd config test failed" >&2; exit 5; }}
+sudo -n "$SSHD" -t || {{ rollback; echo "sshd config test failed" >&2; exit 5; }}
 sudo -n systemctl reload sshd || sudo -n systemctl reload ssh || sudo -n service ssh reload || {{ rollback; echo "sshd reload failed" >&2; exit 6; }}
+sudo -n "$SSHD" -T 2>/dev/null | grep -qi '^passwordauthentication no' || {{ rollback; echo "password authentication is still enabled" >&2; exit 7; }}
+DONE=1
+trap - INT TERM HUP
 "#
     )
 }
@@ -217,23 +240,14 @@ async fn harden(handle: &mut Handle<Gate>) -> Result<Hardening> {
     let reason = stderr.trim();
     match code {
         Some(0) => Ok(Hardening::Applied),
-        Some(3) => Ok(Hardening::Skipped(
-            if reason.is_empty() {
-                "sudo is not available"
-            } else {
-                reason
-            }
-            .into(),
-        )),
-        Some(4) => Ok(Hardening::Skipped(
-            if reason.is_empty() {
-                "non-interactive sudo is required"
-            } else {
-                reason
-            }
-            .into(),
-        )),
-        Some(5 | 6) => Err(Error::Config(format!("sshd hardening failed: {reason}"))),
+        Some(c @ (3 | 4)) => Ok(Hardening::Skipped(if !reason.is_empty() {
+            reason.into()
+        } else if c == 3 {
+            "sudo is not available".into()
+        } else {
+            "non-interactive sudo is required".into()
+        })),
+        Some(5..=8) => Err(Error::Config(format!("sshd hardening failed: {reason}"))),
         Some(c) => Err(Error::Config(format!(
             "sshd hardening failed (exit {c}): {reason}"
         ))),
@@ -395,11 +409,29 @@ mod tests {
     #[test]
     fn hardening_script_backs_up_and_rolls_back() {
         let s = hardening_script();
-        assert!(s.contains("sshd_config.d/99-sigrun.conf"));
+        assert!(s.contains("sshd_config.d/00-sigrun.conf"));
         assert!(s.contains("cp -p"));
-        assert!(s.contains("sshd -t"));
-        assert!(s.contains("grep -q '^Include /etc/ssh/sshd_config.d"));
+        assert!(s.contains("\"$SSHD\" -t"));
+        assert!(s.contains("\"$SSHD\" -T"));
+        assert!(s.contains("passwordauthentication no"));
+        assert!(s.contains("Include[[:space:]]+/etc/ssh/sshd_config\\.d/"));
         assert!(s.contains("rm -f"));
+        assert!(s.contains("rollback failed"));
+        assert!(s.contains("trap 'rollback_if_needed' INT TERM HUP"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardening_script_passes_sh_syntax_check() {
+        let p = std::env::temp_dir().join(format!("sigrun-harden-{}.sh", std::process::id()));
+        std::fs::write(&p, hardening_script()).unwrap();
+        let st = std::process::Command::new("sh")
+            .arg("-n")
+            .arg(&p)
+            .status()
+            .unwrap();
+        let _ = std::fs::remove_file(&p);
+        assert!(st.success());
     }
 
     #[test]
