@@ -192,9 +192,16 @@ pub fn terminal_launch_specs(
             let (app, script) = if configured == Some("iterm") {
                 (
                     "iTerm",
+                    // A tab in the current window when one is open; a window
+                    // otherwise, so the first launch is not a silent no-op.
                     format!(
-                        "tell application \"iTerm\" to create window with default profile command \"{}\"",
-                        cmd
+                        r#"tell application "iTerm"
+  if (count of windows) is 0 then
+    create window with default profile command "{cmd}"
+  else
+    tell current window to create tab with default profile command "{cmd}"
+  end if
+end tell"#
                     ),
                 )
             } else {
@@ -502,6 +509,26 @@ mod tests {
             terminal_launch_specs(Platform::MacOs, None, &["ssh".into(), "u@h".into()]).unwrap();
         assert_eq!(specs[0].program, "osascript");
         assert!(specs[0].args.iter().any(|a| a.contains("Terminal")));
+    }
+
+    #[test]
+    fn macos_iterm_reuses_a_tab_and_still_handles_no_windows() {
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            Some("iterm"),
+            &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
+        )
+        .unwrap();
+        assert_eq!(specs[0].program, "osascript");
+        let script = specs[0].args.join("\n");
+        assert!(
+            script.contains("create tab with default profile"),
+            "script was {script:?}"
+        );
+        assert!(
+            script.contains("create window with default profile"),
+            "script was {script:?}"
+        );
     }
 
     #[test]
