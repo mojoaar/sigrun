@@ -64,6 +64,24 @@ pub async fn remove_connection_inner(state: Arc<HostState>, id: String) -> CmdRe
 pub async fn connect_inner(state: Arc<HostState>, id: String, print_only: bool) -> CmdResult {
     call(state, Request::ConnectionsConnect { id, print_only }).await
 }
+pub async fn provision_connection_inner(
+    state: Arc<HostState>,
+    id: String,
+    password: String,
+    key_ids: Vec<String>,
+    disable_password_auth: bool,
+) -> CmdResult {
+    call(
+        state,
+        Request::ConnectionsProvision {
+            id,
+            password,
+            key_ids,
+            disable_password_auth,
+        },
+    )
+    .await
+}
 pub async fn list_keys_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::KeysList).await
 }
@@ -252,6 +270,23 @@ pub async fn connect_guarded(state: Arc<HostState>, id: String, print_only: bool
 #[tauri::command]
 pub async fn connect(state: St<'_>, id: String, print_only: bool) -> CmdResult {
     connect_guarded(state.inner().clone(), id, print_only).await
+}
+#[tauri::command]
+pub async fn provision_connection(
+    state: St<'_>,
+    id: String,
+    password: String,
+    key_ids: Vec<String>,
+    disable_password_auth: bool,
+) -> CmdResult {
+    provision_connection_inner(
+        state.inner().clone(),
+        id,
+        password,
+        key_ids,
+        disable_password_auth,
+    )
+    .await
 }
 #[tauri::command]
 pub async fn trust_host(

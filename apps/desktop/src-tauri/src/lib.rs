@@ -22,6 +22,7 @@ pub fn run() {
             commands::update_connection,
             commands::remove_connection,
             commands::connect,
+            commands::provision_connection,
             commands::trust_host,
             commands::list_keys,
             commands::generate_key,
