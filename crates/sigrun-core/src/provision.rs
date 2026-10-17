@@ -146,6 +146,7 @@ pub fn authorized_keys_script(keys: &[String]) -> Result<String> {
     let mut s = String::from(
         "set -e\numask 077\nmkdir -p \"$HOME/.ssh\"\nchmod 700 \"$HOME/.ssh\"\n\
          touch \"$HOME/.ssh/authorized_keys\"\nchmod 600 \"$HOME/.ssh/authorized_keys\"\n\
+         if [ -s \"$HOME/.ssh/authorized_keys\" ] && [ -n \"$(tail -c1 \"$HOME/.ssh/authorized_keys\")\" ]; then echo >> \"$HOME/.ssh/authorized_keys\"; fi\n\
          add() { grep -qxF -- \"$1\" \"$HOME/.ssh/authorized_keys\" || printf '%s\\n' \"$1\" >> \"$HOME/.ssh/authorized_keys\"; }\n",
     );
     for k in keys {
@@ -162,18 +163,18 @@ fn capped_push(buf: &mut String, data: &[u8]) {
     buf.push_str(&String::from_utf8_lossy(&data[..data.len().min(room)]));
 }
 
-async fn run(handle: &mut Handle<Gate>, script: &str) -> Result<(u32, String)> {
+async fn run(handle: &mut Handle<Gate>, script: &str) -> Result<(Option<u32>, String)> {
     let mut ch = handle.channel_open_session().await?;
     ch.exec(true, "sh -s").await?;
     ch.data(script.as_bytes()).await?;
     ch.eof().await?;
-    let (mut stdout, mut stderr, mut status) = (String::new(), String::new(), 0);
+    let (mut _stdout, mut stderr, mut status) = (String::new(), String::new(), None);
     while let Some(msg) = ch.wait().await {
         match msg {
-            ChannelMsg::Data { data } => capped_push(&mut stdout, &data),
+            ChannelMsg::Data { data } => capped_push(&mut _stdout, &data),
             ChannelMsg::ExtendedData { data, .. } => capped_push(&mut stderr, &data),
-            ChannelMsg::ExitStatus { exit_status } => status = exit_status,
-            ChannelMsg::Eof | ChannelMsg::Close => break,
+            ChannelMsg::ExitStatus { exit_status } => status = Some(exit_status),
+            ChannelMsg::Close => break,
             _ => {}
         }
     }
@@ -188,14 +189,29 @@ pub async fn install_keys(
         .iter()
         .map(|k| normalize_public_key(&k.public_openssh))
         .collect::<Result<Vec<_>>>()?;
+    let privates = keys
+        .iter()
+        .map(|k| {
+            russh::keys::PrivateKey::from_openssh(&k.private_pem)
+                .map_err(|_| Error::Key(format!("{}: invalid private key", k.name)))
+        })
+        .collect::<Result<Vec<_>>>()?;
     let script = authorized_keys_script(&public_keys)?;
     let mut handle = authenticate(opts).await?;
     let (code, stderr) = run(&mut handle, &script).await?;
-    if code != 0 {
-        return Err(Error::Config(format!(
-            "authorized_keys update failed (exit {code}): {}",
-            stderr.trim()
-        )));
+    match code {
+        Some(0) => {}
+        Some(code) => {
+            return Err(Error::Config(format!(
+                "authorized_keys update failed (exit {code}): {}",
+                stderr.trim()
+            )))
+        }
+        None => {
+            return Err(Error::Config(
+                "authorized_keys update failed: no exit status from the server".into(),
+            ))
+        }
     }
     let _ = handle
         .disconnect(russh::Disconnect::ByApplication, "", "en")
@@ -203,9 +219,7 @@ pub async fn install_keys(
 
     let mut verified = Vec::new();
     let mut failures = Vec::new();
-    for key in keys {
-        let private = russh::keys::PrivateKey::from_openssh(&key.private_pem)
-            .map_err(|_| Error::Key(format!("{}: invalid private key", key.name)))?;
+    for (key, private) in keys.iter().zip(privates) {
         let gate = Gate {
             known_hosts: opts.known_hosts.clone(),
             host: opts.host.clone(),
@@ -216,9 +230,17 @@ pub async fn install_keys(
             (opts.host.as_str(), opts.port),
             gate,
         );
-        let mut h = tokio::time::timeout(Duration::from_secs(20), connect)
-            .await
-            .map_err(|_| Error::Config("ssh connection timed out".into()))??;
+        let mut h = match tokio::time::timeout(Duration::from_secs(20), connect).await {
+            Err(_) => {
+                failures.push(format!("{}: connection timed out", key.name));
+                continue;
+            }
+            Ok(Err(_)) => {
+                failures.push(format!("{}: connection failed", key.name));
+                continue;
+            }
+            Ok(Ok(h)) => h,
+        };
         let hash = private
             .algorithm()
             .is_rsa()
@@ -226,10 +248,11 @@ pub async fn install_keys(
         let with_hash = russh::keys::PrivateKeyWithHashAlg::new(Arc::new(private), hash);
         match h
             .authenticate_publickey(opts.user.as_str(), with_hash)
-            .await?
+            .await
         {
-            AuthResult::Success => verified.push(key.name.clone()),
-            _ => failures.push(key.name.clone()),
+            Ok(AuthResult::Success) => verified.push(key.name.clone()),
+            Ok(_) => failures.push(format!("{}: authentication rejected", key.name)),
+            Err(_) => failures.push(format!("{}: authentication error", key.name)),
         }
         let _ = h
             .disconnect(russh::Disconnect::ByApplication, "", "en")
@@ -237,7 +260,8 @@ pub async fn install_keys(
     }
     if !failures.is_empty() {
         return Err(Error::Config(format!(
-            "key authentication failed: {}",
+            "verified: {}; failed: {}",
+            verified.join(", "),
             failures.join(", ")
         )));
     }
@@ -283,6 +307,8 @@ mod tests {
         assert!(s.contains(&format!("add '{rsa}'")));
         assert!(s.contains("grep -qxF -- \"$1\""));
         assert_eq!(s.matches("add '").count(), 2);
+        assert!(s.contains("tail -c1"));
+        assert!(s.contains("echo >> \"$HOME/.ssh/authorized_keys\""));
     }
 
     #[test]
