@@ -51,4 +51,6 @@ jobs:
           bin=target/${{ matrix.target }}/release/sigrun
           name="sigrun-${{ matrix.target }}"
           if [ "$RUNNER_OS" = "Windows" ]; then bin="$bin.exe"; name="$name.exe"; fi
-          gh release upload "${{ github.ref_name }}" "$bin#$name" --clobber
+          # gh names the asset after the uploaded file's basename; # only sets a label.
+          cp "$bin" "$name"
+          gh release upload "${{ github.ref_name }}" "$name" --clobber
