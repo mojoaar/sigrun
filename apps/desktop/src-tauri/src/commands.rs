@@ -67,6 +67,9 @@ pub async fn connect_inner(state: Arc<HostState>, id: String, print_only: bool) 
 pub async fn list_keys_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::KeysList).await
 }
+pub async fn list_terminals_inner(state: Arc<HostState>) -> CmdResult {
+    call(state, Request::TerminalsList).await
+}
 pub async fn generate_key_inner(
     state: Arc<HostState>,
     name: String,
@@ -134,6 +137,10 @@ pub async fn vault_lock(state: St<'_>) -> CmdResult {
 #[tauri::command]
 pub async fn list_connections(state: St<'_>) -> CmdResult {
     list_connections_inner(state.inner().clone()).await
+}
+#[tauri::command]
+pub async fn list_terminals(state: St<'_>) -> CmdResult {
+    list_terminals_inner(state.inner().clone()).await
 }
 #[tauri::command]
 pub async fn add_connection(state: St<'_>, conn: Connection) -> CmdResult {

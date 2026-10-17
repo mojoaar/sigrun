@@ -3,6 +3,8 @@
 use std::path::Path;
 use std::process::Command;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::{Error, Result};
 use crate::model::{Connection, KeyMetadata, KeySource};
 
@@ -219,6 +221,82 @@ pub fn terminal_launch_specs(
     }
 }
 
+/// A terminal the user can pick in Settings, discovered as installed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalInfo {
+    /// The value stored in `Settings.terminal` (program name / override id).
+    pub id: String,
+    /// Human-readable name for the UI.
+    pub name: String,
+}
+
+/// Terminals we can launch, filtered to the ones actually installed.
+/// Read-only: filesystem and `PATH` checks only, never spawns anything.
+pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
+    let on_path = |prog: &str| -> bool { which(prog) };
+    match platform {
+        Platform::MacOs => {
+            let mut out = vec![TerminalInfo {
+                id: "terminal".into(),
+                name: "Terminal".into(),
+            }];
+            if Path::new("/Applications/iTerm.app").is_dir() {
+                out.push(TerminalInfo {
+                    id: "iterm".into(),
+                    name: "iTerm".into(),
+                });
+            }
+            out
+        }
+        Platform::Linux => ["gnome-terminal", "konsole", "x-terminal-emulator", "xterm"]
+            .iter()
+            .filter(|p| on_path(p))
+            .map(|p| TerminalInfo {
+                id: (*p).into(),
+                name: (*p).into(),
+            })
+            .collect(),
+        Platform::Windows => {
+            let mut out = Vec::new();
+            if on_path("wt.exe") {
+                out.push(TerminalInfo {
+                    id: "wt.exe".into(),
+                    name: "Windows Terminal".into(),
+                });
+            }
+            out.push(TerminalInfo {
+                id: "cmd.exe".into(),
+                name: "Command Prompt".into(),
+            });
+            out
+        }
+    }
+}
+
+/// True when `prog` is an executable on `PATH` (best-effort, no spawn).
+#[cfg(unix)]
+fn which(prog: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| {
+        let p = dir.join(prog);
+        p.is_file()
+            && p.metadata()
+                .map(|m| m.permissions().mode() & 0o111 != 0)
+                .unwrap_or(false)
+    })
+}
+
+#[cfg(windows)]
+fn which(prog: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| dir.join(prog).is_file())
+}
+
 /// Spawn the first spec that launches, exposing the agent socket when given.
 pub fn launch_first(specs: &[LaunchSpec], agent_socket: Option<&Path>) -> Result<()> {
     let mut last_error: Option<std::io::Error> = None;
@@ -238,7 +316,6 @@ pub fn launch_first(specs: &[LaunchSpec], agent_socket: Option<&Path>) -> Result
     });
     Err(Error::Config(format!("could not launch a terminal: {err}")))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -333,6 +410,25 @@ mod tests {
         let specs = terminal_launch_specs(Platform::Windows, None, &["ssh".into()]).unwrap();
         assert_eq!(specs[0].program, "wt.exe");
         assert!(specs.iter().any(|s| s.program == "cmd.exe"));
+    }
+
+    #[test]
+    fn detect_terminals_returns_launchable_terminals() {
+        // Every detected id must be one `terminal_launch_specs` can build a
+        // spec for, and the platform's built-in is always present.
+        let platform = Platform::current();
+        let found = detect_terminals(platform);
+        assert!(!found.is_empty());
+        for t in &found {
+            let specs = terminal_launch_specs(platform, Some(&t.id), &["ssh".into(), "u@h".into()]);
+            assert!(specs.is_ok(), "{} should be launchable", t.id);
+        }
+        let builtin = match platform {
+            Platform::MacOs => "terminal",
+            Platform::Windows => "cmd.exe",
+            Platform::Linux => found[0].id.as_str(), // whatever was found first
+        };
+        assert!(found.iter().any(|t| t.id == builtin));
     }
 
     #[cfg(unix)]

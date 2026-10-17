@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSettings, saveSettings, type Settings as S } from "../api";
+import { getSettings, saveSettings, listTerminals, type Settings as S, type TerminalInfo } from "../api";
 import { setLanguage, type Language } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
@@ -8,9 +8,11 @@ const field = "rounded border border-border bg-surface px-2 py-1 text-text";
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const [s, setS] = useState<S | null>(null);
+  const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [mode, setMode] = useState<Mode | "system">(readModeOverride() ?? "system");
 
   useEffect(() => { getSettings().then(setS).catch(() => {}); }, []);
+  useEffect(() => { listTerminals().then(setTerminals).catch(() => {}); }, []);
   if (!s) return <p className="text-muted">{t("common.loading")}</p>;
 
   const update = (patch: Partial<S>) => {
@@ -50,7 +52,18 @@ export default function Settings() {
         </select>
       </label>
       <label className="flex flex-col">{t("settings.terminal")}
-        <input className={field} value={s.terminal ?? ""} onChange={(e) => update({ terminal: e.target.value || null })} />
+        <select
+          className={field}
+          value={terminals.some((x) => x.id === s.terminal) ? (s.terminal ?? "") : ""}
+          onChange={(e) => update({ terminal: e.target.value || null })}
+        >
+          <option value="">{t("settings.terminalDefault")}</option>
+          {terminals.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={s.start_minimized} onChange={(e) => update({ start_minimized: e.target.checked })} />
+        {t("settings.startMinimized")}
       </label>
     </section>
   );

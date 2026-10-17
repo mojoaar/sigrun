@@ -132,6 +132,9 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             passphrase,
         } => keys_import(state, path, name, passphrase).await,
         Request::KeysRemove { id } => keys_remove(state, id).await,
+        Request::TerminalsList => Ok(Response::Terminals(crate::terminal::detect_terminals(
+            crate::terminal::Platform::current(),
+        ))),
         Request::ConnectionsConnect { id, print_only } => {
             connections_connect(state, id, print_only).await
         }

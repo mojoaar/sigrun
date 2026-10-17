@@ -48,6 +48,7 @@ pub enum Request {
     KeysRemove {
         id: String,
     },
+    TerminalsList,
     Shutdown,
 }
 
@@ -61,6 +62,7 @@ pub enum Response {
     Connections(Vec<Connection>),
     Keys(Vec<KeyView>),
     Key(KeyView),
+    Terminals(Vec<crate::terminal::TerminalInfo>),
     Command(String),
     Unlocked { warnings: Vec<String> },
     Error { code: String, message: String },

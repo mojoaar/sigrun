@@ -29,6 +29,7 @@ pub fn run() {
             commands::remove_key,
             commands::get_settings,
             commands::save_settings,
+            commands::list_terminals,
         ])
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;
@@ -42,6 +43,19 @@ pub fn run() {
                         let _ = w.hide();
                     }
                 });
+            }
+            // Start minimized to the tray when the user asked for it. Read
+            // before `state` is moved into the tray; on any load error, show
+            // the window (never strand a user with no window).
+            let start_minimized = state
+                .store
+                .load_settings()
+                .map(|s| s.start_minimized)
+                .unwrap_or(false);
+            if start_minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
             }
             tray::build_tray(app.handle(), state)?;
             Ok(())

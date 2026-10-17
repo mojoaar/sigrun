@@ -183,6 +183,7 @@ pub struct Settings {
     pub language: String,
     pub terminal: Option<String>,
     pub agent_enabled: bool,
+    pub start_minimized: bool,
 }
 
 impl Default for Settings {
@@ -193,6 +194,7 @@ impl Default for Settings {
             language: "en".into(),
             terminal: None,
             agent_enabled: true,
+            start_minimized: false,
         }
     }
 }
