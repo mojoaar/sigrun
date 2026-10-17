@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { addConnection, connectGuarded, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
@@ -21,7 +21,7 @@ export function groupConnections(conns: Connection[]): { group: string | null; i
   ].filter((s) => s.items.length > 0);
 }
 
-function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }: {
+function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys }: {
   initial: Connection | null;
   keys: KeyView[];
   onClose: () => void;
@@ -37,7 +37,7 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }:
     initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
   );
   const [error, setError] = useState(false);
-  const canProvision = keys.some((k) => k.key.source === "vault");
+  const canProvision = keys.some((k) => k.available);
   useEffect(() => {
     bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
     return () => bindProvisioned(null);
@@ -69,7 +69,7 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }:
         <div className="flex items-center justify-end gap-2">
           {initial && (canProvision
             ? <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={() => onProvision(initial)}>{t("provision.install")}</button>
-            : <span className="mr-auto text-sm text-muted">{t("provision.importFirst")}</span>)}
+            : <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={onGoToKeys}>{t("provision.importKey")}</button>)}
           <button type="button" onClick={onClose}>{t("common.cancel")}</button>
           <button type="submit" className="rounded bg-accent px-3 py-1 text-bg">{t("common.save")}</button>
         </div>
@@ -91,29 +91,46 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
 }) {
   const { t } = useTranslation();
   const vaultKeys = keys.filter((k) => k.key.source === "vault");
+  const diskKeys = keys.filter((k) => k.key.source === "disk" && k.available);
   const [selected, setSelected] = useState<string[]>(
     // Only a vault key may be pre-selected: a disk key has no checkbox to uncheck it with.
     conn.key_id && vaultKeys.some((k) => k.key.id === conn.key_id) ? [conn.key_id] : [],
   );
+  const [diskSelected, setDiskSelected] = useState<string[]>([]);
   const [password, setPassword] = useState("");
+  const [keyPassphrase, setKeyPassphrase] = useState("");
   const [disable, setDisable] = useState(conn.disable_password_auth);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Belt and braces: a stale selection of a now-disk key must not reach the backend.
   const keyIds = selected.filter((id) => vaultKeys.some((k) => k.key.id === id));
+  const needsKeyPassphrase = diskSelected.some((id) => diskKeys.find((k) => k.key.id === id)?.key.has_passphrase);
+  // Disk id → vault id, so a trust retry reuses the key it already imported.
+  const imported = useRef(new Map<string, string>());
 
   const close = () => {
     setPassword("");
+    setKeyPassphrase("");
     onClose();
   };
 
   // Recursive on purpose: the trust retry calls the same request again once.
   async function run(): Promise<void> {
     setBusy(true);
-    setError(false);
+    setError(null);
     const pw = password;
     try {
-      const outcome = await provisionConnection(conn.id, pw, keyIds, disable);
+      const ids = [...keyIds];
+      for (const id of diskSelected) {
+        const cached = imported.current.get(id);
+        if (cached) { ids.push(cached); continue; }
+        const dk = diskKeys.find((k) => k.key.id === id);
+        if (!dk?.key.disk_path) continue;
+        const v = await importKey(dk.key.disk_path, dk.key.name, keyPassphrase || null);
+        imported.current.set(id, v.key.id);
+        ids.push(v.key.id);
+      }
+      const outcome = await provisionConnection(conn.id, pw, ids, disable);
       // A skipped or unrequested hardening leaves sshd as it was, so it must not
       // be recorded as if password auth were off.
       const persisted = outcome.hardening === "applied" ? disable : conn.disable_password_auth;
@@ -129,9 +146,10 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
       if (code === "host_key_unknown" || code === "host_key_mismatch")
         onTrustError(err, { host: conn.host, port: conn.port, run });
       else if (code === "vault_locked") onVaultLocked();
-      else setError(true);
+      else setError((err as CommandError)?.message ?? "");
     } finally {
       setPassword("");
+      setKeyPassphrase("");
       setBusy(false);
     }
   }
@@ -154,16 +172,32 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
             </label>
           ))}
         </fieldset>
+        {diskKeys.length > 0 && (
+          <fieldset className="flex flex-col gap-1">
+            <legend>{t("provision.diskKeys")}</legend>
+            {diskKeys.map((k) => (
+              <label key={k.key.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={diskSelected.includes(k.key.id)}
+                  onChange={(e) => setDiskSelected((s) => e.target.checked ? [...s, k.key.id] : s.filter((id) => id !== k.key.id))}
+                />
+                {k.key.name}
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {needsKeyPassphrase && <label>{t("provision.keyPassphrase")}<input type="password" autoComplete="off" className={field} value={keyPassphrase} onChange={(e) => setKeyPassphrase(e.target.value)} /></label>}
         <label>{t("provision.password")}<input required type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} />
           {t("provision.disablePasswordAuth")}
         </label>
         {disable && <p role="alert" className="text-danger">{t("provision.lockoutWarning")}</p>}
-        {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+        {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={close}>{t("common.cancel")}</button>
-          <button type="submit" disabled={busy || keyIds.length === 0} className="rounded bg-accent px-3 py-1 text-bg">{t("provision.install")}</button>
+          <button type="submit" disabled={busy || (keyIds.length === 0 && diskSelected.length === 0)} className="rounded bg-accent px-3 py-1 text-bg">{t("provision.install")}</button>
         </div>
       </form>
     </div>
@@ -226,7 +260,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
     setProvision(c);
   };
 
-  const hasVaultKey = keys.some((k) => k.key.source === "vault");
+  const hasUsableKey = keys.some((k) => k.available);
 
   return (
     <section className="flex flex-col gap-3">
@@ -264,7 +298,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
               <ConnectionRow
                 key={c.id}
                 conn={c}
-                canProvision={hasVaultKey}
+                canProvision={hasUsableKey}
                 onProvision={() => openProvision(c)}
                 onConnect={() => { setMismatch(false); void doConnect(c); }}
                 onEdit={() => setForm({ edit: c })}

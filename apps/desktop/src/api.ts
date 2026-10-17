@@ -70,8 +70,9 @@ export const listKeys = async (): Promise<KeyView[]> => {
 export const listTerminals = () => call<TerminalInfo[]>("list_terminals");
 export const generateKey = (name: string, algorithm: KeyAlgorithm, passphrase?: string) =>
   call<void>("generate_key", { name, algorithm, passphrase: passphrase || null });
-export const importKey = (path: string, name: string, passphrase?: string) =>
-  call<void>("import_key", { path, name, passphrase: passphrase || null });
+export const importKey = (path: string, name: string, passphrase?: string | null) =>
+  call<KeyMetadata & { available: boolean }>("import_key", { path, name, passphrase: passphrase || null })
+    .then(({ available, ...key }) => ({ key, available }));
 export const removeKey = (id: string) => call<void>("remove_key", { id });
 export const getSettings = async () => JSON.parse(await call<string>("get_settings")) as Settings;
 export const saveSettings = (settings: Settings) => call<void>("save_settings", { settings });

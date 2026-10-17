@@ -14,6 +14,7 @@ vi.mock("../api", () => ({
   removeConnection: vi.fn(),
   connectGuarded: vi.fn(),
   trustHost: vi.fn().mockResolvedValue(undefined),
+  importKey: vi.fn(),
   provisionConnection: vi.fn(),
 }));
 
@@ -223,5 +224,52 @@ describe("Connections", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit connection" }));
     const edit = await screen.findByRole("dialog", { name: "Edit connection" });
     expect(within(edit).getByRole("button", { name: /install ssh key/i })).toBeTruthy();
+  });
+
+  it("imports a selected disk key and provisions with the new vault id", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([
+      { key: { ...diskKey.key, id: "sha256:disk", name: "work", disk_path: "/home/u/.ssh/id_work", has_passphrase: false }, available: true },
+    ]);
+    vi.mocked(api.importKey).mockResolvedValue({ key: { ...vaultKey.key, id: "k-new", name: "work" }, available: true });
+    vi.mocked(api.provisionConnection).mockResolvedValue({ installed: ["work"], verified: ["work"], hardening: "applied" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "work" }));
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install/i }));
+
+    await waitFor(() => expect(api.importKey).toHaveBeenCalledWith("/home/u/.ssh/id_work", "work", null));
+    await waitFor(() => expect(api.provisionConnection).toHaveBeenCalledWith("c1", "pw", ["k-new"], false));
+  });
+
+  it("shows the host's message when provisioning fails for a non-trust reason", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "unreachable", message: "connection refused" });
+    render(<Connections onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install/i }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("connection refused");
+  });
+
+  it("offers to import a key when it has no usable key", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    vi.mocked(api.listKeys).mockResolvedValue([]);
+    const onGoToKeys = vi.fn();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={onGoToKeys} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Import a key" }));
+    expect(onGoToKeys).toHaveBeenCalled();
   });
 });

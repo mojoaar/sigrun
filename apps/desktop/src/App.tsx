@@ -63,7 +63,7 @@ export default function App() {
         {vault === "Uninitialized" && <VaultGate mode="create" onDone={done} />}
         {vault === "Locked" && <VaultGate notice={notice} onDone={done} />}
         {vault === "Unlocked" && tab === "connections" && (
-          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} /></ErrorBoundary>
+          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} onGoToKeys={() => setTab("keys")} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "keys" && (
           <ErrorBoundary key="keys"><Keys onVaultLocked={locked} /></ErrorBoundary>
