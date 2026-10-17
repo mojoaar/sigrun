@@ -1,0 +1,20 @@
+[package]
+name = "sigrun-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+name = "sigrun_desktop"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+sigrun-core = { path = "../../../crates/sigrun-core" }
+tauri.workspace = true
+tauri-plugin-single-instance.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
