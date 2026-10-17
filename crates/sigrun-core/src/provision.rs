@@ -6,6 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use russh::client::{AuthResult, Config, Handle, Handler};
+use russh::ChannelMsg;
+use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 use crate::trust::{check, fingerprint, TrustStatus};
@@ -122,6 +124,135 @@ pub fn normalize_public_key(raw: &str) -> Result<String> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProvisionOutcome {
+    pub installed: Vec<String>,
+    pub verified: Vec<String>,
+    pub hardening: Hardening,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Hardening {
+    NotRequested,
+    Applied,
+    Skipped(String),
+}
+
+pub fn authorized_keys_script(keys: &[String]) -> Result<String> {
+    if keys.is_empty() {
+        return Err(Error::InvalidInput("no public keys to install".into()));
+    }
+    let mut s = String::from(
+        "set -e\numask 077\nmkdir -p \"$HOME/.ssh\"\nchmod 700 \"$HOME/.ssh\"\n\
+         touch \"$HOME/.ssh/authorized_keys\"\nchmod 600 \"$HOME/.ssh/authorized_keys\"\n\
+         add() { grep -qxF -- \"$1\" \"$HOME/.ssh/authorized_keys\" || printf '%s\\n' \"$1\" >> \"$HOME/.ssh/authorized_keys\"; }\n",
+    );
+    for k in keys {
+        // Normalized to `algo b64` (validated charset), so single quotes are safe.
+        s.push_str(&format!("add '{}'\n", normalize_public_key(k)?));
+    }
+    Ok(s)
+}
+
+const OUTPUT_CAP: usize = 8 * 1024;
+
+fn capped_push(buf: &mut String, data: &[u8]) {
+    let room = OUTPUT_CAP.saturating_sub(buf.len());
+    buf.push_str(&String::from_utf8_lossy(&data[..data.len().min(room)]));
+}
+
+async fn run(handle: &mut Handle<Gate>, script: &str) -> Result<(u32, String)> {
+    let mut ch = handle.channel_open_session().await?;
+    ch.exec(true, "sh -s").await?;
+    ch.data(script.as_bytes()).await?;
+    ch.eof().await?;
+    let (mut stdout, mut stderr, mut status) = (String::new(), String::new(), 0);
+    while let Some(msg) = ch.wait().await {
+        match msg {
+            ChannelMsg::Data { data } => capped_push(&mut stdout, &data),
+            ChannelMsg::ExtendedData { data, .. } => capped_push(&mut stderr, &data),
+            ChannelMsg::ExitStatus { exit_status } => status = exit_status,
+            ChannelMsg::Eof | ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+    Ok((status, stderr))
+}
+
+pub async fn install_keys(
+    opts: &ProvisionOptions,
+    keys: &[ProvisionKey],
+) -> Result<ProvisionOutcome> {
+    let public_keys = keys
+        .iter()
+        .map(|k| normalize_public_key(&k.public_openssh))
+        .collect::<Result<Vec<_>>>()?;
+    let script = authorized_keys_script(&public_keys)?;
+    let mut handle = authenticate(opts).await?;
+    let (code, stderr) = run(&mut handle, &script).await?;
+    if code != 0 {
+        return Err(Error::Config(format!(
+            "authorized_keys update failed (exit {code}): {}",
+            stderr.trim()
+        )));
+    }
+    let _ = handle
+        .disconnect(russh::Disconnect::ByApplication, "", "en")
+        .await;
+
+    let mut verified = Vec::new();
+    let mut failures = Vec::new();
+    for key in keys {
+        let private = russh::keys::PrivateKey::from_openssh(&key.private_pem)
+            .map_err(|_| Error::Key(format!("{}: invalid private key", key.name)))?;
+        let gate = Gate {
+            known_hosts: opts.known_hosts.clone(),
+            host: opts.host.clone(),
+            port: opts.port,
+        };
+        let connect = russh::client::connect(
+            Arc::new(Config::default()),
+            (opts.host.as_str(), opts.port),
+            gate,
+        );
+        let mut h = tokio::time::timeout(Duration::from_secs(20), connect)
+            .await
+            .map_err(|_| Error::Config("ssh connection timed out".into()))??;
+        let hash = private
+            .algorithm()
+            .is_rsa()
+            .then_some(russh::keys::HashAlg::Sha256);
+        let with_hash = russh::keys::PrivateKeyWithHashAlg::new(Arc::new(private), hash);
+        match h
+            .authenticate_publickey(opts.user.as_str(), with_hash)
+            .await?
+        {
+            AuthResult::Success => verified.push(key.name.clone()),
+            _ => failures.push(key.name.clone()),
+        }
+        let _ = h
+            .disconnect(russh::Disconnect::ByApplication, "", "en")
+            .await;
+    }
+    if !failures.is_empty() {
+        return Err(Error::Config(format!(
+            "key authentication failed: {}",
+            failures.join(", ")
+        )));
+    }
+    let hardening = if opts.disable_password_auth {
+        Hardening::Skipped("hardening not implemented".into())
+    } else {
+        Hardening::NotRequested
+    };
+    Ok(ProvisionOutcome {
+        installed: keys.iter().map(|k| k.name.clone()).collect(),
+        verified,
+        hardening,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +269,26 @@ mod tests {
         assert!(normalize_public_key("ssh-ed25519").is_err());
         assert!(normalize_public_key("ssh-ed25519 bad key").is_err());
         assert!(normalize_public_key("ssh-ed25519 $()").is_err());
+    }
+
+    #[test]
+    fn script_is_idempotent_and_quotes_safely() {
+        let ed = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKKEEWQJy/IdduM5HglENeKuk+5Am8lcPpdlUdvxDWqq";
+        let rsa = "ssh-rsa AAAAB3NzaC1yc2EAAAABAwAAAAEF";
+        let s = authorized_keys_script(&[format!("{ed} me@x"), rsa.to_string()]).unwrap();
+        assert!(s.contains("umask 077"));
+        assert!(s.contains("chmod 700 \"$HOME/.ssh\""));
+        assert!(s.contains("chmod 600 \"$HOME/.ssh/authorized_keys\""));
+        assert!(s.contains(&format!("add '{ed}'")));
+        assert!(s.contains(&format!("add '{rsa}'")));
+        assert!(s.contains("grep -qxF -- \"$1\""));
+        assert_eq!(s.matches("add '").count(), 2);
+    }
+
+    #[test]
+    fn script_rejects_unsafe_keys() {
+        assert!(authorized_keys_script(&["ssh-ed25519 AAAA'; rm -rf / #".to_string()]).is_err());
+        assert!(authorized_keys_script(&[]).is_err());
     }
 
     #[test]
