@@ -3,7 +3,6 @@ use crate::model::KeyAlgorithm;
 use ssh_key::Algorithm;
 use ssh_key::EcdsaCurve;
 
-#[derive(Clone, PartialEq)]
 pub struct GeneratedKey {
     pub private_pem: String,
     pub public_openssh: String,
