@@ -33,3 +33,23 @@ export function applyTheme(name: ThemeName, mode: Mode): void {
   root.setAttribute("data-theme", name);
   root.setAttribute("data-mode", mode);
 }
+
+const MODE_KEY = "sigrun.mode";
+
+export function readModeOverride(): Mode | null {
+  try {
+    const m = localStorage.getItem(MODE_KEY);
+    return m === "light" || m === "dark" ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeModeOverride(m: Mode | null): void {
+  try {
+    if (m) localStorage.setItem(MODE_KEY, m);
+    else localStorage.removeItem(MODE_KEY);
+  } catch {
+    // storage unavailable: override just won't persist
+  }
+}

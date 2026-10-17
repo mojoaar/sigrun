@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getStatus, vaultLock, type VaultState } from "./api";
+import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
+import i18n from "./i18n";
+import { applyTheme, DEFAULT_THEME, readModeOverride, resolveMode, type ThemeName } from "./themes";
 import Connections from "./views/Connections";
 import Keys from "./views/Keys";
 import Settings from "./views/Settings";
@@ -17,7 +19,9 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const s = await getStatus();
+      const [s, settings] = await Promise.all([getStatus(), getSettings().catch(() => null)]);
+      applyTheme((settings?.theme as ThemeName) ?? DEFAULT_THEME, resolveMode(readModeOverride()));
+      await i18n.changeLanguage(settings?.language ?? "en");
       const v = String(s.vault).toLowerCase();
       setVault(v === "unlocked" ? "Unlocked" : v === "uninitialized" ? "Uninitialized" : "Locked");
     } catch {
