@@ -1,17 +1,30 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { addConnection, connectGuarded, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
-function Form({ initial, keys, onClose, onSaved, onProvision }: { initial: Connection | null; keys: KeyView[]; onClose: () => void; onSaved: () => void; onProvision: (c: Connection) => void }) {
+function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned }: {
+  initial: Connection | null;
+  keys: KeyView[];
+  onClose: () => void;
+  onSaved: () => void;
+  onProvision: (c: Connection) => void;
+  // Lets the parent push the persisted disable-password-auth flag back in, so a
+  // later Save on this still-open form cannot revert it.
+  bindProvisioned: (sync: ((disablePasswordAuth: boolean) => void) | null) => void;
+}) {
   const { t } = useTranslation();
   const [c, setC] = useState<Connection>(
     initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
   );
   const [error, setError] = useState(false);
   const canProvision = keys.some((k) => k.key.source === "vault");
+  useEffect(() => {
+    bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
+    return () => bindProvisioned(null);
+  }, [bindProvisioned]);
   async function submit(e: FormEvent) {
     e.preventDefault();
     try {
@@ -37,9 +50,9 @@ function Form({ initial, keys, onClose, onSaved, onProvision }: { initial: Conne
         </label>
         {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
-          {canProvision
-            ? <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={() => onProvision(c)}>{t("provision.install")}</button>
-            : <span className="mr-auto text-sm text-muted">{t("provision.importFirst")}</span>}
+          {initial && (canProvision
+            ? <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={() => onProvision(initial)}>{t("provision.install")}</button>
+            : <span className="mr-auto text-sm text-muted">{t("provision.importFirst")}</span>)}
           <button type="button" onClick={onClose}>{t("common.cancel")}</button>
           <button type="submit" className="rounded bg-accent px-3 py-1 text-bg">{t("common.save")}</button>
         </div>
@@ -50,19 +63,27 @@ function Form({ initial, keys, onClose, onSaved, onProvision }: { initial: Conne
 
 type TrustRetry = { host: string; port: number; run: () => Promise<void> };
 
-function ProvisionPanel({ conn, keys, onTrustError, onClose, onDone }: {
+function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onClose, onDone }: {
   conn: Connection;
   keys: KeyView[];
   onTrustError: (err: unknown, retry: TrustRetry) => void;
+  onVaultLocked: () => void;
+  onError: (err: unknown) => void;
   onClose: () => void;
-  onDone: (outcome: ProvisionOutcome) => void;
+  onDone: (outcome: ProvisionOutcome, disablePasswordAuth: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const [selected, setSelected] = useState<string[]>(conn.key_id ? [conn.key_id] : []);
+  const vaultKeys = keys.filter((k) => k.key.source === "vault");
+  const [selected, setSelected] = useState<string[]>(
+    // Only a vault key may be pre-selected: a disk key has no checkbox to uncheck it with.
+    conn.key_id && vaultKeys.some((k) => k.key.id === conn.key_id) ? [conn.key_id] : [],
+  );
   const [password, setPassword] = useState("");
   const [disable, setDisable] = useState(conn.disable_password_auth);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  // Belt and braces: a stale selection of a now-disk key must not reach the backend.
+  const keyIds = selected.filter((id) => vaultKeys.some((k) => k.key.id === id));
 
   const close = () => {
     setPassword("");
@@ -73,17 +94,24 @@ function ProvisionPanel({ conn, keys, onTrustError, onClose, onDone }: {
   async function run(): Promise<void> {
     setBusy(true);
     setError(false);
+    const pw = password;
     try {
-      const outcome = await provisionConnection(conn.id, password, selected, disable);
-      setPassword("");
-      await updateConnection({ ...conn, disable_password_auth: disable });
-      onDone(outcome);
+      const outcome = await provisionConnection(conn.id, pw, keyIds, disable);
+      onDone(outcome, disable);
+      // Persisted after the install is reported, so a failure here cannot hide it.
+      try {
+        await updateConnection({ ...conn, disable_password_auth: disable });
+      } catch (err) {
+        onError(err);
+      }
     } catch (err) {
       const code = (err as CommandError)?.code;
       if (code === "host_key_unknown" || code === "host_key_mismatch")
         onTrustError(err, { host: conn.host, port: conn.port, run });
+      else if (code === "vault_locked") onVaultLocked();
       else setError(true);
     } finally {
+      setPassword("");
       setBusy(false);
     }
   }
@@ -95,7 +123,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onClose, onDone }: {
         <p className="text-sm text-muted">{t("provision.body")}</p>
         <fieldset className="flex flex-col gap-1">
           <legend>{t("provision.selectKeys")}</legend>
-          {keys.filter((k) => k.key.source === "vault").map((k) => (
+          {vaultKeys.map((k) => (
             <label key={k.key.id} className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -115,7 +143,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onClose, onDone }: {
         {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={close}>{t("common.cancel")}</button>
-          <button type="submit" disabled={busy || selected.length === 0} className="rounded bg-accent px-3 py-1 text-bg">{t("provision.install")}</button>
+          <button type="submit" disabled={busy || keyIds.length === 0} className="rounded bg-accent px-3 py-1 text-bg">{t("provision.install")}</button>
         </div>
       </form>
     </div>
@@ -132,6 +160,10 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
   const [error, setError] = useState(false);
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
+  const formSync = useRef<((disablePasswordAuth: boolean) => void) | null>(null);
+  const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
+    formSync.current = sync;
+  }, []);
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -170,6 +202,7 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
   };
   const openProvision = (c: Connection) => {
     setProvisioned(null);
+    setMismatch(false);
     setProvision(c);
   };
 
@@ -185,7 +218,7 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
       {mismatch && <p role="alert" className="text-danger">{t("trust.mismatch")}</p>}
       {provisioned && (
         <p role="status" className="text-sm">
-          {t("provision.installed", { keys: provisioned.installed.join(", ") })}
+          {t("provision.installed", { installed: provisioned.installed.join(", "), verified: provisioned.verified.join(", ") })}
           {typeof provisioned.hardening === "object" && ` ${t("provision.skipped", { reason: provisioned.hardening.skipped })}`}
         </p>
       )}
@@ -216,14 +249,21 @@ export default function Connections({ onVaultLocked }: { onVaultLocked: () => vo
           />
         ))}
       </ul>
-      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} />}
+      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} />}
       {provision && (
         <ProvisionPanel
           conn={provision}
           keys={keys}
           onTrustError={handleTrustError}
+          onVaultLocked={onVaultLocked}
+          onError={handle}
           onClose={() => setProvision(null)}
-          onDone={(outcome) => { setProvision(null); setProvisioned(outcome); refresh(); }}
+          onDone={(outcome, disablePasswordAuth) => {
+            setProvision(null);
+            setProvisioned(outcome);
+            formSync.current?.(disablePasswordAuth);
+            refresh();
+          }}
         />
       )}
     </section>

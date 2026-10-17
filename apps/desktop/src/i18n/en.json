@@ -60,7 +60,7 @@
     "disablePasswordAuth": "Disable password auth",
     "lockoutWarning": "This will lock you out if key login fails. Make sure you can log in with a key first.",
     "install": "Install SSH key…",
-    "installed": "Installed and verified: {{keys}}",
+    "installed": "Installed: {{installed}} — verified: {{verified}}",
     "skipped": "Password authentication was left enabled: {{reason}}",
     "importFirst": "Import a key into the vault first"
   },

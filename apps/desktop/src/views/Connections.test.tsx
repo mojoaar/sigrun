@@ -22,6 +22,11 @@ const vaultKey = {
   available: true,
 };
 
+const diskKey = {
+  key: { id: "d1", name: "laptop", algorithm: "ed25519" as const, public_key: "ssh-ed25519 BBBB", fingerprint: "SHA256:y", source: "disk", disk_path: "/home/me/.ssh/id_ed25519", has_passphrase: false, group: null, tags: [], notes: null, created_at: "" },
+  available: true,
+};
+
 describe("Connections", () => {
   it("renders rows from listConnections", async () => {
     render(<Connections onVaultLocked={() => {}} />);
@@ -101,5 +106,83 @@ describe("Connections", () => {
     await waitFor(() => expect(api.trustHost).toHaveBeenCalledWith("h", 22, "ssh-ed25519", "AAAA"));
     await waitFor(() => expect(api.provisionConnection).toHaveBeenCalledTimes(2));
     expect((await screen.findByRole("status")).textContent).toMatch(/sudo is not available/);
+  });
+
+  it("ignores a disk key_id when preselecting vault keys", async () => {
+    vi.mocked(api.provisionConnection).mockClear();
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "d1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey, diskKey]);
+    render(<Connections onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    for (const box of within(panel).getAllByRole("checkbox"))
+      expect((box as HTMLInputElement).checked).toBe(false);
+    expect((within(panel).getByRole("button", { name: /install ssh key/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("clears the password after a failed submit and on close", async () => {
+    vi.mocked(api.provisionConnection).mockClear();
+    vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "internal", message: "boom" });
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    render(<Connections onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    const password = () => (within(panel).getByLabelText(/^password$/i) as HTMLInputElement).value;
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "secret" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install ssh key/i }));
+
+    await waitFor(() => expect(password()).toBe(""));
+    expect(within(panel).getByRole("alert")).toBeTruthy();
+
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "again" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("dialog", { name: /install ssh key/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /install ssh key/i }));
+    const reopened = await screen.findByRole("dialog", { name: /install ssh key/i });
+    expect((within(reopened).getByLabelText(/^password$/i) as HTMLInputElement).value).toBe("");
+  });
+
+  it("maps a locked vault during provisioning to onVaultLocked", async () => {
+    vi.mocked(api.provisionConnection).mockClear();
+    vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "vault_locked", message: "vault is locked" });
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    const onVaultLocked = vi.fn();
+    render(<Connections onVaultLocked={onVaultLocked} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install ssh key/i }));
+
+    await waitFor(() => expect(onVaultLocked).toHaveBeenCalled());
+    expect(within(panel).queryByRole("alert")).toBeNull();
+  });
+
+  it("offers installation only when editing a saved connection", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    render(<Connections onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    const add = await screen.findByRole("dialog", { name: "Add connection" });
+    expect(within(add).queryByRole("button", { name: /install ssh key/i })).toBeNull();
+    fireEvent.click(within(add).getByRole("button", { name: /cancel/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit connection" }));
+    const edit = await screen.findByRole("dialog", { name: "Edit connection" });
+    expect(within(edit).getByRole("button", { name: /install ssh key/i })).toBeTruthy();
   });
 });

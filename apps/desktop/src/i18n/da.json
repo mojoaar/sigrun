@@ -60,7 +60,7 @@
     "disablePasswordAuth": "Slå adgangskodegodkendelse fra",
     "lockoutWarning": "Det låser dig ude, hvis nøglelogin mislykkes. Sørg for, at du kan logge ind med en nøgle først.",
     "install": "Installér SSH-nøgle…",
-    "installed": "Installeret og bekræftet: {{keys}}",
+    "installed": "Installeret: {{installed}} — bekræftet: {{verified}}",
     "skipped": "Adgangskodegodkendelse blev ikke slået fra: {{reason}}",
     "importFirst": "Importér først en nøgle til pengeskabet"
   },
