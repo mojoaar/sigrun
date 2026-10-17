@@ -1,0 +1,56 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin, args: "--target aarch64-apple-darwin" }
+          - { os: macos-latest, target: x86_64-apple-darwin, args: "--target x86_64-apple-darwin" }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, args: "" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, args: "" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Tauri Linux deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+        working-directory: apps/desktop
+      - run: cargo build --release --target ${{ matrix.target }} -p sigrun-cli
+      - id: tauri
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          projectPath: apps/desktop
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: "Sigrun ${{ github.ref_name }}"
+          releaseDraft: false
+      # Depends on the release being published (non-draft): gh release upload cannot resolve drafts.
+      - name: Upload CLI binary
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bin=target/${{ matrix.target }}/release/sigrun
+          name="sigrun-${{ matrix.target }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then bin="$bin.exe"; name="$name.exe"; fi
+          # gh names the asset after the uploaded file's basename; # only sets a label.
+          cp "$bin" "$name"
+          gh release upload "${{ github.ref_name }}" "$name" --clobber

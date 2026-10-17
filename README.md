@@ -77,7 +77,11 @@ Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
 
 ## Current limitations
 
-- Headless only. The desktop window, systray, themes, and i18n arrive in Plan 2.
+- Sigrun's host-key (TOFU) prompt only gates whether Sigrun launches the terminal.
+  The `ssh` inside that terminal still verifies the host against your own
+  `~/.ssh/known_hosts`; Sigrun does not override it. The pre-flight probe is
+  skipped if `ssh-keyscan` is missing or fails.
+- Desktop app: run with `cd apps/desktop && npm run tauri dev`. Closing the window minimizes to the tray; quit explicitly from the tray menu. Installers are produced by pushing a `v*` tag.
 - `Include` is not followed when parsing `ssh_config`.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the

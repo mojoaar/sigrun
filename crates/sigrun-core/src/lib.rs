@@ -10,4 +10,5 @@ pub mod paths;
 pub mod ssh_config;
 pub mod store;
 pub mod terminal;
+pub mod trust;
 pub mod vault;

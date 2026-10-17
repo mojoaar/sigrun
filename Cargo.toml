@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/sigrun-core", "crates/sigrun-cli"]
+members = ["crates/sigrun-core", "crates/sigrun-cli", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -37,6 +37,9 @@ tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync"] }
 tokio-util = { version = "0.7", features = ["rt"] }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-build = "2"
+tauri-plugin-single-instance = "2"
 toml = "0.8"
 uuid = { version = "1", features = ["v4"] }
 zeroize = { version = "1", features = ["derive"] }

@@ -1,0 +1,82 @@
+{
+  "app": { "title": "Sigrun", "tagline": "Your SSH keys and connections, in one place." },
+  "nav": { "connections": "Connections", "keys": "Keys", "settings": "Settings" },
+  "vault": {
+    "uninitialized": {
+      "title": "Create your vault",
+      "body": "Choose a passphrase to encrypt your keys. It cannot be recovered if you forget it."
+    },
+    "locked": {
+      "title": "Vault locked",
+      "body": "Enter your passphrase to unlock your keys and connections."
+    },
+    "unlock": "Unlock",
+    "create": "Create vault",
+    "lock": "Lock",
+    "unlocking": "Unlocking…",
+    "passphrase": "Passphrase",
+    "passphraseConfirm": "Confirm passphrase",
+    "passphraseMismatch": "The passphrases do not match.",
+    "passphraseRequired": "A passphrase is required.",
+    "wrongPassphrase": "Wrong passphrase. Please try again."
+  },
+  "connections": {
+    "title": "Connections",
+    "empty": "No connections yet. Add one to get started.",
+    "add": "Add connection",
+    "edit": "Edit connection",
+    "remove": "Remove connection",
+    "connect": "Connect",
+    "copyCommand": "Copy SSH command",
+    "label": "Label",
+    "host": "Host",
+    "user": "User",
+    "port": "Port",
+    "key": "Key",
+    "group": "Group",
+    "search": "Search connections",
+    "discovered": "Discovered in ~/.ssh/config",
+    "removeConfirm": "Remove this connection? This cannot be undone."
+  },
+  "keys": {
+    "title": "Keys",
+    "empty": "No keys yet. Generate or import one.",
+    "generate": "Generate key",
+    "import": "Import key",
+    "remove": "Remove key",
+    "name": "Name",
+    "path": "Path",
+    "algorithm": "Algorithm",
+    "fingerprint": "Fingerprint",
+    "source": { "vault": "Vault", "disk": "On disk" },
+    "passphrase": "Key passphrase",
+    "removeConfirm": "Remove this key? This cannot be undone."
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "mode": "Appearance",
+    "modeSystem": "System",
+    "modeLight": "Light",
+    "modeDark": "Dark",
+    "terminal": "Terminal"
+  },
+  "trust": {
+    "title": "Trust this host?",
+    "body": "This is the first time you connect to this host. Verify the fingerprint before continuing.",
+    "fingerprint": "Host fingerprint",
+    "accept": "Trust and connect",
+    "cancel": "Cancel",
+    "mismatch": "Warning: the host fingerprint has changed. This could be a man-in-the-middle attack."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading…",
+    "error": "Something went wrong."
+  }
+}

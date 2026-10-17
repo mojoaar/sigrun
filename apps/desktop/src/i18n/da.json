@@ -1,0 +1,82 @@
+{
+  "app": { "title": "Sigrun", "tagline": "Dine SSH-nøgler og forbindelser samlet ét sted." },
+  "nav": { "connections": "Forbindelser", "keys": "Nøgler", "settings": "Indstillinger" },
+  "vault": {
+    "uninitialized": {
+      "title": "Opret dit pengeskab",
+      "body": "Vælg en adgangssætning til at kryptere dine nøgler. Den kan ikke gendannes, hvis du glemmer den."
+    },
+    "locked": {
+      "title": "Pengeskabet er låst",
+      "body": "Indtast din adgangssætning for at låse dine nøgler og forbindelser op."
+    },
+    "unlock": "Lås op",
+    "create": "Opret pengeskab",
+    "lock": "Lås",
+    "unlocking": "Låser op…",
+    "passphrase": "Adgangssætning",
+    "passphraseConfirm": "Bekræft adgangssætning",
+    "passphraseMismatch": "Adgangssætningerne er ikke ens.",
+    "passphraseRequired": "Du skal angive en adgangssætning.",
+    "wrongPassphrase": "Forkert adgangssætning. Prøv igen."
+  },
+  "connections": {
+    "title": "Forbindelser",
+    "empty": "Ingen forbindelser endnu. Tilføj en for at komme i gang.",
+    "add": "Tilføj forbindelse",
+    "edit": "Rediger forbindelse",
+    "remove": "Fjern forbindelse",
+    "connect": "Forbind",
+    "copyCommand": "Kopiér SSH-kommando",
+    "label": "Navn",
+    "host": "Vært",
+    "user": "Bruger",
+    "port": "Port",
+    "key": "Nøgle",
+    "group": "Gruppe",
+    "search": "Søg i forbindelser",
+    "discovered": "Fundet i ~/.ssh/config",
+    "removeConfirm": "Vil du fjerne denne forbindelse? Det kan ikke fortrydes."
+  },
+  "keys": {
+    "title": "Nøgler",
+    "empty": "Ingen nøgler endnu. Generér eller importér en.",
+    "generate": "Generér nøgle",
+    "import": "Importér nøgle",
+    "remove": "Fjern nøgle",
+    "name": "Navn",
+    "path": "Sti",
+    "algorithm": "Algoritme",
+    "fingerprint": "Fingeraftryk",
+    "source": { "vault": "Pengeskab", "disk": "På disken" },
+    "passphrase": "Nøglens adgangssætning",
+    "removeConfirm": "Vil du fjerne denne nøgle? Det kan ikke fortrydes."
+  },
+  "settings": {
+    "title": "Indstillinger",
+    "theme": "Tema",
+    "language": "Sprog",
+    "mode": "Udseende",
+    "modeSystem": "System",
+    "modeLight": "Lys",
+    "modeDark": "Mørk",
+    "terminal": "Terminal"
+  },
+  "trust": {
+    "title": "Stoler du på denne vært?",
+    "body": "Det er første gang, du forbinder til denne vært. Kontrollér fingeraftrykket, før du fortsætter.",
+    "fingerprint": "Værtens fingeraftryk",
+    "accept": "Stol på og forbind",
+    "cancel": "Annullér",
+    "mismatch": "Advarsel: værtens fingeraftryk er ændret. Det kan være et man-in-the-middle-angreb."
+  },
+  "common": {
+    "save": "Gem",
+    "cancel": "Annullér",
+    "delete": "Slet",
+    "close": "Luk",
+    "confirm": "Bekræft",
+    "loading": "Indlæser…",
+    "error": "Noget gik galt."
+  }
+}
