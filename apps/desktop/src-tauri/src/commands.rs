@@ -141,16 +141,25 @@ pub async fn get_status(state: St<'_>) -> CmdResult {
     get_status_inner(state.inner().clone()).await
 }
 #[tauri::command]
-pub async fn vault_init(state: St<'_>, passphrase: String) -> CmdResult {
-    vault_init_inner(state.inner().clone(), passphrase).await
+pub async fn vault_init(state: St<'_>, app: tauri::AppHandle, passphrase: String) -> CmdResult {
+    let st = state.inner().clone();
+    let out = vault_init_inner(st.clone(), passphrase).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 #[tauri::command]
-pub async fn vault_unlock(state: St<'_>, passphrase: String) -> CmdResult {
-    vault_unlock_inner(state.inner().clone(), passphrase).await
+pub async fn vault_unlock(state: St<'_>, app: tauri::AppHandle, passphrase: String) -> CmdResult {
+    let st = state.inner().clone();
+    let out = vault_unlock_inner(st.clone(), passphrase).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 #[tauri::command]
-pub async fn vault_lock(state: St<'_>) -> CmdResult {
-    vault_lock_inner(state.inner().clone()).await
+pub async fn vault_lock(state: St<'_>, app: tauri::AppHandle) -> CmdResult {
+    let st = state.inner().clone();
+    let out = vault_lock_inner(st.clone()).await;
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 #[tauri::command]
 pub async fn list_connections(state: St<'_>) -> CmdResult {
@@ -331,8 +340,12 @@ pub async fn get_settings(state: St<'_>) -> CmdResult {
     get_settings_inner(state.inner().clone()).await
 }
 #[tauri::command]
-pub async fn save_settings(state: St<'_>, settings: Settings) -> CmdResult {
-    save_settings_inner(state.inner().clone(), settings).await
+pub async fn save_settings(state: St<'_>, app: tauri::AppHandle, settings: Settings) -> CmdResult {
+    let st = state.inner().clone();
+    let out = save_settings_inner(st.clone(), settings).await;
+    // The tray labels follow Settings.language.
+    crate::tray::sync_tray(&app, &st);
+    out
 }
 
 #[cfg(test)]

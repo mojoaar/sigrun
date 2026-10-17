@@ -87,6 +87,12 @@
     "cancel": "Cancel",
     "mismatch": "Warning: the host fingerprint has changed. This could be a man-in-the-middle attack."
   },
+  "tray": {
+    "open": "Open Sigrun",
+    "quit": "Quit",
+    "unlock": "Unlock Sigrun…",
+    "discovered": "Discovered"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
