@@ -87,6 +87,41 @@ sigrun vault lock
 their fingerprint. Leave `--key` off to let the agent and your own
 `~/.ssh/config` choose the key.
 
+## Install a key on a server
+
+`sigrun connections provision` copies your public keys into the server's
+`~/.ssh/authorized_keys`, using the server password once, and then logs back in
+with each key to prove it works:
+
+```bash
+sigrun keys list --json                       # find the key ids
+sigrun connections provision web --key <key-id> --key <key-id>
+```
+
+Repeat `--key` to install several keys in one run. Without `--key`, the
+connection's own key is used; a connection with no key and no `--key` is an
+error. The password is prompted for and never passed on argv; for scripts, pipe
+it in with `--password-stdin`:
+
+```bash
+printf '%s\n' "$PASSWORD" | sigrun connections provision web --key <key-id> --password-stdin
+```
+
+Only vault keys can be provisioned: a key that lives on disk must first be
+imported (`sigrun keys import ~/.ssh/id_ed25519 --name personal`). Sigrun needs
+the private key to verify the install, and it will not copy a key out of
+`~/.ssh`.
+
+`--disable-password-auth` turns password login off on the server after the keys
+are verified. This will lock you out if key login fails, so make sure key login
+works first.
+
+Hardening edits `sshd_config` through `sudo -n` and reloads `sshd`, backing up
+the original and rolling back if the config test or the reload fails. If
+passwordless `sudo` is not available it is **skipped**, not failed — the keys
+stay installed, the run reports `hardening skipped: …`, and password login is
+left as it was.
+
 ## How the agent works
 
 `sigrun host` runs an OpenSSH-compatible agent on a private socket (`agent.sock`

@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A "Start minimized to tray" setting.
 - An idle auto-lock for the vault (default 30 minutes; configurable, 0 disables it).
 - Auto-detected terminal picker in Settings, listing the launchable terminals installed on the machine (Terminal, iTerm, Ghostty, kitty, Alacritty, WezTerm on macOS; the known terminals on Linux/Windows).
+- Multi-key provisioning: install several vault keys on a connection over password authentication, verifying each key by logging in with it.
+- Per-connection password-auth hardening (`--disable-password-auth`), with backup and rollback and a no-sudo skip.
+- The CLI `connections provision` subcommand, with repeatable `--key` and `--password-stdin`.
 
 ### Fixed
 
