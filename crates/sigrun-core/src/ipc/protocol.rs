@@ -52,7 +52,9 @@ pub enum Request {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+// Adjacently tagged: internally tagged enums cannot serialize newtype variants
+// that hold a sequence (`Connections(Vec<Connection>)`, `Keys(Vec<KeyView>)`).
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum Response {
     Ok,
     Status(StatusInfo),

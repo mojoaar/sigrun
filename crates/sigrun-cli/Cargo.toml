@@ -11,6 +11,8 @@ description = "Sigrun command-line interface"
 sigrun-core.workspace = true
 clap.workspace = true
 anyhow.workspace = true
+rpassword.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

@@ -1,9 +1,10 @@
-use clap::Parser;
+mod cli;
+mod client;
 
-#[derive(Parser)]
-#[command(name = "sigrun", version, about = "Sigrun — victory over key chaos.")]
-struct Cli {}
-
-fn main() {
-    Cli::parse();
+#[tokio::main]
+async fn main() {
+    if let Err(e) = cli::run().await {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
 }
