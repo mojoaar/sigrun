@@ -147,7 +147,7 @@ pub async fn update_connection(state: St<'_>, conn: Connection) -> CmdResult {
 pub async fn remove_connection(state: St<'_>, id: String) -> CmdResult {
     remove_connection_inner(state.inner().clone(), id).await
 }
-async fn probe_host_key(host: &str, port: u16) -> Option<(String, String)> {
+async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");
     cmd.args([
         "-p",
@@ -166,41 +166,66 @@ async fn probe_host_key(host: &str, port: u16) -> Option<(String, String)> {
         .await
         .ok()?
         .ok()?;
-    parse_keyscan(&String::from_utf8_lossy(&out.stdout))
+    let keys = parse_keyscan(&String::from_utf8_lossy(&out.stdout));
+    (!keys.is_empty()).then_some(keys)
 }
 
-fn parse_keyscan(out: &str) -> Option<(String, String)> {
-    let line = out
-        .lines()
-        .find(|l| !l.trim().is_empty() && !l.starts_with('#'))?;
-    let mut p = line.split_whitespace();
-    let (_, algo, key) = (p.next()?, p.next()?, p.next()?);
-    Some((algo.to_string(), key.to_string()))
+fn parse_keyscan(out: &str) -> Vec<(String, String)> {
+    out.lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let mut p = l.split_whitespace();
+            let (_, algo, key) = (p.next()?, p.next()?, p.next()?);
+            Some((algo.to_string(), key.to_string()))
+        })
+        .collect()
 }
 
+fn key_error(code: &str, algo: &str, key: &str) -> CommandError {
+    CommandError {
+        code: code.into(),
+        message: format!(
+            "{} {algo} {key}",
+            trust::fingerprint(algo, key).unwrap_or_else(|| "unknown".into())
+        ),
+    }
+}
+
+/// A recorded key presented by the host wins (extra unrecorded key types are not a
+/// conflict); otherwise any mismatch refuses; otherwise all-unknown prompts.
+fn evaluate_trust(
+    kh: &std::path::Path,
+    host: &str,
+    port: u16,
+    keys: &[(String, String)],
+) -> Result<(), CommandError> {
+    let mut mismatch = None;
+    for (algo, key) in keys {
+        match trust::check(kh, host, port, algo, key).map_err(config_err)? {
+            TrustStatus::Trusted => return Ok(()),
+            TrustStatus::Mismatch => mismatch = mismatch.or(Some((algo, key))),
+            TrustStatus::Unknown => {}
+        }
+    }
+    if let Some((algo, key)) = mismatch {
+        return Err(key_error("host_key_mismatch", algo, key));
+    }
+    match keys.first() {
+        Some((algo, key)) => Err(key_error("host_key_unknown", algo, key)),
+        None => Ok(()),
+    }
+}
+
+/// Pre-flight TOFU gate deciding whether Sigrun launches the terminal. The probe is
+/// advisory: a missing `ssh-keyscan` or a failed probe skips the check (fail-open by
+/// design); the `ssh` in the terminal still verifies against the user's own
+/// `~/.ssh/known_hosts`.
 async fn check_trust(state: &HostState, host: &str, port: u16) -> Result<(), CommandError> {
-    let Some((algo, key)) = probe_host_key(host, port).await else {
+    let Some(keys) = probe_host_key(host, port).await else {
         eprintln!("sigrun: host-key probe unavailable; skipping trust check");
         return Ok(());
     };
-    let kh = state.paths.data_dir.join("known_hosts");
-    match trust::check(&kh, host, port, &algo, &key).map_err(config_err)? {
-        TrustStatus::Trusted => Ok(()),
-        TrustStatus::Unknown => Err(CommandError {
-            code: "host_key_unknown".into(),
-            message: format!(
-                "{} {algo} {key}",
-                trust::fingerprint(&algo, &key).unwrap_or_else(|| "unknown".into())
-            ),
-        }),
-        TrustStatus::Mismatch => Err(CommandError {
-            code: "host_key_mismatch".into(),
-            message: format!(
-                "{} {algo} {key}",
-                trust::fingerprint(&algo, &key).unwrap_or_else(|| "unknown".into())
-            ),
-        }),
-    }
+    evaluate_trust(&state.paths.data_dir.join("known_hosts"), host, port, &keys)
 }
 
 /// Connect after the TOFU host-key check. `print_only` contacts nothing, so it skips it.
@@ -271,13 +296,38 @@ pub async fn save_settings(state: St<'_>, settings: Settings) -> CmdResult {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn parses_keyscan_output() {
-        let out = "# h:22 SSH-2.0-x\nh ssh-ed25519 AAAA\n";
+    fn parses_all_keyscan_lines() {
+        let out = "# h:22 SSH-2.0-x\nh ssh-ed25519 AAAA\nh ssh-rsa ZZZZ\n";
         assert_eq!(
             super::parse_keyscan(out),
-            Some(("ssh-ed25519".into(), "AAAA".into()))
+            vec![
+                ("ssh-ed25519".into(), "AAAA".into()),
+                ("ssh-rsa".into(), "ZZZZ".into())
+            ]
         );
-        assert_eq!(super::parse_keyscan("# only comment\n"), None);
+        assert!(super::parse_keyscan("# only comment\n").is_empty());
+    }
+
+    #[test]
+    fn multi_key_trust_precedence() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        sigrun_core::trust::record(&kh, "h", 22, "ssh-ed25519", "AAAA").unwrap();
+        let k = |a: &str, b: &str| (a.to_string(), b.to_string());
+        let ok = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "AAAA")];
+        assert!(super::evaluate_trust(&kh, "h", 22, &ok).is_ok());
+        let bad = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "BBBB")];
+        assert_eq!(
+            super::evaluate_trust(&kh, "h", 22, &bad).unwrap_err().code,
+            "host_key_mismatch"
+        );
+        let fresh = [k("ssh-ed25519", "AAAA")];
+        assert_eq!(
+            super::evaluate_trust(&kh, "other", 22, &fresh)
+                .unwrap_err()
+                .code,
+            "host_key_unknown"
+        );
     }
 
     #[tokio::test]

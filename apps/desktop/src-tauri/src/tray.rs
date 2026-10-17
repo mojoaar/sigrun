@@ -7,6 +7,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, WindowEvent};
 
+const NORMAL_TITLE: &str = "Sigrun";
+const ATTENTION_TITLE: &str = "Sigrun — connection needs attention";
 const TRAY_ID: &str = "sigrun-tray";
 
 pub fn tray_menu_model(connections: &[Connection]) -> Vec<(String, String)> {
@@ -25,6 +27,12 @@ fn show_main(app: &AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+    }
+}
+
+fn set_title(app: &AppHandle, title: &str) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_title(title);
     }
 }
 
@@ -93,6 +101,7 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
         let (handle, st) = (app.clone(), state);
         w.on_window_event(move |e| {
             if matches!(e, WindowEvent::Focused(true)) {
+                set_title(&handle, NORMAL_TITLE);
                 refresh(&handle, &st);
             }
         });

@@ -38,8 +38,8 @@ pub fn check(path: &Path, host: &str, port: u16, algo: &str, key_b64: &str) -> R
     for line in read(path)?.lines() {
         let mut p = line.split_whitespace();
         if let (Some(h), Some(a), Some(k)) = (p.next(), p.next(), p.next()) {
-            if h == id && a == algo {
-                if k == key_b64 {
+            if h == id {
+                if a == algo && k == key_b64 {
                     return Ok(TrustStatus::Trusted);
                 }
                 status = TrustStatus::Mismatch;
@@ -89,6 +89,19 @@ mod tests {
         assert!(check(&kh, "h.example", 22, "ssh-ed25519", "BBBB")
             .unwrap()
             .is_mismatch());
+    }
+
+    #[test]
+    fn algorithm_switch_is_mismatch() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        record(&kh, "h.example", 22, "ssh-ed25519", "AAAA").unwrap();
+        assert!(check(&kh, "h.example", 22, "ssh-rsa", "AAAA")
+            .unwrap()
+            .is_mismatch());
+        assert!(check(&kh, "h.example", 22, "ssh-ed25519", "AAAA")
+            .unwrap()
+            .is_trusted());
     }
 
     #[test]
