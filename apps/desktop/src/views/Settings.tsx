@@ -30,7 +30,7 @@ export default function Settings() {
   return (
     <section className="flex max-w-sm flex-col gap-3">
       <h2 className="text-lg font-semibold">{t("settings.title")}</h2>
-      <label className="flex flex-col">{t("settings.theme")}
+      <label className="flex flex-col gap-1">{t("settings.theme")}
         <select className={field} value={s.theme} onChange={(e) => {
           applyTheme(e.target.value as ThemeName, resolveMode(mode === "system" ? null : mode));
           update({ theme: e.target.value });
@@ -38,20 +38,20 @@ export default function Settings() {
           {(Object.keys(THEMES) as ThemeName[]).map((n) => <option key={n} value={n}>{da ? THEMES[n].labelDa : THEMES[n].label}</option>)}
         </select>
       </label>
-      <label className="flex flex-col">{t("settings.mode")}
+      <label className="flex flex-col gap-1">{t("settings.mode")}
         <select className={field} value={mode} onChange={(e) => applyMode(e.target.value as Mode | "system")}>
           <option value="system">{t("settings.modeSystem")}</option>
           <option value="light">{t("settings.modeLight")}</option>
           <option value="dark">{t("settings.modeDark")}</option>
         </select>
       </label>
-      <label className="flex flex-col">{t("settings.language")}
+      <label className="flex flex-col gap-1">{t("settings.language")}
         <select className={field} value={s.language} onChange={(e) => { void setLanguage(e.target.value as Language); update({ language: e.target.value }); }}>
           <option value="en">English</option>
           <option value="da">Dansk</option>
         </select>
       </label>
-      <label className="flex flex-col">{t("settings.terminal")}
+      <label className="flex flex-col gap-1">{t("settings.terminal")}
         <select
           className={field}
           value={terminals.some((x) => x.id === s.terminal) ? (s.terminal ?? "") : ""}
@@ -64,6 +64,17 @@ export default function Settings() {
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={s.start_minimized} onChange={(e) => update({ start_minimized: e.target.checked })} />
         {t("settings.startMinimized")}
+      </label>
+      <label className="flex flex-col gap-1">{t("settings.autoLock")}
+        <select
+          className={field}
+          value={String(s.auto_lock_minutes)}
+          onChange={(e) => update({ auto_lock_minutes: Number(e.target.value) })}
+        >
+          {[0, 5, 15, 30, 60, 120].map((m) => (
+            <option key={m} value={m}>{m === 0 ? t("settings.autoLockNever") : t("settings.autoLockMinutes", { count: m })}</option>
+          ))}
+        </select>
       </label>
     </section>
   );

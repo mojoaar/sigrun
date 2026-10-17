@@ -57,6 +57,26 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+            // Tell the UI when the idle auto-lock fires, so it re-gates.
+            {
+                use tauri::Emitter;
+                let handle = app.handle().clone();
+                let st = state.clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        if st.shutdown.is_cancelled() {
+                            return;
+                        }
+                        if st
+                            .auto_locked
+                            .swap(false, std::sync::atomic::Ordering::Relaxed)
+                        {
+                            let _ = handle.emit("vault-locked", ());
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
+                });
+            }
             tray::build_tray(app.handle(), state)?;
             Ok(())
         })

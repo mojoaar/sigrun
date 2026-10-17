@@ -62,7 +62,10 @@
     "modeDark": "Mørk",
     "terminal": "Terminal",
     "terminalDefault": "Systemstandard",
-    "startMinimized": "Start minimeret i systembakken"
+    "startMinimized": "Start minimeret i systembakken",
+    "autoLock": "Lås pengeskabet automatisk",
+    "autoLockNever": "Aldrig",
+    "autoLockMinutes": "Efter {{count}} min. inaktivitet"
   },
   "trust": {
     "title": "Stoler du på denne vært?",

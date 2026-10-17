@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-OS installer releases (macOS, Linux, Windows) built and published on `v*` tags.
 - Raven line-art tray icon (macOS template) and app-icon set; tray left-click toggles the window.
 - A "Start minimized to tray" setting.
-- Auto-detected terminal picker in Settings, listing the launchable terminals installed on the machine.
+- An idle auto-lock for the vault (default 30 minutes; configurable, 0 disables it).
+- Auto-detected terminal picker in Settings, listing the launchable terminals installed on the machine (Terminal, iTerm, Ghostty, kitty, Alacritty, WezTerm on macOS; the known terminals on Linux/Windows).
 
 ### Fixed
 

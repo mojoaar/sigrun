@@ -184,6 +184,8 @@ pub struct Settings {
     pub terminal: Option<String>,
     pub agent_enabled: bool,
     pub start_minimized: bool,
+    /// Idle minutes before the vault auto-locks; 0 disables it.
+    pub auto_lock_minutes: u32,
 }
 
 impl Default for Settings {
@@ -195,6 +197,7 @@ impl Default for Settings {
             terminal: None,
             agent_enabled: true,
             start_minimized: false,
+            auto_lock_minutes: 30,
         }
     }
 }

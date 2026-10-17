@@ -30,7 +30,7 @@ export type KeyMetadata = {
 };
 export type KeyView = { key: KeyMetadata; available: boolean };
 export type KeyAlgorithm = "ed25519" | "rsa" | "ecdsa";
-export type Settings = { version: number; theme: string; language: string; terminal: string | null; agent_enabled: boolean; start_minimized: boolean };
+export type Settings = { version: number; theme: string; language: string; terminal: string | null; agent_enabled: boolean; start_minimized: boolean; auto_lock_minutes: number };
 export type TerminalInfo = { id: string; name: string };
 
 // Unwraps the adjacently tagged Response envelope: `error` rejects, `ok` has

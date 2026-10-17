@@ -26,6 +26,11 @@ pub struct HostState {
     pub agent_socket: String,
     pub host_addr: String,
     pub shutdown: tokio_util::sync::CancellationToken,
+    /// Bumped on any vault-touching activity; the idle auto-lock watches it.
+    pub last_vault_activity: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Set when the vault is locked by the idle auto-lock (the desktop host
+    /// reads it to re-gate the UI). Never set on a manual lock.
+    pub auto_locked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub lock_file: std::fs::File,
 }
 
@@ -48,9 +53,47 @@ impl HostState {
             vault: tokio::sync::Mutex::new(None),
             agent: AgentState::new(),
             shutdown: tokio_util::sync::CancellationToken::new(),
+            last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            auto_locked: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             paths,
             lock_file,
         })
+    }
+
+    /// Lock the vault after `auto_lock_minutes` of no vault-touching activity.
+    /// Runs until `shutdown` is cancelled; a `0` disables it. On fire it locks
+    /// and sets `auto_locked` so the caller can re-gate the UI.
+    pub async fn watch_auto_lock(self: &std::sync::Arc<Self>) {
+        use std::sync::atomic::Ordering;
+        loop {
+            // Poll once a minute, or return on shutdown.
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
+                _ = self.shutdown.cancelled() => return,
+            }
+            let minutes = self
+                .store
+                .load_settings()
+                .map(|s| s.auto_lock_minutes)
+                .unwrap_or(0);
+            if minutes == 0 {
+                continue;
+            }
+            if self.vault.lock().await.is_none() {
+                continue; // nothing to lock
+            }
+            let last = self.last_vault_activity.load(Ordering::Relaxed);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let idle_for = now.saturating_sub(last);
+            if last != 0 && idle_for >= u64::from(minutes) * 60 {
+                *self.vault.lock().await = None;
+                self.agent.clear();
+                self.auto_locked.store(true, Ordering::Relaxed);
+            }
+        }
     }
 }
 
@@ -66,6 +109,25 @@ pub async fn handle(state: &HostState, req: Request) -> Response {
 }
 
 async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
+    // Reset the idle auto-lock clock on any request that touches the vault.
+    if matches!(
+        req,
+        Request::VaultInit { .. }
+            | Request::VaultUnlock { .. }
+            | Request::VaultLock
+            | Request::KeysGenerate { .. }
+            | Request::KeysImport { .. }
+            | Request::KeysRemove { .. }
+            | Request::ConnectionsConnect { .. }
+    ) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        state
+            .last_vault_activity
+            .store(now, std::sync::atomic::Ordering::Relaxed);
+    }
     match req {
         Request::Status => {
             let vault = vault_status(state).await;

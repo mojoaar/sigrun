@@ -9,6 +9,10 @@ pub async fn start_host(paths: Paths) -> Result<Arc<HostState>> {
     let state = Arc::new(HostState::new(paths.clone()).await?);
     // Handles are detached: IPC exits on shutdown.cancel(), the agent dies with the process.
     let _agent = sigrun_core::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
+    {
+        let st = state.clone();
+        tokio::spawn(async move { st.watch_auto_lock().await });
+    }
     let ipc_state = state.clone();
     let addr = paths.socket_path();
     let ipc_addr = addr.clone();

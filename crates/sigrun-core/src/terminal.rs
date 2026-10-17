@@ -130,6 +130,40 @@ pub fn terminal_launch_specs(
     let cmd = render_command(argv);
     match platform {
         Platform::MacOs => {
+            // CLI terminals run the command directly; the two GUI apps use AppleScript.
+            match configured {
+                Some("ghostty") => {
+                    let mut args = vec!["-e".to_string()];
+                    args.extend(argv.iter().cloned());
+                    return Ok(vec![LaunchSpec {
+                        program: "ghostty".into(),
+                        args,
+                    }]);
+                }
+                Some("kitty") => {
+                    return Ok(vec![LaunchSpec {
+                        program: "kitty".into(),
+                        args: argv.to_vec(),
+                    }]);
+                }
+                Some("alacritty") => {
+                    let mut args = vec!["-e".to_string()];
+                    args.extend(argv.iter().cloned());
+                    return Ok(vec![LaunchSpec {
+                        program: "alacritty".into(),
+                        args,
+                    }]);
+                }
+                Some("wezterm") => {
+                    let mut args = vec!["start".to_string(), "--".to_string()];
+                    args.extend(argv.iter().cloned());
+                    return Ok(vec![LaunchSpec {
+                        program: "wezterm".into(),
+                        args,
+                    }]);
+                }
+                _ => {}
+            }
             let cmd = applescript_escape(&cmd);
             let (app, script) = if configured == Some("iterm") {
                 (
@@ -240,11 +274,39 @@ pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
                 id: "terminal".into(),
                 name: "Terminal".into(),
             }];
-            if Path::new("/Applications/iTerm.app").is_dir() {
-                out.push(TerminalInfo {
-                    id: "iterm".into(),
-                    name: "iTerm".into(),
-                });
+            for (id, name, present) in [
+                (
+                    "iterm",
+                    "iTerm",
+                    Path::new("/Applications/iTerm.app").is_dir(),
+                ),
+                (
+                    "ghostty",
+                    "Ghostty",
+                    Path::new("/Applications/Ghostty.app").is_dir() || on_path("ghostty"),
+                ),
+                (
+                    "kitty",
+                    "kitty",
+                    Path::new("/Applications/kitty.app").is_dir() || on_path("kitty"),
+                ),
+                (
+                    "alacritty",
+                    "Alacritty",
+                    Path::new("/Applications/Alacritty.app").is_dir() || on_path("alacritty"),
+                ),
+                (
+                    "wezterm",
+                    "WezTerm",
+                    Path::new("/Applications/WezTerm.app").is_dir() || on_path("wezterm"),
+                ),
+            ] {
+                if present {
+                    out.push(TerminalInfo {
+                        id: id.into(),
+                        name: name.into(),
+                    });
+                }
             }
             out
         }

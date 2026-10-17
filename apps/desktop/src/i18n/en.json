@@ -62,7 +62,10 @@
     "modeDark": "Dark",
     "terminal": "Terminal",
     "terminalDefault": "System default",
-    "startMinimized": "Start minimized to tray"
+    "startMinimized": "Start minimized to tray",
+    "autoLock": "Auto-lock the vault",
+    "autoLockNever": "Never",
+    "autoLockMinutes": "After {{count}} min idle"
   },
   "trust": {
     "title": "Trust this host?",
