@@ -16,8 +16,20 @@ pub fn run() {
             app.manage(state);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Sigrun");
+        .build(tauri::generate_context!())
+        .expect("error while building Sigrun")
+        .run(|app_handle, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                if let Some(state) =
+                    app_handle.try_state::<std::sync::Arc<sigrun_core::host::HostState>>()
+                {
+                    state.shutdown.cancel();
+                }
+            }
+        });
 }
 
 #[cfg(test)]
