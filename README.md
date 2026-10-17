@@ -49,6 +49,29 @@ terminals actually installed (Terminal, iTerm, Ghostty, kitty, Alacritty,
 WezTerm on macOS; the known terminals on Linux and Windows), or "System
 default" to use the OS fallback order.
 
+## First time connecting to a server
+
+A connection assumes a key is already installed on the server. If there is none,
+Sigrun installs one as part of connecting: it copies the public key into the
+server's `~/.ssh/authorized_keys`, which needs the server **password once** —
+typed into Sigrun, used for that one login, and never stored. Keys that already
+live on disk can be used for this step too; they are **imported into the vault**
+as part of the same install, and `~/.ssh` itself is never modified.
+
+Once the terminal is open, `ssh` stays the authority on the connection: Sigrun
+only hands it the argv and `SSH_AUTH_SOCK`.
+
+### Where the terminal opens
+
+- **iTerm** opens a **tab in the current window** (a window when none is open).
+- **Terminal.app** opens a **new tab/window on each connect**; tab reuse did not
+  reproduce in testing.
+- **Ghostty** and **Alacritty** open a **new window** (`-e`); neither exposes a
+  tab API on macOS. Support for them is retained, not a fallback we intend to
+  drop.
+
+kitty and WezTerm are supported but were not tested on this machine.
+
 ## Install
 
 Build from source:
@@ -157,6 +180,10 @@ Disk-backed keys found in `~/.ssh` are the exception: they are used in place via
   `~/.ssh/known_hosts`; Sigrun does not override it. The pre-flight probe is
   skipped if `ssh-keyscan` is missing or fails.
 - `Include` is not followed when parsing `ssh_config`.
+- The reachability probe is a plain TCP connect, so it can report a host as
+  unreachable when it is only reachable through a VPN or an `~/.ssh/config`
+  ProxyJump. The check warns and never blocks: use **Connect anyway** (CLI:
+  `--force`) to open the terminal regardless.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served
