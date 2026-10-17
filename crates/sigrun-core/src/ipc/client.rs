@@ -24,11 +24,22 @@ pub async fn request(addr: &Path, req: &Request) -> Result<Response> {
     #[cfg(windows)]
     {
         use tokio::net::windows::named_pipe::ClientOptions;
-        // `open` is a synchronous `CreateFile` that returns promptly (NotFound
-        // or ERROR_PIPE_BUSY), so no async connect timeout applies here.
-        let stream = ClientOptions::new()
-            .open(addr.as_os_str())
-            .map_err(|_| host_not_running())?;
+        // A freshly-created named-pipe server returns ERROR_PIPE_BUSY until it
+        // creates its next instance, so a client connecting right after start
+        // must retry briefly rather than report the host as down. Bound the
+        // retry at ~2 s, matching the Unix connect timeout.
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let stream = loop {
+            match ClientOptions::new().open(addr.as_os_str()) {
+                Ok(s) => break s,
+                // ERROR_PIPE_BUSY (231): server exists but hasn't created its
+                // next instance yet.
+                Err(e) if e.raw_os_error() == Some(231) && std::time::Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(_) => return Err(host_not_running()),
+            }
+        };
         exchange(stream, req).await
     }
     #[cfg(not(any(unix, windows)))]
