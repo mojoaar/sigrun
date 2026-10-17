@@ -38,7 +38,7 @@ impl HostState {
             .create(true)
             .write(true)
             .truncate(false)
-            .open(paths.lock_file())?;
+            .open(paths.host_lock_file())?;
         fs2::FileExt::try_lock_exclusive(&lock_file).map_err(|_| Error::AlreadyRunning)?;
 
         Ok(HostState {

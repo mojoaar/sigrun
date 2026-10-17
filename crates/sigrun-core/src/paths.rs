@@ -63,6 +63,13 @@ impl Paths {
         self.data_dir.join("data.lock")
     }
 
+    /// The host's single-instance guard. Deliberately distinct from
+    /// [`Paths::lock_file`] (the store's per-write lock) so the long-lived host
+    /// never contends with its own store writes.
+    pub fn host_lock_file(&self) -> PathBuf {
+        self.data_dir.join("host.lock")
+    }
+
     pub fn vault_file(&self) -> PathBuf {
         self.data_dir.join("vault.json")
     }

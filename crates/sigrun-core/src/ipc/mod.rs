@@ -10,9 +10,9 @@ mod tests {
     use super::protocol::{Request, Response};
     use super::server::serve;
     use crate::error::Error;
-    use crate::host::{sync_disk_keys, HostState};
+    use crate::host::{handle, sync_disk_keys, HostState};
     use crate::keys::generate;
-    use crate::model::KeyAlgorithm;
+    use crate::model::{Connection, KeyAlgorithm};
     use crate::paths::Paths;
     use crate::store::Store;
 
@@ -90,5 +90,33 @@ mod tests {
         assert!(views
             .iter()
             .any(|v| v.key.disk_path.as_deref() == Some(outside.to_str().unwrap())));
+    }
+
+    #[tokio::test]
+    async fn handlers_mutate_state_without_deadlocking() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
+
+        let out = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            handle(
+                &state,
+                Request::ConnectionsAdd {
+                    connection: Connection::managed("c1", "web"),
+                },
+            ),
+        )
+        .await
+        .expect("handle timed out — the host lock deadlocked against the store lock");
+        assert!(matches!(out, Response::Ok));
+
+        let out = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            handle(&state, Request::ConnectionsRemove { id: "c1".into() }),
+        )
+        .await
+        .expect("handle timed out — the host lock deadlocked against the store lock");
+        assert!(matches!(out, Response::Ok));
     }
 }
