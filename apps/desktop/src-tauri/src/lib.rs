@@ -1,3 +1,4 @@
+mod commands;
 mod host;
 
 use tauri::Manager;
@@ -10,6 +11,23 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .invoke_handler(tauri::generate_handler![
+            commands::get_status,
+            commands::vault_init,
+            commands::vault_unlock,
+            commands::vault_lock,
+            commands::list_connections,
+            commands::add_connection,
+            commands::update_connection,
+            commands::remove_connection,
+            commands::connect,
+            commands::list_keys,
+            commands::generate_key,
+            commands::import_key,
+            commands::remove_key,
+            commands::get_settings,
+            commands::save_settings,
+        ])
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;
             let state = tauri::async_runtime::block_on(host::start_host(paths))?;
