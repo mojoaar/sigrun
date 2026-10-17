@@ -1,3 +1,5 @@
+mod host;
+
 use tauri::Manager;
 
 pub fn run() {
@@ -8,6 +10,12 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .setup(|app| {
+            let paths = sigrun_core::paths::Paths::resolve()?;
+            let state = tauri::async_runtime::block_on(host::start_host(paths))?;
+            app.manage(state);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running Sigrun");
 }
