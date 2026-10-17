@@ -15,7 +15,7 @@ use crate::trust::{check, fingerprint, TrustStatus};
 pub struct ProvisionKey {
     pub name: String,
     pub public_openssh: String,
-    pub private_pem: String,
+    pub private_pem: zeroize::Zeroizing<String>,
 }
 
 // No Debug derive: `password` is a secret.

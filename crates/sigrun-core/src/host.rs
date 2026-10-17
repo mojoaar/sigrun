@@ -15,6 +15,7 @@ use crate::terminal::{
     launch_first, render_command, ssh_invocation, terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
+use zeroize::Zeroizing;
 
 /// Long-lived host state. The lock-file handle stays open for the host's
 /// lifetime so no second host can start against the same data directory.
@@ -472,19 +473,13 @@ async fn connections_provision(
             let Some(Secret::PrivateKey { pem, passphrase }) = vault.get(key_id) else {
                 return Err(Error::NotFound(key_id.clone()));
             };
-            let (pem, passphrase) = (pem.clone(), passphrase.clone());
-            let private_pem = match passphrase {
-                None => pem,
-                Some(pass) => tokio::task::spawn_blocking(move || {
-                    ssh_key::PrivateKey::from_openssh(&pem)
-                        .and_then(|k| k.decrypt(pass))
-                        .and_then(|k| k.to_openssh(ssh_key::LineEnding::LF))
-                        .map(|p| p.to_string())
-                })
-                .await
-                .map_err(|_| Error::InvalidInput("stored key could not be decrypted".into()))?
-                .map_err(|_| Error::InvalidInput("stored key could not be decrypted".into()))?,
-            };
+            let pem = Zeroizing::new(pem.clone());
+            let passphrase = passphrase.clone().map(Zeroizing::new);
+            let private_pem = tokio::task::spawn_blocking(move || {
+                decrypt_pem(&pem, passphrase.as_ref().map(|p| p.as_str()))
+            })
+            .await
+            .map_err(|_| Error::InvalidInput("stored key could not be decrypted".into()))??;
             keys.push(ProvisionKey {
                 name: meta.name.clone(),
                 public_openssh: meta.public_key.clone(),
@@ -508,6 +503,19 @@ async fn connections_provision(
     .await
     .map_err(|_| Error::Config("provisioning timed out".into()))??;
     Ok(Response::Provisioned(outcome))
+}
+
+/// Return an unencrypted OpenSSH PEM, decrypting with `passphrase` if given.
+/// Errors never carry key material.
+fn decrypt_pem(pem: &str, passphrase: Option<&str>) -> Result<Zeroizing<String>> {
+    let Some(pass) = passphrase else {
+        return Ok(Zeroizing::new(pem.to_string()));
+    };
+    let fail = |_| Error::InvalidInput("stored key could not be decrypted".into());
+    ssh_key::PrivateKey::from_openssh(pem)
+        .and_then(|k| k.decrypt(pass))
+        .and_then(|k| k.to_openssh(ssh_key::LineEnding::LF))
+        .map_err(fail)
 }
 
 /// Discover disk keys under `ssh_dir` (plus any `IdentityFile` in `~/.ssh/config`
@@ -575,4 +583,104 @@ pub async fn run(paths: Paths, socket: Option<PathBuf>) -> Result<()> {
     agent.abort();
     state.agent.clear();
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decrypt_pem_round_trips_and_rejects_wrong_passphrase() {
+        let g = keys::generate(KeyAlgorithm::Ed25519, Some("pw")).unwrap();
+        let ok = decrypt_pem(&g.private_pem, Some("pw")).unwrap();
+        assert!(ok.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"));
+        assert!(ssh_key::PrivateKey::from_openssh(&*ok).is_ok_and(|k| !k.is_encrypted()));
+        assert!(matches!(
+            decrypt_pem(&g.private_pem, Some("wrong")),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+
+    async fn state_in(dir: &Path) -> HostState {
+        HostState::new(Paths::with_roots(dir.into(), dir.into(), dir.join("ssh")))
+            .await
+            .unwrap()
+    }
+
+    async fn provision(state: &HostState, id: &str, key_ids: &[&str]) -> Result<Response> {
+        connections_provision(
+            state,
+            id.into(),
+            "x".into(),
+            key_ids.iter().map(|k| k.to_string()).collect(),
+            false,
+        )
+        .await
+    }
+
+    async fn unlock(state: &HostState, dir: &Path) {
+        let path = dir.join("test-vault");
+        Vault::new(path.clone()).create("pw").unwrap();
+        *state.vault.lock().await = Some(Vault::new(path).unlock("pw").unwrap());
+    }
+
+    #[tokio::test]
+    async fn provisioning_without_any_key_is_invalid_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(crate::model::Connection::managed("c1", "web"))
+            .unwrap();
+        match provision(&state, "c1", &[]).await {
+            Err(Error::InvalidInput(m)) => assert_eq!(m, "no key selected"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn provisioning_a_disk_key_asks_for_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(crate::model::Connection::managed("c1", "web"))
+            .unwrap();
+        state
+            .store
+            .upsert_key(KeyMetadata::now(
+                "k1",
+                KeyAlgorithm::Ed25519,
+                "ssh-ed25519 AAAA",
+                "SHA256:x",
+                KeySource::Disk,
+            ))
+            .unwrap();
+        unlock(&state, dir.path()).await;
+        match provision(&state, "c1", &["k1"]).await {
+            Err(Error::InvalidInput(m)) => {
+                assert_eq!(m, "import the key into the vault to provision it")
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn provisioning_an_ambiguous_label_lists_the_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        for id in ["c1", "c2"] {
+            state
+                .store
+                .upsert_connection(crate::model::Connection::managed(id, "web"))
+                .unwrap();
+        }
+        match provision(&state, "web", &["k1"]).await {
+            Err(Error::InvalidInput(m)) => assert!(m.contains("c1") && m.contains("c2")),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
 }
