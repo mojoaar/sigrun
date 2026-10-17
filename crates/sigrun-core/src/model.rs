@@ -53,6 +53,8 @@ pub struct Connection {
     pub tags: Vec<String>,
     #[serde(default)]
     pub source: ConnectionSource,
+    #[serde(default)]
+    pub disable_password_auth: bool,
 }
 
 impl Connection {
@@ -70,6 +72,7 @@ impl Connection {
             group: None,
             tags: Vec::new(),
             source: ConnectionSource::Discovered,
+            disable_password_auth: false,
         }
     }
 
@@ -86,6 +89,7 @@ impl Connection {
             group: None,
             tags: Vec::new(),
             source: ConnectionSource::Managed,
+            disable_password_auth: false,
         }
     }
 }
@@ -199,5 +203,20 @@ impl Default for Settings {
             start_minimized: false,
             auto_lock_minutes: 30,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connection_defaults_do_not_disable_password_auth() {
+        let c = Connection::managed("id", "box");
+        assert!(!c.disable_password_auth);
+        let parsed: Connection =
+            serde_json::from_str(r#"{"id":"i","label":"l","host":"h","user":"u","port":22}"#)
+                .unwrap();
+        assert!(!parsed.disable_password_auth);
     }
 }

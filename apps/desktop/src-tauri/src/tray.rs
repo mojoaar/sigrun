@@ -166,6 +166,7 @@ mod tests {
             group: None,
             tags: Vec::new(),
             source: sigrun_core::model::ConnectionSource::Managed,
+            disable_password_auth: false,
         };
         let m = tray_menu_model(&[c("a", "A"), c("b", "B")]);
         assert_eq!(

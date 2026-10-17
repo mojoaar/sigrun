@@ -119,6 +119,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::KeysImport { .. }
             | Request::KeysRemove { .. }
             | Request::ConnectionsConnect { .. }
+            | Request::ConnectionsProvision { .. }
     ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -200,6 +201,12 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         Request::ConnectionsConnect { id, print_only } => {
             connections_connect(state, id, print_only).await
         }
+        Request::ConnectionsProvision {
+            id,
+            password,
+            key_ids,
+            disable_password_auth,
+        } => connections_provision(state, id, password, key_ids, disable_password_auth).await,
         Request::Shutdown => {
             state.shutdown.cancel();
             Ok(Response::Ok)
@@ -408,6 +415,99 @@ async fn connections_connect(state: &HostState, id: String, print_only: bool) ->
     let specs = terminal_launch_specs(Platform::current(), settings.terminal.as_deref(), &argv)?;
     launch_first(&specs, Some(&state.paths.agent_socket()))?;
     Ok(Response::Ok)
+}
+
+async fn connections_provision(
+    state: &HostState,
+    id: String,
+    password: String,
+    key_ids: Vec<String>,
+    disable_password_auth: bool,
+) -> Result<Response> {
+    use crate::provision::{install_keys, ProvisionKey, ProvisionOptions};
+
+    let data = state.store.load_data()?;
+    let conn = match data.connections.iter().find(|c| c.id == id) {
+        Some(c) => c.clone(),
+        None => {
+            let matches: Vec<_> = data.connections.iter().filter(|c| c.label == id).collect();
+            match matches.as_slice() {
+                [] => return Err(Error::NotFound(id)),
+                [one] => (*one).clone(),
+                many => {
+                    let ids: Vec<_> = many.iter().map(|c| c.id.as_str()).collect();
+                    return Err(Error::InvalidInput(format!(
+                        "label '{id}' is ambiguous; matching ids: {}",
+                        ids.join(", ")
+                    )));
+                }
+            }
+        }
+    };
+
+    let key_ids = if key_ids.is_empty() {
+        conn.key_id.clone().into_iter().collect()
+    } else {
+        key_ids
+    };
+    if key_ids.is_empty() {
+        return Err(Error::InvalidInput("no key selected".into()));
+    }
+
+    let mut keys = Vec::new();
+    {
+        let guard = state.vault.lock().await;
+        let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
+        for key_id in &key_ids {
+            let meta = data
+                .keys
+                .iter()
+                .find(|k| &k.id == key_id)
+                .ok_or_else(|| Error::NotFound(key_id.clone()))?;
+            if meta.source != KeySource::Vault {
+                return Err(Error::InvalidInput(
+                    "import the key into the vault to provision it".into(),
+                ));
+            }
+            let Some(Secret::PrivateKey { pem, passphrase }) = vault.get(key_id) else {
+                return Err(Error::NotFound(key_id.clone()));
+            };
+            let (pem, passphrase) = (pem.clone(), passphrase.clone());
+            let private_pem = match passphrase {
+                None => pem,
+                Some(pass) => tokio::task::spawn_blocking(move || {
+                    ssh_key::PrivateKey::from_openssh(&pem)
+                        .and_then(|k| k.decrypt(pass))
+                        .and_then(|k| k.to_openssh(ssh_key::LineEnding::LF))
+                        .map(|p| p.to_string())
+                })
+                .await
+                .map_err(|_| Error::InvalidInput("stored key could not be decrypted".into()))?
+                .map_err(|_| Error::InvalidInput("stored key could not be decrypted".into()))?,
+            };
+            keys.push(ProvisionKey {
+                name: meta.name.clone(),
+                public_openssh: meta.public_key.clone(),
+                private_pem,
+            });
+        }
+    }
+
+    let opts = ProvisionOptions {
+        host: conn.host,
+        port: conn.port,
+        user: conn.user,
+        password,
+        known_hosts: state.paths.data_dir.join("known_hosts"),
+        disable_password_auth,
+    };
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_secs(90),
+        install_keys(&opts, &keys),
+    )
+    .await
+    .map_err(|_| Error::Config("provisioning timed out".into()))??;
+    Ok(Response::Provisioned(outcome))
 }
 
 /// Discover disk keys under `ssh_dir` (plus any `IdentityFile` in `~/.ssh/config`
