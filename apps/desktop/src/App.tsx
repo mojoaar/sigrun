@@ -48,7 +48,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg text-text">
       <header className="flex items-center justify-between border-b border-border p-3">
-        <h1 className="text-xl font-semibold">{t("app.title")}</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold">
+          <img src="/app-icon.png" alt="" className="h-7 w-7 rounded" />
+          {t("app.title")}
+        </h1>
         {vault === "Unlocked" && (
           <nav className="flex items-center gap-3">
             {TABS.map((n) => (
