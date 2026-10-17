@@ -204,7 +204,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   );
 }
 
-export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLocked: () => void; onGoToKeys?: () => void }) {
+export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLocked: () => void; onGoToKeys: () => void }) {
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
   const [keys, setKeys] = useState<KeyView[]>([]);
