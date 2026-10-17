@@ -8,3 +8,8 @@ repository.workspace = true
 description = "Sigrun domain logic"
 
 [dependencies]
+dirs = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
