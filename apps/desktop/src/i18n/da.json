@@ -45,6 +45,7 @@
     "import": "Importér nøgle",
     "remove": "Fjern nøgle",
     "name": "Navn",
+    "path": "Sti",
     "algorithm": "Algoritme",
     "fingerprint": "Fingeraftryk",
     "source": { "vault": "Pengeskab", "disk": "På disken" },

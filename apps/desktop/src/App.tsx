@@ -1,7 +1,55 @@
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { getStatus, vaultLock, type VaultState } from "./api";
+import Connections from "./views/Connections";
+import Keys from "./views/Keys";
+import Settings from "./views/Settings";
+import VaultGate from "./views/VaultGate";
+
+type Tab = "connections" | "keys" | "settings";
+const TABS: Tab[] = ["connections", "keys", "settings"];
+
 export default function App() {
+  const { t } = useTranslation();
+  const [vault, setVault] = useState<VaultState | null>(null);
+  const [tab, setTab] = useState<Tab>("connections");
+  const [notice, setNotice] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const s = await getStatus();
+      const v = String(s.vault).toLowerCase();
+      setVault(v === "unlocked" ? "Unlocked" : v === "uninitialized" ? "Uninitialized" : "Locked");
+    } catch {
+      setVault("Locked");
+    }
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const locked = () => { setNotice(true); void refresh(); };
+  const done = () => { setNotice(false); void refresh(); };
+
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-semibold">Sigrun</h1>
-    </main>
+    <div className="min-h-screen bg-bg text-text">
+      <header className="flex items-center justify-between border-b border-border p-3">
+        <h1 className="text-xl font-semibold">{t("app.title")}</h1>
+        {vault === "Unlocked" && (
+          <nav className="flex items-center gap-3">
+            {TABS.map((n) => (
+              <button key={n} aria-current={tab === n} className={tab === n ? "text-accent" : "text-muted"} onClick={() => setTab(n)}>{t(`nav.${n}`)}</button>
+            ))}
+            <button className="rounded border border-border px-2 py-1" onClick={() => vaultLock().then(refresh)}>{t("vault.lock")}</button>
+          </nav>
+        )}
+      </header>
+      <main className="p-4">
+        {vault === null && <p className="text-muted">{t("common.loading")}</p>}
+        {vault === "Uninitialized" && <VaultGate mode="create" onDone={done} />}
+        {vault === "Locked" && <VaultGate notice={notice} onDone={done} />}
+        {vault === "Unlocked" && tab === "connections" && <Connections onVaultLocked={locked} />}
+        {vault === "Unlocked" && tab === "keys" && <Keys onVaultLocked={locked} />}
+        {vault === "Unlocked" && tab === "settings" && <Settings />}
+      </main>
+    </div>
   );
 }

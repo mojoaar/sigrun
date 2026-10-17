@@ -45,6 +45,7 @@
     "import": "Import key",
     "remove": "Remove key",
     "name": "Name",
+    "path": "Path",
     "algorithm": "Algorithm",
     "fingerprint": "Fingerprint",
     "source": { "vault": "Vault", "disk": "On disk" },
