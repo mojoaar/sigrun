@@ -14,6 +14,7 @@ export type Connection = {
   tags: string[];
   source: "managed" | "discovered";
   disable_password_auth: boolean;
+  has_password: boolean;
 };
 export type KeyMetadata = {
   id: string;
@@ -55,6 +56,8 @@ export const listConnections = () => call<Connection[]>("list_connections");
 export const addConnection = (conn: Connection) => call<void>("add_connection", { conn });
 export const updateConnection = (conn: Connection) => call<void>("update_connection", { conn });
 export const removeConnection = (id: string) => call<void>("remove_connection", { id });
+export const setConnectionPassword = (id: string, password: string | null) =>
+  call<void>("set_connection_password", { id, password });
 export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false, force: false });
 export const connectForce = (id: string) => call<void>("connect", { id, printOnly: false, force: true });
 export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>

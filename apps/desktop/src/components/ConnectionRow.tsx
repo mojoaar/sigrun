@@ -12,6 +12,7 @@ export default function ConnectionRow({ conn, canProvision, onProvision, onConne
         <div className="font-medium">
           {conn.label}
           {conn.group?.trim() && <span className="rounded border border-border px-1 text-xs text-muted">{conn.group}</span>}
+          {conn.has_password && <span className="rounded border border-border px-1 text-xs text-muted">{t("connections.hasPassword")}</span>}
         </div>
         <div className="text-sm text-muted">{conn.user}@{conn.host}:{conn.port}</div>
         {conn.source === "discovered" && <span className="text-xs text-accent">{t("connections.discovered")}</span>}

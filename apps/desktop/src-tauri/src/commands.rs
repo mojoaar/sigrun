@@ -61,6 +61,13 @@ pub async fn update_connection_inner(state: Arc<HostState>, conn: Connection) ->
 pub async fn remove_connection_inner(state: Arc<HostState>, id: String) -> CmdResult {
     call(state, Request::ConnectionsRemove { id }).await
 }
+pub async fn set_connection_password_inner(
+    state: Arc<HostState>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    call(state, Request::ConnectionsSetPassword { id, password }).await
+}
 pub async fn connect_inner(
     state: Arc<HostState>,
     id: String,
@@ -206,6 +213,14 @@ pub async fn remove_connection(state: St<'_>, app: tauri::AppHandle, id: String)
     let out = remove_connection_inner(st.clone(), id).await;
     crate::tray::sync_tray(&app, &st);
     out
+}
+#[tauri::command]
+pub async fn set_connection_password(
+    state: St<'_>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    set_connection_password_inner(state.inner().clone(), id, password).await
 }
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");

@@ -35,6 +35,10 @@
     "port": "Port",
     "key": "Key",
     "group": "Group",
+    "password": "Password",
+    "passwordHint": "The server's password, stored encrypted in Sigrun's vault. This is not your vault passphrase.",
+    "removeSavedPassword": "Remove the saved password",
+    "hasPassword": "Password saved",
     "search": "Search connections",
     "discovered": "Discovered in ~/.ssh/config",
     "removeConfirm": "Remove this connection? This cannot be undone."

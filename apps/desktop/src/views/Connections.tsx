@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
@@ -22,7 +22,7 @@ export function groupConnections(conns: Connection[]): { group: string | null; i
   ].filter((s) => s.items.length > 0);
 }
 
-function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys }: {
+function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
   initial: Connection | null;
   keys: KeyView[];
   onClose: () => void;
@@ -32,24 +32,41 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
   // later Save on this still-open form cannot revert it.
   bindProvisioned: (sync: ((disablePasswordAuth: boolean) => void) | null) => void;
   onGoToKeys?: () => void;
+  onVaultLocked: () => void;
 }) {
   const { t } = useTranslation();
   const [c, setC] = useState<Connection>(
-    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
+    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
   );
-  const [error, setError] = useState(false);
+  // Only ever the freshly typed value: the stored password is never read back.
+  const [password, setPassword] = useState("");
+  const [removePassword, setRemovePassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const canProvision = keys.some((k) => k.available);
   useEffect(() => {
     bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
     return () => bindProvisioned(null);
   }, [bindProvisioned]);
+  const close = () => {
+    setPassword("");
+    setRemovePassword(false);
+    onClose();
+  };
   async function submit(e: FormEvent) {
     e.preventDefault();
     try {
+      // The connection must exist before its password: the id is generated here
+      // (`ConnectionsAdd` never returns one).
       await (initial ? updateConnection(c) : addConnection(c));
+      if (password) await setConnectionPassword(c.id, password);
+      else if (removePassword) await setConnectionPassword(c.id, null);
+      setPassword("");
+      setRemovePassword(false);
       onSaved();
-    } catch {
-      setError(true);
+    } catch (err) {
+      const e = err as CommandError;
+      if (e?.code === "vault_locked") onVaultLocked();
+      else setError(e?.message ?? "");
     }
   }
   return (
@@ -66,12 +83,20 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
             {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
           </select>
         </label>
-        {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+        <label>{t("connections.password")}<input type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <p className="text-sm text-muted">{t("connections.passwordHint")}</p>
+        {initial?.has_password && (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={removePassword} onChange={(e) => setRemovePassword(e.target.checked)} />
+            {t("connections.removeSavedPassword")}
+          </label>
+        )}
+        {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
           {initial && (canProvision
             ? <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={() => onProvision(initial)}>{t("provision.install")}</button>
             : <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={onGoToKeys}>{t("provision.importKey")}</button>)}
-          <button type="button" onClick={onClose}>{t("common.cancel")}</button>
+          <button type="button" onClick={close}>{t("common.cancel")}</button>
           <button type="submit" className="rounded bg-accent px-3 py-1 text-bg">{t("common.save")}</button>
         </div>
       </form>
@@ -350,7 +375,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
           </div>
         </div>
       )}
-      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} />}
+      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

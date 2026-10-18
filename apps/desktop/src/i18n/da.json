@@ -35,6 +35,10 @@
     "port": "Port",
     "key": "Nøgle",
     "group": "Gruppe",
+    "password": "Adgangskode",
+    "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
+    "removeSavedPassword": "Fjern den gemte adgangskode",
+    "hasPassword": "Adgangskode gemt",
     "search": "Søg i forbindelser",
     "discovered": "Fundet i ~/.ssh/config",
     "removeConfirm": "Vil du fjerne denne forbindelse? Det kan ikke fortrydes."
