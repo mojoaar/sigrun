@@ -166,21 +166,47 @@ fn applescript_escape(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// The path to this running binary. A launched shell calls back into it for the
+/// askpass helper and for the session-end notify; the bare name is a `PATH`
+/// fallback for the rare case where the executable path cannot be read.
+fn helper_exe() -> String {
+    std::env::current_exe()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "sigrun".to_string())
+}
+
 /// The environment assignments that point ssh at the askpass helper. The helper
 /// receives the connection id and socket; the password itself never appears.
 /// `SIGRUN_ASKPASS=1` marks the call explicitly so a mistyped command in this
 /// environment is not mistaken for the helper. One trailing space, so it can be
 /// prepended to the command verbatim.
 pub fn env_prefix(socket: &Path, connection_id: &str) -> String {
-    let exe = std::env::current_exe()
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "sigrun".to_string());
     format!(
         "SSH_ASKPASS={} SSH_ASKPASS_REQUIRE=force SIGRUN_ASKPASS=1 SIGRUN_CONNECTION_ID={} SIGRUN_SOCKET={} ",
-        shell_escape(&exe),
+        shell_escape(&helper_exe()),
         shell_escape(connection_id),
         shell_escape(&socket.to_string_lossy()),
     )
+}
+
+/// The command the launched line runs once `ssh` exits: it points back at the
+/// running binary so the shell can report its own session to the host and the
+/// GUI can stop showing the connection live. Carries no secret — only the
+/// executable, the socket, and the connection id.
+pub fn connection_ended_notify(socket: &Path, connection_id: &str) -> String {
+    format!(
+        "{} --socket {} connection-ended {}",
+        shell_escape(&helper_exe()),
+        shell_escape(&socket.to_string_lossy()),
+        shell_escape(connection_id),
+    )
+}
+
+/// The notify to embed in a launch line, or `None` on Windows: `cmd.exe /k`
+/// gives no way to chain a notify, so the active flag is only set where the
+/// launched line can clear it again.
+pub fn launch_notify(platform: Platform, socket: &Path, connection_id: &str) -> Option<String> {
+    (platform != Platform::Windows).then(|| connection_ended_notify(socket, connection_id))
 }
 
 /// Candidate terminal launch specs for this platform, in fallback order.
@@ -189,6 +215,7 @@ pub fn terminal_launch_specs(
     configured: Option<&str>,
     argv: &[String],
     env_prefix: &str,
+    notify: Option<&str>,
 ) -> Result<Vec<LaunchSpec>> {
     // The prefix must come first so it applies to the `ssh` command, which is
     // re-escaped here; it ends with a space already.
@@ -197,7 +224,15 @@ pub fn terminal_launch_specs(
     // "failed to launch the requested command" screen when ssh exits non-zero
     // within a few frames, and other terminals simply close, hiding the error.
     // Drop into a shell instead so the reason stays on screen.
-    let keep_open = format!("{cmd} || exec ${{SHELL:-/bin/sh}}");
+    let keep_open = match notify {
+        // The notify must run before the shell takes over, and `rc` keeps the
+        // failure path exactly as it was: drop into a shell so the error stays
+        // on screen instead of the window closing.
+        Some(notify) => {
+            format!("{cmd}; rc=$?; {notify}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc")
+        }
+        None => format!("{cmd} || exec ${{SHELL:-/bin/sh}}"),
+    };
     match platform {
         Platform::MacOs => {
             // CLI terminals run the command directly; the two GUI apps use AppleScript.
@@ -581,8 +616,14 @@ mod tests {
 
     #[test]
     fn macos_uses_terminal_app_by_default() {
-        let specs = terminal_launch_specs(Platform::MacOs, None, &["ssh".into(), "u@h".into()], "")
-            .unwrap();
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            None,
+            &["ssh".into(), "u@h".into()],
+            "",
+            None,
+        )
+        .unwrap();
         assert_eq!(specs[0].program, "osascript");
         assert!(specs[0].args.iter().any(|a| a.contains("Terminal")));
     }
@@ -592,7 +633,8 @@ mod tests {
         let argv = ["ssh".to_string(), "u@h".to_string()];
         // A failed connect must not close the terminal before the error is read.
         for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
-            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, "").unwrap();
+            let specs =
+                terminal_launch_specs(Platform::MacOs, configured, &argv, "", None).unwrap();
             assert!(
                 specs[0]
                     .args
@@ -601,12 +643,32 @@ mod tests {
                 "macos {configured:?} should keep the window open"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "").unwrap() {
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "", None).unwrap() {
             assert!(spec.args.join(" ").contains("|| exec ${SHELL:-/bin/sh}"));
         }
         // Windows keeps its window with `cmd.exe /k`.
-        for spec in terminal_launch_specs(Platform::Windows, None, &argv, "").unwrap() {
+        for spec in terminal_launch_specs(Platform::Windows, None, &argv, "", None).unwrap() {
             assert!(spec.args.contains(&"/k".to_string()));
+        }
+        // Off Windows the launched line always carries a notify; a failed
+        // connect must still keep the window open in that shape too.
+        let notify = "sigrun --socket /tmp/h.sock connection-ended c1";
+        for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
+            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, "", Some(notify))
+                .unwrap();
+            assert!(
+                specs[0]
+                    .args
+                    .join(" ")
+                    .contains("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}"),
+                "macos {configured:?} should keep the window open with a notify"
+            );
+        }
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "", Some(notify)).unwrap() {
+            assert!(spec
+                .args
+                .join(" ")
+                .contains("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}"));
         }
     }
 
@@ -638,7 +700,8 @@ mod tests {
         };
 
         for configured in [None, Some("iterm")] {
-            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
+            let specs =
+                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None).unwrap();
             let line = specs[0].args.join(" ");
             prefix_first(&line, &format!("macos {configured:?}"));
             // The AppleScript `do script` string ends with the command chain.
@@ -655,7 +718,8 @@ mod tests {
             Some("alacritty"),
             Some("wezterm"),
         ] {
-            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
+            let specs =
+                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None).unwrap();
             let line = specs[0].args.join(" ");
             prefix_first(&line, &format!("macos {configured:?}"));
             assert!(
@@ -663,7 +727,7 @@ mod tests {
                 "macos {configured:?}: {line}"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv, &prefix).unwrap() {
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, &prefix, None).unwrap() {
             let line = spec.args.join(" ");
             prefix_first(&line, &format!("linux {}", spec.program));
             assert!(
@@ -672,9 +736,88 @@ mod tests {
                 spec.program
             );
         }
+        // With a notify the prefix still comes first and the keep-open chain —
+        // now built around `rc` — still ends the line.
+        let notify = "sigrun --socket /tmp/host.sock connection-ended c1";
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            Some("ghostty"),
+            &argv,
+            &prefix,
+            Some(notify),
+        )
+        .unwrap();
+        let line = specs[0].args.last().unwrap();
+        assert!(line.starts_with(&prefix), "{line}");
+        assert!(
+            line.ends_with("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
+            "{line}"
+        );
         // No stored password: the line is unchanged and ssh prompts as before.
-        let plain = terminal_launch_specs(Platform::MacOs, None, &argv, "").unwrap();
+        let plain = terminal_launch_specs(Platform::MacOs, None, &argv, "", None).unwrap();
         assert!(!plain[0].args.join(" ").contains("SSH_ASKPASS="));
+    }
+
+    #[test]
+    fn the_launch_line_reports_the_session_end_to_the_host() {
+        let notify = Some("sigrun --socket /tmp/h.sock connection-ended c1");
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            None,
+            &["ssh".into(), "u@h".into()],
+            "",
+            notify,
+        )
+        .unwrap();
+        let line = specs[0].args.join(" ");
+        assert!(line.contains("connection-ended c1"), "{line}");
+        // The rc is captured right after the command and the notify runs before
+        // the failure path can take over the shell.
+        let rc_at = line.find("rc=$?").expect("rc is captured");
+        let notify_at = line.find("connection-ended c1").expect("notify runs");
+        let keep_at = line
+            .find("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc")
+            .expect("the failure path survives");
+        assert!(rc_at < notify_at && notify_at < keep_at, "{line}");
+    }
+
+    #[test]
+    fn a_launch_line_without_a_notify_keeps_the_plain_keep_open_suffix() {
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            None,
+            &["ssh".into(), "u@h".into()],
+            "",
+            None,
+        )
+        .unwrap();
+        let line = specs[0].args.join(" ");
+        assert!(line.contains("ssh u@h || exec ${SHELL:-/bin/sh}"), "{line}");
+        assert!(!line.contains("rc=$?"), "{line}");
+    }
+
+    #[test]
+    fn the_notify_escapes_the_socket_and_the_id() {
+        let notify = connection_ended_notify(Path::new("/tmp/a b.sock"), "c 1");
+        assert!(notify.contains("--socket '/tmp/a b.sock'"), "{notify}");
+        assert!(notify.ends_with("connection-ended 'c 1'"), "{notify}");
+    }
+
+    #[test]
+    fn the_notify_is_built_only_where_the_launched_line_can_report_it() {
+        // Windows keeps `cmd.exe /k` and cannot chain the notify, so the host
+        // must not mark a session active there.
+        assert_eq!(
+            launch_notify(Platform::Windows, Path::new("/tmp/h.sock"), "c1"),
+            None
+        );
+        for platform in [Platform::MacOs, Platform::Linux] {
+            let Some(notify) = launch_notify(platform, Path::new("/tmp/h.sock"), "c1") else {
+                panic!("{platform:?} should carry a notify");
+            };
+            assert!(notify.contains("--socket /tmp/h.sock"), "{notify}");
+            assert!(notify.ends_with("connection-ended c1"), "{notify}");
+        }
     }
 
     #[test]
@@ -697,6 +840,7 @@ mod tests {
             Some("iterm"),
             &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
             "",
+            None,
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
@@ -714,14 +858,16 @@ mod tests {
     #[test]
     fn linux_prefers_override_then_env_then_known_terminals() {
         let specs =
-            terminal_launch_specs(Platform::Linux, Some("konsole"), &["ssh".into()], "").unwrap();
+            terminal_launch_specs(Platform::Linux, Some("konsole"), &["ssh".into()], "", None)
+                .unwrap();
         assert_eq!(specs[0].program, "konsole");
         assert!(specs.iter().any(|s| s.program == "gnome-terminal"));
     }
 
     #[test]
     fn windows_prefers_windows_terminal() {
-        let specs = terminal_launch_specs(Platform::Windows, None, &["ssh".into()], "").unwrap();
+        let specs =
+            terminal_launch_specs(Platform::Windows, None, &["ssh".into()], "", None).unwrap();
         assert_eq!(specs[0].program, "wt.exe");
         assert!(specs.iter().any(|s| s.program == "cmd.exe"));
     }
@@ -734,8 +880,13 @@ mod tests {
         let platform = Platform::current();
         let found = detect_terminals(platform);
         for t in &found {
-            let specs =
-                terminal_launch_specs(platform, Some(&t.id), &["ssh".into(), "u@h".into()], "");
+            let specs = terminal_launch_specs(
+                platform,
+                Some(&t.id),
+                &["ssh".into(), "u@h".into()],
+                "",
+                None,
+            );
             assert!(specs.is_ok(), "{} should be launchable", t.id);
         }
         match platform {

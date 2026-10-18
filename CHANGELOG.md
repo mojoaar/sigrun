@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An inline help and about view in the app, describing what Sigrun does and how the pieces fit together.
 - A host-filled `active` flag on connections, for showing which sessions are live.
 - Transient host-side tracking of which connections have a live session, exposed as the `active` flag.
+- The launched command tells the host when a session ends, so the GUI can show which connections are live.
 
 ### Changed
 

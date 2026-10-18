@@ -12,7 +12,7 @@ use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
 use crate::terminal::{
-    env_prefix, launch_first, probe_reachable, render_command, ssh_invocation,
+    env_prefix, launch_first, launch_notify, probe_reachable, render_command, ssh_invocation,
     terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
@@ -583,13 +583,20 @@ async fn connections_connect(
         String::new()
     };
 
+    // Windows keeps `cmd.exe /k` with no way to chain a notify, so the flag is
+    // only set where the launched line can clear it again.
+    let notify = launch_notify(Platform::current(), Path::new(&state.ipc_addr), &conn.id);
     let specs = terminal_launch_specs(
         Platform::current(),
         settings.terminal.as_deref(),
         &argv,
         &prefix,
+        notify.as_deref(),
     )?;
     launch_first(&specs, Some(&state.paths.agent_socket()))?;
+    if notify.is_some() {
+        state.mark_active(&conn.id);
+    }
     Ok(Response::Ok)
 }
 
