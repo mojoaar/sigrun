@@ -35,6 +35,12 @@ pub enum Command {
         /// The prompt ssh passes; ignored.
         prompt: Option<String>,
     },
+    /// Report that a launched session ended. Internal.
+    #[command(hide = true)]
+    ConnectionEnded {
+        /// The connection whose session ended.
+        id: String,
+    },
     #[command(subcommand)]
     Vault(VaultCommand),
     #[command(subcommand)]
@@ -223,6 +229,8 @@ pub async fn run() -> anyhow::Result<()> {
         Command::Status => status(&socket).await,
         // Explicit entry point: no environment marker needed.
         Command::Askpass { prompt: _ } => askpass(socket.as_deref()),
+        // Explicit entry point too: the launched line passes the id outright.
+        Command::ConnectionEnded { id } => connection_ended(socket, id).await,
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
@@ -261,6 +269,17 @@ fn askpass(socket: Option<&std::path::Path>) -> anyhow::Result<()> {
     }
     eprintln!("sigrun: could not read the stored password from the Sigrun host");
     std::process::exit(2)
+}
+
+/// `sigrun connection-ended <id>`: the launched line tells the host at `socket`
+/// that the session ended. It runs inside the user's terminal, so it never
+/// prints and never fails — the host may already be gone, and that is not the
+/// user's problem.
+async fn connection_ended(socket: Option<PathBuf>, id: String) -> anyhow::Result<()> {
+    if let Some(addr) = sigrun_core::connection_ended::helper_socket(socket) {
+        sigrun_core::connection_ended::report(&addr, &id).await;
+    }
+    Ok(())
 }
 
 async fn status(socket: &Option<PathBuf>) -> anyhow::Result<()> {

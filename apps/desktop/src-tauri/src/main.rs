@@ -14,7 +14,29 @@ fn main() {
     if marker || from_ssh {
         std::process::exit(askpass());
     }
+    // The launched line ends by reporting its own session end the same way —
+    // no window, tray or host may start for that either.
+    if let Some((socket, id)) = connection_ended_args(&args) {
+        if let Some(socket) = sigrun_core::connection_ended::helper_socket(socket) {
+            tauri::async_runtime::block_on(sigrun_core::connection_ended::report(&socket, &id));
+        }
+        std::process::exit(0);
+    }
     sigrun_desktop::run()
+}
+
+/// The `connection-ended` shape the launched line passes this binary: the
+/// socket it should report to, and the connection id. `None` for every other
+/// invocation, including `connection-ended` with no id.
+fn connection_ended_args(args: &[String]) -> Option<(Option<std::path::PathBuf>, String)> {
+    let rest = args.get(1..)?;
+    let at = rest.iter().position(|a| a == "connection-ended")?;
+    let id = rest.get(at + 1)?.clone();
+    let socket = rest
+        .windows(2)
+        .find(|w| w[0] == "--socket")
+        .map(|w| std::path::PathBuf::from(&w[1]));
+    Some((socket, id))
 }
 
 /// Print the stored password on stdout and nothing else; every failure exits 2
@@ -36,4 +58,54 @@ fn askpass() -> i32 {
     }
     eprintln!("sigrun: could not read the stored password from the Sigrun host");
     2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn args(args: &[&str]) -> Vec<String> {
+        args.iter().map(|a| a.to_string()).collect()
+    }
+
+    #[test]
+    fn connection_ended_args_reads_the_launched_line() {
+        assert_eq!(
+            connection_ended_args(&args(&[
+                "sigrun-desktop",
+                "--socket",
+                "/tmp/h.sock",
+                "connection-ended",
+                "c1"
+            ])),
+            Some((Some(PathBuf::from("/tmp/h.sock")), "c1".to_string()))
+        );
+        assert_eq!(
+            connection_ended_args(&args(&["sigrun-desktop", "connection-ended", "c1"])),
+            Some((None, "c1".to_string()))
+        );
+    }
+
+    #[test]
+    fn connection_ended_args_needs_an_id() {
+        assert_eq!(
+            connection_ended_args(&args(&[
+                "sigrun-desktop",
+                "--socket",
+                "/tmp/h.sock",
+                "connection-ended"
+            ])),
+            None
+        );
+    }
+
+    #[test]
+    fn connection_ended_args_ignores_an_ordinary_launch() {
+        assert_eq!(connection_ended_args(&args(&["sigrun-desktop"])), None);
+        assert_eq!(
+            connection_ended_args(&args(&["sigrun-desktop", "--foo"])),
+            None
+        );
+    }
 }

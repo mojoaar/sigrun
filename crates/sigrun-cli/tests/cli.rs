@@ -401,3 +401,90 @@ fn end_to_end_host_vault_key_and_connection() {
     host.kill().unwrap();
     host.wait().unwrap();
 }
+
+// `sigrun connection-ended <id>` is the hidden helper the launched line runs
+// once `ssh` exits: it points at the host that launched it and reports its own
+// session as over. It runs inside the user's terminal, so it stays silent and
+// succeeds even when the host is already gone.
+#[test]
+fn connection_ended_is_hidden_from_help() {
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("connection-ended").not());
+}
+
+#[test]
+fn connection_ended_without_a_host_is_silent_and_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args(["connection-ended", "c1"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{:?}", out.status);
+    assert!(
+        out.stdout.is_empty() && out.stderr.is_empty(),
+        "stdout {:?} stderr {:?}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn connection_ended_reaches_a_running_host_silently() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    // An id the host does not know is a no-op, and the helper says nothing
+    // either way — the whole point is that it never writes to the terminal.
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(&sock)
+        .args(["connection-ended", "c1"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{:?}", out.status);
+    assert!(
+        out.stdout.is_empty() && out.stderr.is_empty(),
+        "stdout {:?} stderr {:?}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
+// The connection id is a single opaque argument: nothing else follows it.
+#[test]
+fn connection_ended_takes_exactly_one_id() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .args(["connection-ended", "c1", "extra"])
+        .assert()
+        .failure();
+}
