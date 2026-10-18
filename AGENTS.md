@@ -53,7 +53,9 @@ newtype variants holding a sequence.
   closed on an unknown or mismatched key.
 - **The askpass handoff** uses `SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force` with
   the helper marker `SIGRUN_ASKPASS=1` **and** a non-empty
-  `SIGRUN_CONNECTION_ID`. The password is never put on a command line.
+  `SIGRUN_CONNECTION_ID`. The password is never put on a command line. This is
+  macOS and Linux only: the Windows launch path carries no askpass variables,
+  so a stored password falls back to `ssh`'s own prompt there.
 
 ## Code rules
 
