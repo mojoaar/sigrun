@@ -61,6 +61,12 @@ export default function Settings() {
           {terminals.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
       </label>
+      <label className="flex flex-col gap-1">{t("settings.openIn")}
+        <select className={field} value={s.open_in === "tab" ? "tab" : "window"} onChange={(e) => update({ open_in: e.target.value })}>
+          <option value="window">{t("settings.openInWindow")}</option>
+          <option value="tab">{t("settings.openInTab")}</option>
+        </select>
+      </label>
       <label className="flex flex-col gap-1">{t("settings.autoLock")}
         <select
           className={field}

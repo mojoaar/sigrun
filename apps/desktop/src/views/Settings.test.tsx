@@ -24,15 +24,16 @@ describe("Settings", () => {
 
     const labels = Array.from(container.querySelectorAll("label"));
     const order = labels.map((l) => l.textContent ?? "");
-    expect(order).toHaveLength(6);
+    expect(order).toHaveLength(7);
     expect(order[0].startsWith("Theme")).toBe(true);
     expect(order[1].startsWith("Appearance")).toBe(true);
     expect(order[2].startsWith("Language")).toBe(true);
     expect(order[3].startsWith("Terminal")).toBe(true);
-    expect(order[4].startsWith("Auto-lock")).toBe(true);
-    expect(order[5].startsWith("Start minimized")).toBe(true);
+    expect(order[4].startsWith("Open in")).toBe(true);
+    expect(order[5].startsWith("Auto-lock")).toBe(true);
+    expect(order[6].startsWith("Start minimized")).toBe(true);
     // Start minimized must come after auto-lock in the DOM, not just in the list.
-    expect(labels[4].compareDocumentPosition(labels[5]) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(labels[5].compareDocumentPosition(labels[6]) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
@@ -42,6 +43,15 @@ describe("Settings", () => {
     fireEvent.click(await screen.findByRole("checkbox"));
     await waitFor(() =>
       expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ start_minimized: true })),
+    );
+  });
+
+  it("saves open_in as tab when a new tab is chosen", async () => {
+    vi.mocked(api.saveSettings).mockClear();
+    render(<Settings />);
+    fireEvent.change(await screen.findByLabelText("Open in"), { target: { value: "tab" } });
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ open_in: "tab" })),
     );
   });
 });
