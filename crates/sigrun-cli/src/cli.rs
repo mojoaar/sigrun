@@ -319,6 +319,7 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 tags: tag,
                 source: ConnectionSource::Managed,
                 disable_password_auth: false,
+                has_password: false,
             };
             let resp = client::request(&addr, &Request::ConnectionsAdd { connection }).await?;
             match resp {

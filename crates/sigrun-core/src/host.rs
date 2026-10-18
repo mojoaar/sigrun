@@ -7,7 +7,7 @@ use crate::agent::{vault_keys, AgentState};
 use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
-use crate::model::{KeyAlgorithm, KeyMetadata, KeySource, KeyView};
+use crate::model::{Connection, KeyAlgorithm, KeyMetadata, KeySource, KeyView};
 use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
@@ -121,6 +121,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::KeysRemove { .. }
             | Request::ConnectionsConnect { .. }
             | Request::ConnectionsProvision { .. }
+            | Request::ConnectionsSetPassword { .. }
     ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -168,22 +169,41 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             state.agent.clear();
             Ok(Response::Ok)
         }
-        Request::ConnectionsList => Ok(Response::Connections(state.store.load_data()?.connections)),
+        Request::ConnectionsList => {
+            let mut connections = state.store.load_data()?.connections;
+            fill_password_flags(state, &mut connections).await;
+            Ok(Response::Connections(connections))
+        }
         Request::ConnectionsAdd { mut connection } => {
             if connection.id.trim().is_empty() {
                 connection.id = uuid::Uuid::new_v4().to_string();
             }
+            fill_password_flags(state, std::slice::from_mut(&mut connection)).await;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
-        Request::ConnectionsUpdate { connection } => {
+        Request::ConnectionsUpdate { mut connection } => {
+            fill_password_flags(state, std::slice::from_mut(&mut connection)).await;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsRemove { id } => {
+            // Clear the stored password while we still can. A locked vault
+            // cannot reach it, so the connection is removed anyway rather than
+            // blocking the delete on an unlock.
+            {
+                let mut guard = state.vault.lock().await;
+                if let Some(vault) = (*guard).as_mut() {
+                    vault.remove(&id)?;
+                }
+            }
             state.store.remove_connection(&id)?;
             Ok(Response::Ok)
         }
+        Request::ConnectionsSetPassword { id, password } => {
+            connections_set_password(state, id, password).await
+        }
+        Request::PasswordGet { id } => password_get(state, id).await,
         Request::KeysList => keys_list(state).await,
         Request::KeysGenerate {
             name,
@@ -373,6 +393,62 @@ async fn keys_remove(state: &HostState, id: String) -> Result<Response> {
     state.store.remove_key(&id)?;
     reload_agent(state).await?;
     Ok(Response::Ok)
+}
+
+/// Fill `has_password` for each connection from the unlocked vault. A locked
+/// vault cannot answer, so the flag stays `false` rather than guess.
+async fn fill_password_flags(state: &HostState, connections: &mut [Connection]) {
+    let guard = state.vault.lock().await;
+    for conn in connections {
+        with_password_flag((*guard).as_ref(), conn);
+    }
+}
+
+/// The host-owned half of `Connection.has_password`.
+fn with_password_flag(vault: Option<&UnlockedVault>, conn: &mut Connection) {
+    conn.has_password =
+        vault.is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })));
+}
+
+/// Store or clear a connection's password under its id. `None` clears; an absent
+/// entry is a silent no-op. The value is never logged or echoed in an error.
+async fn connections_set_password(
+    state: &HostState,
+    id: String,
+    password: Option<String>,
+) -> Result<Response> {
+    let mut guard = state.vault.lock().await;
+    let vault = (*guard).as_mut().ok_or(Error::VaultLocked)?;
+    if !state
+        .store
+        .load_data()?
+        .connections
+        .iter()
+        .any(|c| c.id == id)
+    {
+        return Err(Error::NotFound(id));
+    }
+    match password {
+        Some(password) => {
+            if password.is_empty() {
+                return Err(Error::InvalidInput("password must not be empty".into()));
+            }
+            vault.put(&id, Secret::Password { password })?;
+        }
+        None => vault.remove(&id)?,
+    }
+    Ok(Response::Ok)
+}
+
+/// Hand a stored password to the caller. The only request that ever returns a
+/// secret; it travels to the 0600 socket exactly as `VaultUnlock`'s passphrase.
+async fn password_get(state: &HostState, id: String) -> Result<Response> {
+    let guard = state.vault.lock().await;
+    let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
+    match vault.get(&id) {
+        Some(Secret::Password { password }) => Ok(Response::Password(password.clone())),
+        _ => Err(Error::NotFound(id)),
+    }
 }
 
 async fn connections_connect(
@@ -677,6 +753,142 @@ mod tests {
             Err(Error::InvalidInput(m)) => {
                 assert_eq!(m, "import the key into the vault to provision it")
             }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn setting_and_clearing_a_connection_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = HostState::new(paths).await.unwrap();
+        // unlock
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        let mut c = Connection::managed("c1", "web");
+        c.host = "example.com".into();
+        c.user = "deploy".into();
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: c }).await,
+            Response::Ok
+        ));
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsSetPassword {
+                    id: "c1".into(),
+                    password: Some("s3cret".into())
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        // listing reports it without leaking the value
+        match handle(&state, Request::ConnectionsList).await {
+            Response::Connections(cs) => assert!(cs[0].has_password),
+            other => panic!("{other:?}"),
+        }
+        // the secret is readable only through the dedicated request
+        match handle(&state, Request::PasswordGet { id: "c1".into() }).await {
+            Response::Password(p) => assert_eq!(p, "s3cret"),
+            other => panic!("{other:?}"),
+        }
+        // clearing
+        handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: None,
+            },
+        )
+        .await;
+        assert!(matches!(
+            handle(&state, Request::PasswordGet { id: "c1".into() }).await,
+            Response::Error { .. }
+        ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_locked_vault_refuses_to_store_a_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        // VaultInit but no VaultUnlock -> ConnectionsSetPassword is vault_locked
+        match handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: Some("s3cret".into()),
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "vault_locked"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn removing_a_connection_removes_its_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::ConnectionsAdd {
+                connection: Connection::managed("c1", "web"),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: Some("s3cret".into()),
+            },
+        )
+        .await;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsRemove { id: "c1".into() }).await,
+            Response::Ok
+        ));
+        // after ConnectionsRemove, PasswordGet for that id is not_found
+        match handle(&state, Request::PasswordGet { id: "c1".into() }).await {
+            Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
         state.shutdown.cancel();

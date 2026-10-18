@@ -30,6 +30,13 @@ pub enum Request {
     ConnectionsRemove {
         id: String,
     },
+    ConnectionsSetPassword {
+        id: String,
+        password: Option<String>,
+    },
+    PasswordGet {
+        id: String,
+    },
     ConnectionsConnect {
         id: String,
         print_only: bool,
@@ -75,6 +82,7 @@ pub enum Response {
     Command(String),
     Provisioned(crate::provision::ProvisionOutcome),
     Unlocked { warnings: Vec<String> },
+    Password(String),
     Error { code: String, message: String },
 }
 
