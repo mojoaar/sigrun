@@ -38,15 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
 - The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect runs the same check.
 - iTerm opens a tab in the current window.
-- The desktop app notifies the UI (`connections-changed`) when a connection gains or loses a live terminal session.
 - Per-connection passwords: stored in the vault, handed to `ssh` through an askpass helper on macOS and Linux so a password-only host never prompts in the terminal (Windows has no helper and falls back to `ssh`'s own prompt), and settable from the app or with `sigrun connections password <id-or-label> [--password-stdin] [--clear]`.
 - Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.
 - An inline help and about view in the app, describing what Sigrun does and how the pieces fit together.
-- A host-filled `active` flag on connections, for showing which sessions are live.
-- Transient host-side tracking of which connections have a live session, exposed as the `active` flag.
-- The launched command tells the host when a session ends, so the GUI can show which connections are live.
-- A hidden `connection-ended` helper mode in both binaries, so a launched session can report its own end.
-- A pulsing dot on a connection row while its session is running.
+- A pulsing dot on a connection row while its session is live (macOS and Linux): the host keeps the live sessions in memory, the launched command reports its own end, and the dot clears when the session closes.
 
 ### Changed
 
@@ -56,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The tray/menu-bar connect now runs the reachability probe, so a dead host is reported before a terminal opens.
 - The header Lock button stands out in danger red.
 - The README and AGENTS.md now describe Sigrun as an SSH connection manager with key-based authentication; the README leads with connections and presents keys as what makes them work.
+- Documented that live sessions show a dot on macOS and Linux only; the Windows launch path cannot report a session end.
 
 ### Fixed
 

@@ -80,10 +80,11 @@ newtype variants holding a sequence.
   socket pick a unique per-test name.
 - Terminal launch is per platform: AppleScript for Terminal/iTerm, `-e` for
   Ghostty/kitty/Alacritty/WezTerm, `sh -c` on Linux, `cmd.exe /k` on Windows.
-- On macOS and Linux every launched command ends with
-  `|| exec ${SHELL:-/bin/sh}` so a failed connection keeps its error on screen
-  instead of the terminal closing. Windows keeps the bare command and its
-  window with `cmd.exe /k`.
+- On macOS and Linux the launched command reports its own end to the host when
+  `ssh` exits (`connection-ended`) and then keeps the window open on failure
+  with the same `|| exec ${SHELL:-/bin/sh}` chain, so the error stays on screen.
+  Windows keeps the bare command with `cmd.exe /k`, which has nowhere to chain
+  the report: its sessions are not tracked and no live dot appears.
 
 ## Process rules
 

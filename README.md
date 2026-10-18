@@ -28,7 +28,9 @@ agent, and the local IPC they both talk to.
   `PVE/Folder 1` nests in the Connections list and the tray menu, and
   `~/.ssh/config` hosts are listed alongside the ones you manage.
 - **Connect anywhere.** Click Connect and `ssh` opens in your terminal — from
-  the app, the system tray, or `sigrun connections connect` on the CLI.
+  the app, the system tray, or `sigrun connections connect` on the CLI. A live
+  session shows a pulsing dot on its row in the app; on Windows sessions are not
+  tracked, so no dot appears.
 - **Keep keys in an encrypted vault.** Generate Ed25519, RSA, or ECDSA keys,
   import or discover the ones already in `~/.ssh`, and let an in-process
   OpenSSH agent serve vault keys to `ssh`.
@@ -254,6 +256,9 @@ you select into the vault first.
 - RSA agent signing always uses SHA-256: ssh-key 0.6 cannot emit a legacy
   `ssh-rsa`/SHA-1 signature, so a client that only offers SHA-1 will reject
   Sigrun's signatures.
+- A live session is tracked on macOS and Linux only. The Windows launch is a
+  bare `cmd.exe /k`, which has nowhere to chain the session-end report, so a
+  Windows session never shows the dot.
 
 ## License
 
