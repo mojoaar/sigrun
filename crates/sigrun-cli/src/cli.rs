@@ -188,13 +188,14 @@ impl From<KeyAlgorithmArg> for KeyAlgorithm {
 
 pub async fn run() -> anyhow::Result<()> {
     // ssh execs `$SSH_ASKPASS` with the prompt as its only argument, so an
-    // askpass call has no subcommand to parse. `SIGRUN_CONNECTION_ID` is set
-    // only by `terminal::env_prefix`, which makes it the marker.
+    // askpass call has no subcommand to parse. Both markers are required (see
+    // `terminal::env_prefix`): a stray connection id in the environment must
+    // still produce clap's normal "unrecognized subcommand" error.
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) if matches!(err.kind(), clap::error::ErrorKind::InvalidSubcommand) => {
-            if std::env::var_os("SIGRUN_CONNECTION_ID").is_some() {
-                return askpass();
+            if askpass_marker() {
+                return askpass(None);
             }
             err.exit()
         }
@@ -207,11 +208,18 @@ pub async fn run() -> anyhow::Result<()> {
             Ok(())
         }
         Command::Status => status(&socket).await,
-        Command::Askpass { prompt: _ } => askpass(),
+        // Explicit entry point: no environment marker needed.
+        Command::Askpass { prompt: _ } => askpass(socket.as_deref()),
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
     }
+}
+
+/// True only for the environment `terminal::env_prefix` builds for ssh.
+fn askpass_marker() -> bool {
+    std::env::var("SIGRUN_ASKPASS").as_deref() == Ok("1")
+        && std::env::var("SIGRUN_CONNECTION_ID").is_ok_and(|id| !id.is_empty())
 }
 
 fn resolve_addr(socket: &Option<PathBuf>) -> anyhow::Result<PathBuf> {
@@ -225,9 +233,11 @@ fn resolve_addr(socket: &Option<PathBuf>) -> anyhow::Result<PathBuf> {
 ///
 /// ssh finds this through `SSH_ASKPASS=<exe>` and runs it as `<exe> '<prompt>'`
 /// (no arguments allowed), so `run` also routes such an invocation here.
-fn askpass() -> anyhow::Result<()> {
-    let target = std::env::var_os("SIGRUN_SOCKET")
+/// `socket` is the global `--socket` override, which wins over the environment.
+fn askpass(socket: Option<&std::path::Path>) -> anyhow::Result<()> {
+    let target = socket
         .map(PathBuf::from)
+        .or_else(|| std::env::var_os("SIGRUN_SOCKET").map(PathBuf::from))
         .or_else(|| Paths::resolve().ok().map(|p| p.socket_path()))
         .zip(std::env::var("SIGRUN_CONNECTION_ID").ok());
     if let Some((socket, id)) = target {

@@ -26,7 +26,10 @@ pub struct HostState {
     pub vault: tokio::sync::Mutex<Option<UnlockedVault>>,
     pub agent: AgentState,
     pub agent_socket: String,
-    pub host_addr: String,
+    /// The IPC address this host actually serves on. `Paths::socket_path()` is
+    /// only the default: `sigrun host --socket …` overrides it, and the askpass
+    /// prefix must advertise the address the helper can really connect to.
+    pub ipc_addr: String,
     pub shutdown: tokio_util::sync::CancellationToken,
     /// Bumped on any vault-touching activity; the idle auto-lock watches it.
     pub last_vault_activity: std::sync::Arc<std::sync::atomic::AtomicU64>,
@@ -50,7 +53,7 @@ impl HostState {
 
         Ok(HostState {
             agent_socket: paths.agent_socket().display().to_string(),
-            host_addr: paths.socket_path().display().to_string(),
+            ipc_addr: paths.socket_path().display().to_string(),
             store: Store::new(paths.clone()),
             vault: tokio::sync::Mutex::new(None),
             agent: AgentState::new(),
@@ -139,7 +142,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
                 version: crate::VERSION.to_string(),
                 vault,
                 agent_socket: Some(state.agent_socket.clone()),
-                host_addr: state.host_addr.clone(),
+                host_addr: state.ipc_addr.clone(),
             }))
         }
         Request::VaultInit { passphrase } => {
@@ -517,7 +520,8 @@ async fn connections_connect(
     }
 
     let prefix = if stored {
-        env_prefix(&state.paths.socket_path(), &conn.id)
+        // The host may serve on `--socket`, so advertise the bound address.
+        env_prefix(Path::new(&state.ipc_addr), &conn.id)
     } else {
         String::new()
     };
@@ -692,9 +696,12 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
 
 /// Run the host until shutdown: serve the agent and the IPC socket.
 pub async fn run(paths: Paths, socket: Option<PathBuf>) -> Result<()> {
-    let state = std::sync::Arc::new(HostState::new(paths.clone()).await?);
-    let agent = crate::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
     let addr = socket.unwrap_or_else(|| paths.socket_path());
+    let mut state = HostState::new(paths.clone()).await?;
+    // Advertise the socket this process really binds, not the derived default.
+    state.ipc_addr = addr.display().to_string();
+    let state = std::sync::Arc::new(state);
+    let agent = crate::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
     let result = crate::ipc::server::serve(&addr, state.clone()).await;
     agent.abort();
     state.agent.clear();
@@ -844,6 +851,21 @@ mod tests {
             handle(&state, Request::PasswordGet { id: "c1".into() }).await,
             Response::Error { .. }
         ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_bound_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_in(dir.path()).await;
+        // `sigrun host --socket …` overrides the derived default; the status is
+        // what the CLI reports and the askpass prefix is built from the same
+        // field, so both name the socket the host is really serving on.
+        state.ipc_addr = "/tmp/sigrun-bound.sock".into();
+        match handle(&state, Request::Status).await {
+            Response::Status(info) => assert_eq!(info.host_addr, "/tmp/sigrun-bound.sock"),
+            other => panic!("{other:?}"),
+        }
         state.shutdown.cancel();
     }
 

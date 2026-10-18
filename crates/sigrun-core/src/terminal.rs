@@ -89,8 +89,10 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
     }
 
     // A stored password is served by the askpass helper. Never let ssh try it
-    // three times: one wrong attempt is enough to report the failure.
-    if conn.has_password {
+    // three times: one wrong attempt is enough to report the failure. Windows
+    // has no helper yet, so it keeps ssh's normal retry count instead of
+    // gaining a restriction that could only lock the user out sooner.
+    if !cfg!(windows) && conn.has_password {
         argv.push("-o".to_string());
         argv.push("NumberOfPasswordPrompts=1".to_string());
     }
@@ -166,13 +168,15 @@ fn applescript_escape(value: &str) -> String {
 
 /// The environment assignments that point ssh at the askpass helper. The helper
 /// receives the connection id and socket; the password itself never appears.
-/// One trailing space, so it can be prepended to the command verbatim.
+/// `SIGRUN_ASKPASS=1` marks the call explicitly so a mistyped command in this
+/// environment is not mistaken for the helper. One trailing space, so it can be
+/// prepended to the command verbatim.
 pub fn env_prefix(socket: &Path, connection_id: &str) -> String {
     let exe = std::env::current_exe()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "sigrun".to_string());
     format!(
-        "SSH_ASKPASS={} SSH_ASKPASS_REQUIRE=force SIGRUN_CONNECTION_ID={} SIGRUN_SOCKET={} ",
+        "SSH_ASKPASS={} SSH_ASKPASS_REQUIRE=force SIGRUN_ASKPASS=1 SIGRUN_CONNECTION_ID={} SIGRUN_SOCKET={} ",
         shell_escape(&exe),
         shell_escape(connection_id),
         shell_escape(&socket.to_string_lossy()),
@@ -618,21 +622,55 @@ mod tests {
         assert!(prefix.contains("SSH_ASKPASS_REQUIRE=force"));
         assert!(prefix.contains("SIGRUN_CONNECTION_ID=c1"));
         assert!(prefix.contains("SIGRUN_SOCKET=/tmp/host.sock"));
-        for configured in [None, Some("iterm"), Some("ghostty")] {
+        // The marker makes the helper call unambiguous; see `env_prefix`.
+        assert!(prefix.contains("SIGRUN_ASKPASS=1"));
+
+        // The prefix must precede the command everywhere, so it can never end
+        // up after the keep-open suffix (which would leave it trailing).
+        let prefix_first = |line: &str, label: &str| {
+            let prefix_at = line
+                .find("SSH_ASKPASS=")
+                .unwrap_or_else(|| panic!("{label} should carry the prefix: {line}"));
+            let keep_open_at = line
+                .find("|| exec")
+                .unwrap_or_else(|| panic!("{label} should keep the window open: {line}"));
+            assert!(prefix_at < keep_open_at, "{label}: {line}");
+        };
+
+        for configured in [None, Some("iterm")] {
             let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
             let line = specs[0].args.join(" ");
-            assert!(line.contains("SSH_ASKPASS="), "{configured:?}");
-            assert!(line.contains("|| exec ${SHELL:-/bin/sh}"), "{configured:?}");
+            prefix_first(&line, &format!("macos {configured:?}"));
+            // The AppleScript `do script` string ends with the command chain.
+            assert!(
+                line.contains("|| exec ${SHELL:-/bin/sh}\""),
+                "macos {configured:?}: {line}"
+            );
         }
-        // Every `-e /bin/sh -c` and `sh -c` path carries it too.
-        for configured in [Some("kitty"), Some("alacritty"), Some("wezterm")] {
+        // Every `-e /bin/sh -c` and `sh -c` path carries it too, and the
+        // keep-open suffix is the last thing the shell sees.
+        for configured in [
+            Some("ghostty"),
+            Some("kitty"),
+            Some("alacritty"),
+            Some("wezterm"),
+        ] {
             let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
             let line = specs[0].args.join(" ");
-            assert!(line.contains("SSH_ASKPASS="), "{configured:?}");
-            assert!(line.contains("|| exec ${SHELL:-/bin/sh}"), "{configured:?}");
+            prefix_first(&line, &format!("macos {configured:?}"));
+            assert!(
+                line.trim_end().ends_with("|| exec ${SHELL:-/bin/sh}"),
+                "macos {configured:?}: {line}"
+            );
         }
         for spec in terminal_launch_specs(Platform::Linux, None, &argv, &prefix).unwrap() {
-            assert!(spec.args.join(" ").contains("SSH_ASKPASS="));
+            let line = spec.args.join(" ");
+            prefix_first(&line, &format!("linux {}", spec.program));
+            assert!(
+                line.trim_end().ends_with("|| exec ${SHELL:-/bin/sh}"),
+                "linux {}: {line}",
+                spec.program
+            );
         }
         // No stored password: the line is unchanged and ssh prompts as before.
         let plain = terminal_launch_specs(Platform::MacOs, None, &argv, "").unwrap();
@@ -640,6 +678,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(windows))]
     fn a_stored_password_limits_ssh_to_one_prompt() {
         let mut conn = Connection::managed("c1", "web");
         let plain = ssh_invocation(&conn, None).unwrap();

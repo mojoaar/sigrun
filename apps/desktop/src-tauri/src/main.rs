@@ -2,12 +2,15 @@
 
 fn main() {
     // ssh runs this binary as its `SSH_ASKPASS` helper and passes the prompt as
-    // the only argument, so the askpass environment is the marker there too
-    // (`SIGRUN_CONNECTION_ID` is set only by `terminal::env_prefix`). Handle
-    // both shapes before anything else, so no window, tray, or host starts.
+    // the only argument. Require the explicit marker *and* a connection id (see
+    // `terminal::env_prefix`) so an ordinary launch with a stray environment is
+    // never hijacked. Handle both shapes before anything else, so no window,
+    // tray, or host starts.
     let args: Vec<String> = std::env::args().collect();
     let marker = args.get(1).map(String::as_str) == Some("--askpass");
-    let from_ssh = args.len() == 2 && std::env::var_os("SIGRUN_CONNECTION_ID").is_some();
+    let from_ssh = args.len() == 2
+        && std::env::var("SIGRUN_ASKPASS").as_deref() == Ok("1")
+        && std::env::var("SIGRUN_CONNECTION_ID").is_ok_and(|id| !id.is_empty());
     if marker || from_ssh {
         std::process::exit(askpass());
     }
