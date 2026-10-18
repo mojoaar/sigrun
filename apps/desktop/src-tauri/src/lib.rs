@@ -74,6 +74,10 @@ pub fn run() {
                         if st.shutdown.is_cancelled() {
                             return;
                         }
+                        // A killed terminal group runs no handler, so reap the
+                        // watched shells before the snapshot below: a dead one
+                        // then clears the dot on this tick, not the next.
+                        st.sweep_dead_sessions();
                         if st
                             .auto_locked
                             .swap(false, std::sync::atomic::Ordering::Relaxed)
