@@ -36,6 +36,9 @@ pub struct HostState {
     /// Set when the vault is locked by the idle auto-lock (the desktop host
     /// reads it to re-gate the UI). Never set on a manual lock.
     pub auto_locked: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Ids with a live session, reported as `Connection.active`. Transient:
+    /// never persisted, and dropped when the vault locks.
+    pub active: std::sync::Mutex<std::collections::HashSet<String>>,
     pub lock_file: std::fs::File,
 }
 
@@ -60,9 +63,48 @@ impl HostState {
             shutdown: tokio_util::sync::CancellationToken::new(),
             last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             auto_locked: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            active: std::sync::Mutex::new(std::collections::HashSet::new()),
             paths,
             lock_file,
         })
+    }
+
+    /// The active set. A poisoned lock means some handler panicked while
+    /// holding it; recovering keeps that from panicking every later request.
+    fn active_set(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+        self.active
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub fn mark_active(&self, id: &str) {
+        self.active_set().insert(id.to_string());
+    }
+
+    pub fn clear_active(&self, id: &str) {
+        self.active_set().remove(id);
+    }
+
+    pub fn clear_all_active(&self) {
+        self.active_set().clear();
+    }
+
+    pub fn is_active(&self, id: &str) -> bool {
+        self.active_set().contains(id)
+    }
+
+    /// Sorted, so callers can compare snapshots with `!=`.
+    pub fn active_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.active_set().iter().cloned().collect();
+        ids.sort();
+        ids
+    }
+
+    /// Drop everything that only exists while the vault is unlocked.
+    async fn lock_vault(&self) {
+        *self.vault.lock().await = None;
+        self.agent.clear();
+        self.clear_all_active();
     }
 
     /// Lock the vault after `auto_lock_minutes` of no vault-touching activity.
@@ -94,8 +136,7 @@ impl HostState {
                 .unwrap_or(0);
             let idle_for = now.saturating_sub(last);
             if last != 0 && idle_for >= u64::from(minutes) * 60 {
-                *self.vault.lock().await = None;
-                self.agent.clear();
+                self.lock_vault().await;
                 self.auto_locked.store(true, Ordering::Relaxed);
             }
         }
@@ -169,13 +210,13 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             Ok(Response::Unlocked { warnings })
         }
         Request::VaultLock => {
-            *state.vault.lock().await = None;
-            state.agent.clear();
+            state.lock_vault().await;
             Ok(Response::Ok)
         }
         Request::ConnectionsList => {
             let mut connections = state.store.load_data()?.connections;
             fill_password_flags(state, &mut connections).await;
+            fill_active_flags(state, &mut connections);
             Ok(Response::Connections(connections))
         }
         Request::ConnectionsAdd { mut connection } => {
@@ -239,6 +280,12 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             key_ids,
             disable_password_auth,
         } => connections_provision(state, id, password, key_ids, disable_password_auth).await,
+        // Not vault-touching: a session can end long after the launch that
+        // bumped the clock, and that must not defer the idle auto-lock.
+        Request::ConnectionEnded { id } => {
+            state.clear_active(&id);
+            Ok(Response::Ok)
+        }
         Request::Shutdown => {
             state.shutdown.cancel();
             Ok(Response::Ok)
@@ -417,6 +464,13 @@ async fn fill_password_flags(state: &HostState, connections: &mut [Connection]) 
 fn with_password_flag(vault: Option<&UnlockedVault>, conn: &mut Connection) {
     conn.has_password =
         vault.is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })));
+}
+
+/// Fill `active` for each connection from the host's live-session set.
+fn fill_active_flags(state: &HostState, connections: &mut [Connection]) {
+    for conn in connections {
+        conn.active = state.is_active(&conn.id);
+    }
 }
 
 /// Store or clear a connection's password under its id. `None` clears; an absent
@@ -988,6 +1042,74 @@ mod tests {
         ));
         let stored = state.store.load_data().unwrap().connections;
         assert!(!stored[0].active);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn listing_connections_reports_the_host_active_set_not_the_client() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        for id in ["c1", "c2"] {
+            state
+                .store
+                .upsert_connection(Connection::managed(id, "web"))
+                .unwrap();
+        }
+        // A stale `active` already in the store must not survive the response.
+        let mut stale = Connection::managed("c2", "web");
+        stale.active = true;
+        state.store.upsert_connection(stale).unwrap();
+
+        state.mark_active("c1");
+        match handle(&state, Request::ConnectionsList).await {
+            Response::Connections(cs) => {
+                assert!(cs.iter().find(|c| c.id == "c1").unwrap().active);
+                assert!(!cs.iter().find(|c| c.id == "c2").unwrap().active);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connection_ended_clears_an_active_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.mark_active("c1");
+        assert!(state.is_active("c1"));
+        assert!(matches!(
+            handle(&state, Request::ConnectionEnded { id: "c1".into() }).await,
+            Response::Ok
+        ));
+        assert!(!state.is_active("c1"));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connection_ended_for_an_unknown_id_is_a_no_op() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.mark_active("c1");
+        assert!(matches!(
+            handle(&state, Request::ConnectionEnded { id: "nope".into() }).await,
+            Response::Ok
+        ));
+        assert_eq!(state.active_ids(), vec!["c1".to_string()]);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn locking_the_vault_clears_the_active_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.mark_active("c2");
+        state.mark_active("c1");
+        assert_eq!(state.active_ids(), vec!["c1".to_string(), "c2".to_string()]);
+        assert!(matches!(
+            handle(&state, Request::VaultLock).await,
+            Response::Ok
+        ));
+        assert!(state.active_ids().is_empty());
         state.shutdown.cancel();
     }
 

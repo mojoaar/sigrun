@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.
 - An inline help and about view in the app, describing what Sigrun does and how the pieces fit together.
 - A host-filled `active` flag on connections, for showing which sessions are live.
+- Transient host-side tracking of which connections have a live session, exposed as the `active` flag.
 
 ### Changed
 

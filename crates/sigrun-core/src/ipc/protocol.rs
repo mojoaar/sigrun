@@ -50,6 +50,11 @@ pub enum Request {
         key_ids: Vec<String>,
         disable_password_auth: bool,
     },
+    /// A launched session ended. Sent by the shell line Sigrun launched, never
+    /// by a user; an unknown id is a no-op.
+    ConnectionEnded {
+        id: String,
+    },
     KeysList,
     KeysGenerate {
         name: String,
