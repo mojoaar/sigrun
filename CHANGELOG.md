@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- iTerm connects honour the "Open in" setting, so the default opens a new window instead of reusing a tab.
 - "Start minimized to tray" now sits at the end of Settings, after the other options.
 - A connection whose `ssh` fails now drops into a shell instead of losing the error as the terminal closes.
 - A tray/menu-bar connect failure now opens the trust or unreachable dialog in the window instead of failing silently.

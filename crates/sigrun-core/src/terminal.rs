@@ -210,12 +210,15 @@ pub fn launch_notify(platform: Platform, socket: &Path, connection_id: &str) -> 
 }
 
 /// Candidate terminal launch specs for this platform, in fallback order.
+/// `open_in` is the user's "window" | "tab" preference; only the terminals that
+/// expose a tab API act on it, and anything that is not `"tab"` means a window.
 pub fn terminal_launch_specs(
     platform: Platform,
     configured: Option<&str>,
     argv: &[String],
     env_prefix: &str,
     notify: Option<&str>,
+    open_in: &str,
 ) -> Result<Vec<LaunchSpec>> {
     // The prefix must come first so it applies to the `ssh` command, which is
     // re-escaped here; it ends with a space already.
@@ -281,10 +284,10 @@ pub fn terminal_launch_specs(
             }
             let cmd = applescript_escape(&keep_open);
             let (app, script) = if configured == Some("iterm") {
-                (
-                    "iTerm",
-                    // A tab in the current window when one is open; a window
-                    // otherwise, so the first launch is not a silent no-op.
+                // A window when asked; otherwise a tab in the current window and
+                // a window when none is open, so the first launch is not a
+                // silent no-op.
+                let script = if open_in == "tab" {
                     format!(
                         r#"tell application "iTerm"
   if (count of windows) is 0 then
@@ -293,8 +296,15 @@ pub fn terminal_launch_specs(
     tell current window to create tab with default profile command "{cmd}"
   end if
 end tell"#
-                    ),
-                )
+                    )
+                } else {
+                    format!(
+                        r#"tell application "iTerm"
+  create window with default profile command "{cmd}"
+end tell"#
+                    )
+                };
+                ("iTerm", script)
             } else {
                 (
                     "Terminal",
@@ -622,6 +632,7 @@ mod tests {
             &["ssh".into(), "u@h".into()],
             "",
             None,
+            "window",
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
@@ -634,7 +645,8 @@ mod tests {
         // A failed connect must not close the terminal before the error is read.
         for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
             let specs =
-                terminal_launch_specs(Platform::MacOs, configured, &argv, "", None).unwrap();
+                terminal_launch_specs(Platform::MacOs, configured, &argv, "", None, "window")
+                    .unwrap();
             assert!(
                 specs[0]
                     .args
@@ -643,19 +655,29 @@ mod tests {
                 "macos {configured:?} should keep the window open"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "", None).unwrap() {
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "", None, "window").unwrap()
+        {
             assert!(spec.args.join(" ").contains("|| exec ${SHELL:-/bin/sh}"));
         }
         // Windows keeps its window with `cmd.exe /k`.
-        for spec in terminal_launch_specs(Platform::Windows, None, &argv, "", None).unwrap() {
+        for spec in
+            terminal_launch_specs(Platform::Windows, None, &argv, "", None, "window").unwrap()
+        {
             assert!(spec.args.contains(&"/k".to_string()));
         }
         // Off Windows the launched line always carries a notify; a failed
         // connect must still keep the window open in that shape too.
         let notify = "sigrun --socket /tmp/h.sock connection-ended c1";
         for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
-            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, "", Some(notify))
-                .unwrap();
+            let specs = terminal_launch_specs(
+                Platform::MacOs,
+                configured,
+                &argv,
+                "",
+                Some(notify),
+                "window",
+            )
+            .unwrap();
             assert!(
                 specs[0]
                     .args
@@ -664,7 +686,9 @@ mod tests {
                 "macos {configured:?} should keep the window open with a notify"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "", Some(notify)).unwrap() {
+        for spec in
+            terminal_launch_specs(Platform::Linux, None, &argv, "", Some(notify), "window").unwrap()
+        {
             assert!(spec
                 .args
                 .join(" ")
@@ -701,7 +725,8 @@ mod tests {
 
         for configured in [None, Some("iterm")] {
             let specs =
-                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None).unwrap();
+                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None, "window")
+                    .unwrap();
             let line = specs[0].args.join(" ");
             prefix_first(&line, &format!("macos {configured:?}"));
             // The AppleScript `do script` string ends with the command chain.
@@ -719,7 +744,8 @@ mod tests {
             Some("wezterm"),
         ] {
             let specs =
-                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None).unwrap();
+                terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None, "window")
+                    .unwrap();
             let line = specs[0].args.join(" ");
             prefix_first(&line, &format!("macos {configured:?}"));
             assert!(
@@ -727,7 +753,9 @@ mod tests {
                 "macos {configured:?}: {line}"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv, &prefix, None).unwrap() {
+        for spec in
+            terminal_launch_specs(Platform::Linux, None, &argv, &prefix, None, "window").unwrap()
+        {
             let line = spec.args.join(" ");
             prefix_first(&line, &format!("linux {}", spec.program));
             assert!(
@@ -745,6 +773,7 @@ mod tests {
             &argv,
             &prefix,
             Some(notify),
+            "window",
         )
         .unwrap();
         let line = specs[0].args.last().unwrap();
@@ -754,7 +783,8 @@ mod tests {
             "{line}"
         );
         // No stored password: the line is unchanged and ssh prompts as before.
-        let plain = terminal_launch_specs(Platform::MacOs, None, &argv, "", None).unwrap();
+        let plain =
+            terminal_launch_specs(Platform::MacOs, None, &argv, "", None, "window").unwrap();
         assert!(!plain[0].args.join(" ").contains("SSH_ASKPASS="));
     }
 
@@ -767,6 +797,7 @@ mod tests {
             &["ssh".into(), "u@h".into()],
             "",
             notify,
+            "window",
         )
         .unwrap();
         let line = specs[0].args.join(" ");
@@ -789,6 +820,7 @@ mod tests {
             &["ssh".into(), "u@h".into()],
             "",
             None,
+            "window",
         )
         .unwrap();
         let line = specs[0].args.join(" ");
@@ -834,13 +866,34 @@ mod tests {
     }
 
     #[test]
-    fn macos_iterm_reuses_a_tab_and_still_handles_no_windows() {
+    fn macos_iterm_opens_a_window_when_the_setting_says_so() {
         let specs = terminal_launch_specs(
             Platform::MacOs,
             Some("iterm"),
             &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
             "",
             None,
+            "window",
+        )
+        .unwrap();
+        assert_eq!(specs[0].program, "osascript");
+        let script = &specs[0].args[3];
+        assert!(
+            script.contains("create window with default profile command"),
+            "script was {script:?}"
+        );
+        assert!(!script.contains("create tab"), "script was {script:?}");
+    }
+
+    #[test]
+    fn macos_iterm_reuses_a_tab_when_asked() {
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            Some("iterm"),
+            &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
+            "",
+            None,
+            "tab",
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
@@ -857,9 +910,15 @@ mod tests {
 
     #[test]
     fn linux_prefers_override_then_env_then_known_terminals() {
-        let specs =
-            terminal_launch_specs(Platform::Linux, Some("konsole"), &["ssh".into()], "", None)
-                .unwrap();
+        let specs = terminal_launch_specs(
+            Platform::Linux,
+            Some("konsole"),
+            &["ssh".into()],
+            "",
+            None,
+            "window",
+        )
+        .unwrap();
         assert_eq!(specs[0].program, "konsole");
         assert!(specs.iter().any(|s| s.program == "gnome-terminal"));
     }
@@ -867,7 +926,8 @@ mod tests {
     #[test]
     fn windows_prefers_windows_terminal() {
         let specs =
-            terminal_launch_specs(Platform::Windows, None, &["ssh".into()], "", None).unwrap();
+            terminal_launch_specs(Platform::Windows, None, &["ssh".into()], "", None, "window")
+                .unwrap();
         assert_eq!(specs[0].program, "wt.exe");
         assert!(specs.iter().any(|s| s.program == "cmd.exe"));
     }
@@ -886,6 +946,7 @@ mod tests {
                 &["ssh".into(), "u@h".into()],
                 "",
                 None,
+                "window",
             );
             assert!(specs.is_ok(), "{} should be launchable", t.id);
         }

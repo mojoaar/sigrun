@@ -592,6 +592,7 @@ async fn connections_connect(
         &argv,
         &prefix,
         notify.as_deref(),
+        settings.open_in.as_str(),
     )?;
     launch_first(&specs, Some(&state.paths.agent_socket()))?;
     if notify.is_some() {
