@@ -61,10 +61,6 @@ export default function Settings() {
           {terminals.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
       </label>
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={s.start_minimized} onChange={(e) => update({ start_minimized: e.target.checked })} />
-        {t("settings.startMinimized")}
-      </label>
       <label className="flex flex-col gap-1">{t("settings.autoLock")}
         <select
           className={field}
@@ -75,6 +71,10 @@ export default function Settings() {
             <option key={m} value={m}>{m === 0 ? t("settings.autoLockNever") : t("settings.autoLockMinutes", { count: m })}</option>
           ))}
         </select>
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={s.start_minimized} onChange={(e) => update({ start_minimized: e.target.checked })} />
+        {t("settings.startMinimized")}
       </label>
     </section>
   );
