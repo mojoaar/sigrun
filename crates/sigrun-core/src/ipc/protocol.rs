@@ -33,6 +33,9 @@ pub enum Request {
     ConnectionsConnect {
         id: String,
         print_only: bool,
+        // `serde(default)`: an older client's frame (no `force`) still decodes.
+        #[serde(default)]
+        force: bool,
     },
     ConnectionsProvision {
         id: String,
@@ -115,6 +118,7 @@ pub fn error_code(err: &Error) -> &'static str {
         Error::Ipc(_) => "ipc",
         Error::HostKeyUnknown(_) => "host_key_unknown",
         Error::HostKeyMismatch(_) => "host_key_mismatch",
+        Error::Unreachable(_) => "unreachable",
         Error::Ssh(_) => "ssh",
         _ => "internal",
     }

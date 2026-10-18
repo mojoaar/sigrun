@@ -181,4 +181,50 @@ mod tests {
         }
         state.shutdown.cancel();
     }
+
+    #[tokio::test]
+    async fn connect_refuses_an_unreachable_host_unless_forced() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().join("ssh"));
+        let state = HostState::new(paths).await.unwrap();
+        let mut c = Connection::managed("c1", "web");
+        c.host = "127.0.0.1".into();
+        c.port = 0;
+        c.user = "u".into();
+        state.store.upsert_connection(c).unwrap();
+
+        let resp = handle(
+            &state,
+            Request::ConnectionsConnect {
+                id: "c1".into(),
+                print_only: false,
+                force: false,
+            },
+        )
+        .await;
+        match resp {
+            Response::Error { code, message } => {
+                assert_eq!(code, "unreachable");
+                assert!(message.contains("127.0.0.1"), "message was {message:?}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+
+        // Forced, the probe is skipped: the port check in `ssh_invocation` is
+        // what refuses next, so the terminal launcher is never reached.
+        let resp = handle(
+            &state,
+            Request::ConnectionsConnect {
+                id: "c1".into(),
+                print_only: false,
+                force: true,
+            },
+        )
+        .await;
+        match resp {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
 }

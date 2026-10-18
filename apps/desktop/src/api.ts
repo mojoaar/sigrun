@@ -55,9 +55,8 @@ export const listConnections = () => call<Connection[]>("list_connections");
 export const addConnection = (conn: Connection) => call<void>("add_connection", { conn });
 export const updateConnection = (conn: Connection) => call<void>("update_connection", { conn });
 export const removeConnection = (id: string) => call<void>("remove_connection", { id });
-export const connect = (id: string, printOnly = false) =>
-  call<string | undefined>("connect", { id, printOnly }).then((v) => (printOnly ? v : undefined));
-export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false });
+export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false, force: false });
+export const connectForce = (id: string) => call<void>("connect", { id, printOnly: false, force: true });
 export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>
   call<void>("trust_host", { host, port, algo, keyB64 });
 export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>
@@ -70,8 +69,9 @@ export const listKeys = async (): Promise<KeyView[]> => {
 export const listTerminals = () => call<TerminalInfo[]>("list_terminals");
 export const generateKey = (name: string, algorithm: KeyAlgorithm, passphrase?: string) =>
   call<void>("generate_key", { name, algorithm, passphrase: passphrase || null });
-export const importKey = (path: string, name: string, passphrase?: string) =>
-  call<void>("import_key", { path, name, passphrase: passphrase || null });
+export const importKey = (path: string, name: string, passphrase?: string | null) =>
+  call<KeyMetadata & { available: boolean }>("import_key", { path, name, passphrase: passphrase || null })
+    .then(({ available, ...key }) => ({ key, available }));
 export const removeKey = (id: string) => call<void>("remove_key", { id });
 export const getSettings = async () => JSON.parse(await call<string>("get_settings")) as Settings;
 export const saveSettings = (settings: Settings) => call<void>("save_settings", { settings });

@@ -1,15 +1,18 @@
 import { useTranslation } from "react-i18next";
 import type { Connection } from "../api";
 
-type Props = { conn: Connection; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void };
+type Props = { conn: Connection; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void; onGoToKeys?: () => void };
 
-export default function ConnectionRow({ conn, canProvision, onProvision, onConnect, onEdit, onRemove }: Props) {
+export default function ConnectionRow({ conn, canProvision, onProvision, onConnect, onEdit, onRemove, onGoToKeys }: Props) {
   const { t } = useTranslation();
   const btn = "rounded border border-border px-2 py-1 hover:text-accent";
   return (
     <li className="flex items-center justify-between gap-4 rounded border border-border bg-surface p-3">
       <div>
-        <div className="font-medium">{conn.label}</div>
+        <div className="font-medium">
+          {conn.label}
+          {conn.group?.trim() && <span className="rounded border border-border px-1 text-xs text-muted">{conn.group}</span>}
+        </div>
         <div className="text-sm text-muted">{conn.user}@{conn.host}:{conn.port}</div>
         {conn.source === "discovered" && <span className="text-xs text-accent">{t("connections.discovered")}</span>}
       </div>
@@ -17,7 +20,7 @@ export default function ConnectionRow({ conn, canProvision, onProvision, onConne
         <button className={btn} onClick={onConnect}>{t("connections.connect")}</button>
         {canProvision
           ? <button className={btn} onClick={onProvision}>{t("provision.install")}</button>
-          : <span className="text-sm text-muted">{t("provision.importFirst")}</span>}
+          : <button className={btn} onClick={onGoToKeys}>{t("provision.importKey")}</button>}
         {conn.source === "managed" && (
           <>
             <button className={btn} onClick={onEdit}>{t("connections.edit")}</button>

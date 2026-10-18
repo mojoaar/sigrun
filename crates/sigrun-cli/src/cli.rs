@@ -110,6 +110,9 @@ pub enum ConnectionsCommand {
         id_or_label: String,
         #[arg(long)]
         print: bool,
+        /// Skip the reachability check and connect anyway.
+        #[arg(long)]
+        force: bool,
     },
     /// Install keys on a connection, resolved by id or label.
     ///
@@ -379,7 +382,11 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }
-        ConnectionsCommand::Connect { id_or_label, print } => {
+        ConnectionsCommand::Connect {
+            id_or_label,
+            print,
+            force,
+        } => {
             let resp = client::request(&addr, &Request::ConnectionsList).await?;
             let conns = match resp {
                 Response::Connections(c) => c,
@@ -391,6 +398,7 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 &Request::ConnectionsConnect {
                     id,
                     print_only: print,
+                    force,
                 },
             )
             .await?;

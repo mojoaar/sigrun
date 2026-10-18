@@ -27,7 +27,8 @@
     "edit": "Edit connection",
     "remove": "Remove connection",
     "connect": "Connect",
-    "copyCommand": "Copy SSH command",
+    "unreachable": "Host is not reachable",
+    "connectAnyway": "Connect anyway",
     "label": "Label",
     "host": "Host",
     "user": "User",
@@ -54,15 +55,17 @@
   },
   "provision": {
     "title": "Install SSH key",
-    "body": "Install one of your vault keys on this server using its password.",
+    "body": "Install one of your vault or disk keys on this server using its password.",
     "password": "Password",
     "selectKeys": "Keys to install",
+    "diskKeys": "Keys on disk",
+    "keyPassphrase": "Key passphrase",
+    "importKey": "Import a key",
     "disablePasswordAuth": "Disable password auth",
     "lockoutWarning": "This will lock you out if key login fails. Make sure you can log in with a key first.",
     "install": "Install SSH key…",
     "installed": "Installed: {{installed}} — verified: {{verified}}",
-    "skipped": "Password authentication was left enabled: {{reason}}",
-    "importFirst": "Import a key into the vault first"
+    "skipped": "Password authentication was left enabled: {{reason}}"
   },
   "settings": {
     "title": "Settings",

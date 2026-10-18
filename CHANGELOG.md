@@ -34,9 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-connection password-auth hardening (`--disable-password-auth`), with backup and rollback and a no-sudo skip.
 - The CLI `connections provision` subcommand, with repeatable `--key` and `--password-stdin`.
 - Tray connect menu groups connections by their group, lists `~/.ssh/config` hosts under "Discovered", and shows no connections while the vault is locked.
+- The Connections list shows one section per group (the tray menu groups connections too).
+- Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
+- The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect skips the check.
+- iTerm opens a tab in the current window.
 
 ### Fixed
 
+- A disk-backed key with no vault key no longer hides the install action (the grey hint is now a button that opens Keys).
+- A failed key install now shows the host's own error message instead of a generic one.
 - Keys view and the connection key-select no longer blank the app (the flattened `KeyView` wire shape is re-nested; views are wrapped in an error boundary).
 - Void commands (`vault lock`, `vault init`, removals, host trust) now actually run — the response unwrap no longer rejects a payload-less `Ok`.
 - Clicking the dock icon with the window hidden now reopens it on macOS.

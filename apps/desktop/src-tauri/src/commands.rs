@@ -61,8 +61,21 @@ pub async fn update_connection_inner(state: Arc<HostState>, conn: Connection) ->
 pub async fn remove_connection_inner(state: Arc<HostState>, id: String) -> CmdResult {
     call(state, Request::ConnectionsRemove { id }).await
 }
-pub async fn connect_inner(state: Arc<HostState>, id: String, print_only: bool) -> CmdResult {
-    call(state, Request::ConnectionsConnect { id, print_only }).await
+pub async fn connect_inner(
+    state: Arc<HostState>,
+    id: String,
+    print_only: bool,
+    force: bool,
+) -> CmdResult {
+    call(
+        state,
+        Request::ConnectionsConnect {
+            id,
+            print_only,
+            force,
+        },
+    )
+    .await
 }
 pub async fn provision_connection_inner(
     state: Arc<HostState>,
@@ -276,7 +289,12 @@ async fn check_trust(state: &HostState, host: &str, port: u16) -> Result<(), Com
 }
 
 /// Connect after the TOFU host-key check. `print_only` contacts nothing, so it skips it.
-pub async fn connect_guarded(state: Arc<HostState>, id: String, print_only: bool) -> CmdResult {
+pub async fn connect_guarded(
+    state: Arc<HostState>,
+    id: String,
+    print_only: bool,
+    force: bool,
+) -> CmdResult {
     if !print_only {
         let conns = match list_connections_inner(state.clone()).await? {
             Response::Connections(c) => c,
@@ -286,12 +304,12 @@ pub async fn connect_guarded(state: Arc<HostState>, id: String, print_only: bool
             check_trust(&state, &c.host, c.port).await?;
         }
     }
-    connect_inner(state, id, print_only).await
+    connect_inner(state, id, print_only, force).await
 }
 
 #[tauri::command]
-pub async fn connect(state: St<'_>, id: String, print_only: bool) -> CmdResult {
-    connect_guarded(state.inner().clone(), id, print_only).await
+pub async fn connect(state: St<'_>, id: String, print_only: bool, force: bool) -> CmdResult {
+    connect_guarded(state.inner().clone(), id, print_only, force).await
 }
 #[tauri::command]
 pub async fn provision_connection(

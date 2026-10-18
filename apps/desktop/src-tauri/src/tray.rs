@@ -282,8 +282,13 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                     let (app, st, cid) = (app.clone(), st.clone(), cid.to_string());
                     tauri::async_runtime::spawn(async move {
                         // Unknown/mismatched keys and any other error surface in the window.
+                        // A tray click is "just connect": skip the reachability
+                        // probe (it is advisory and misses VPN/ProxyJump), but
+                        // still run the TOFU trust check.
                         let title =
-                            match crate::commands::connect_guarded(st.clone(), cid, false).await {
+                            match crate::commands::connect_guarded(st.clone(), cid, false, true)
+                                .await
+                            {
                                 Ok(_) => NORMAL_TITLE,
                                 Err(e) => {
                                     show_main(&app);

@@ -27,7 +27,8 @@
     "edit": "Rediger forbindelse",
     "remove": "Fjern forbindelse",
     "connect": "Forbind",
-    "copyCommand": "Kopiér SSH-kommando",
+    "unreachable": "Værten kan ikke nås",
+    "connectAnyway": "Forbind alligevel",
     "label": "Navn",
     "host": "Vært",
     "user": "Bruger",
@@ -54,15 +55,17 @@
   },
   "provision": {
     "title": "Installér SSH-nøgle",
-    "body": "Installér en af dine nøgler fra pengeskabet på denne server ved hjælp af dens adgangskode.",
+    "body": "Installér en af dine nøgler fra pengeskabet eller disken på denne server ved hjælp af dens adgangskode.",
     "password": "Adgangskode",
     "selectKeys": "Nøgler at installere",
+    "diskKeys": "Nøgler på disken",
+    "keyPassphrase": "Adgangssætning til nøglen",
+    "importKey": "Importér en nøgle",
     "disablePasswordAuth": "Slå adgangskodegodkendelse fra",
     "lockoutWarning": "Det låser dig ude, hvis nøglelogin mislykkes. Sørg for, at du kan logge ind med en nøgle først.",
     "install": "Installér SSH-nøgle…",
     "installed": "Installeret: {{installed}} — bekræftet: {{verified}}",
-    "skipped": "Adgangskodegodkendelse blev ikke slået fra: {{reason}}",
-    "importFirst": "Importér først en nøgle til pengeskabet"
+    "skipped": "Adgangskodegodkendelse blev ikke slået fra: {{reason}}"
   },
   "settings": {
     "title": "Indstillinger",
