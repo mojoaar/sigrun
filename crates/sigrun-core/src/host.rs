@@ -248,6 +248,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
                 }
             }
             state.store.remove_connection(&id)?;
+            state.clear_active(&id);
             Ok(Response::Ok)
         }
         Request::ConnectionsSetPassword { id, password } => {
@@ -1190,6 +1191,24 @@ mod tests {
             Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn removing_a_connection_clears_its_active_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        state.mark_active("c1");
+        assert_eq!(state.active_ids(), vec!["c1".to_string()]);
+        assert!(matches!(
+            handle(&state, Request::ConnectionsRemove { id: "c1".into() }).await,
+            Response::Ok
+        ));
+        assert!(state.active_ids().is_empty());
         state.shutdown.cancel();
     }
 

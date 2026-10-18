@@ -86,7 +86,10 @@ newtype variants holding a sequence.
   `ssh` exits (`connection-ended`) and then keeps the window open on failure
   with the same `|| exec ${SHELL:-/bin/sh}` chain, so the error stays on screen.
   Windows keeps the bare command with `cmd.exe /k`, which has nowhere to chain
-  the report: its sessions are not tracked and no live dot appears.
+  the report: its sessions are not tracked and no live dot appears. The dot is
+  best-effort: killing the terminal before the notify runs leaves the id active
+  until the next vault lock or a host restart, and a vault lock clears it while a
+  session is still running.
 
 ## Process rules
 

@@ -127,7 +127,7 @@
     },
     "settings": {
       "title": "Settings",
-      "summary": "Theme and appearance, language, the terminal to launch, auto-lock after idle, and start minimized to the tray."
+      "summary": "Theme and appearance, language, the terminal to launch, where a connect opens, auto-lock after idle, and start minimized to the tray."
     },
     "cli": {
       "title": "Command line",

@@ -63,7 +63,7 @@ pub struct Connection {
     pub has_password: bool,
     /// Host-filled: whether a launched session for this connection is still
     /// running. Ignored on write (the host clears it before persisting) and
-    /// recomputed per response, never durable.
+    /// serialized as a derived value on the wire and in `data.toml`.
     #[serde(default)]
     pub active: bool,
 }

@@ -39,7 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Connections list shows one section per group (the tray menu groups connections too).
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
 - The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect runs the same check.
-- iTerm opens a tab in the current window.
 - Ghostty and iTerm open a new tab instead of a window when the setting asks for it.
 - Per-connection passwords: stored in the vault, handed to `ssh` through an askpass helper on macOS and Linux so a password-only host never prompts in the terminal (Windows has no helper and falls back to `ssh`'s own prompt), and settable from the app or with `sigrun connections password <id-or-label> [--password-stdin] [--clear]`.
 - Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.

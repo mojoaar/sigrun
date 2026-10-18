@@ -127,7 +127,7 @@
     },
     "settings": {
       "title": "Indstillinger",
-      "summary": "Tema og udseende, sprog, hvilken terminal der åbnes, automatisk låsning efter inaktivitet og start minimeret i systembakken."
+      "summary": "Tema og udseende, sprog, hvilken terminal der åbnes, hvor en forbindelse åbnes, automatisk låsning efter inaktivitet og start minimeret i systembakken."
     },
     "cli": {
       "title": "Kommandolinje",
