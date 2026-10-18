@@ -60,7 +60,7 @@ export default function App() {
             {TABS.map((n) => (
               <button key={n} aria-current={tab === n} className={tab === n ? "text-accent" : "text-muted"} onClick={() => setTab(n)}>{t(`nav.${n}`)}</button>
             ))}
-            <button className="rounded border border-border px-2 py-1" onClick={() => vaultLock().then(refresh)}>{t("vault.lock")}</button>
+            <button className="rounded border border-danger px-2 py-1 text-danger hover:bg-danger hover:text-bg" onClick={() => vaultLock().then(refresh)}>{t("vault.lock")}</button>
           </nav>
         )}
       </header>
