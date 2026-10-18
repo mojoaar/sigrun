@@ -241,14 +241,42 @@ pub fn terminal_launch_specs(
             // CLI terminals run the command directly; the two GUI apps use AppleScript.
             match configured {
                 Some("ghostty") => {
+                    if open_in != "tab" {
+                        return Ok(vec![LaunchSpec {
+                            program: "ghostty".into(),
+                            args: vec![
+                                "-e".into(),
+                                "/bin/sh".into(),
+                                "-c".into(),
+                                keep_open.clone(),
+                            ],
+                        }]);
+                    }
+                    // Ghostty's AppleScript API. `input text` does not execute in
+                    // a tab this script creates (verified against Ghostty 1.3.1),
+                    // so the tab is created with the line as its process
+                    // instead, and `wait after command` is Ghostty's own
+                    // keep-open, the equivalent of the shell chain elsewhere.
+                    // The line goes through `/bin/sh -c` for the same
+                    // single-parse reason as the other terminals.
+                    // shortcut: the `\"…\"` wrapper only holds while
+                    // `keep_open` has no double quote, which `shell_escape`'s
+                    // single-quoting guarantees; re-check this if
+                    // `shell_escape` ever changes.
+                    let line = applescript_escape(&keep_open);
+                    let command = format!("/bin/sh -c \\\"{line}\\\"");
+                    let script = format!(
+                        r#"tell application "Ghostty"
+  if (count of windows) is 0 then
+    new window with configuration {{command:"{command}", wait after command:true}}
+  else
+    new tab in front window with configuration {{command:"{command}", wait after command:true}}
+  end if
+end tell"#
+                    );
                     return Ok(vec![LaunchSpec {
-                        program: "ghostty".into(),
-                        args: vec![
-                            "-e".into(),
-                            "/bin/sh".into(),
-                            "-c".into(),
-                            keep_open.clone(),
-                        ],
+                        program: "osascript".into(),
+                        args: vec!["-e".into(), script],
                     }]);
                 }
                 Some("kitty") => {
@@ -906,6 +934,63 @@ mod tests {
             script.contains("(count of windows) is 0"),
             "script was {script:?}"
         );
+    }
+
+    #[test]
+    fn macos_ghostty_opens_a_tab_when_the_setting_says_so() {
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            Some("ghostty"),
+            &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
+            "",
+            None,
+            "tab",
+        )
+        .unwrap();
+        assert_eq!(specs[0].program, "osascript");
+        let script = specs[0].args.join(" ");
+        // The line is handed to the new surface as its own process, so the next
+        // window/tab reuses the front window when there is one.
+        assert!(
+            script.contains("new tab in front window with configuration"),
+            "script was {script:?}"
+        );
+        assert!(
+            script.contains("new window with configuration"),
+            "{script:?}"
+        );
+        assert!(script.contains("(count of windows) is 0"), "{script:?}");
+        assert!(script.contains("wait after command:true"), "{script:?}");
+        // AppleScript's escaped double quotes: Ghostty must receive
+        // `/bin/sh -c "<line>"` so the shell parses the line exactly once.
+        assert!(script.contains("/bin/sh -c \\\""), "{script:?}");
+    }
+
+    #[test]
+    fn macos_ghostty_keeps_the_command_line_launch_by_default() {
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            Some("ghostty"),
+            &["ssh".into(), "u@h".into()],
+            "",
+            None,
+            "window",
+        )
+        .unwrap();
+        assert_eq!(specs[0].program, "ghostty");
+        assert_eq!(
+            specs[0].args[..3],
+            ["-e".to_string(), "/bin/sh".to_string(), "-c".to_string()]
+        );
+        assert!(
+            specs[0]
+                .args
+                .join(" ")
+                .contains("ssh u@h || exec ${SHELL:-/bin/sh}"),
+            "{:?}",
+            specs[0].args
+        );
+        assert!(!specs.iter().any(|s| s.program == "osascript"));
     }
 
     #[test]
