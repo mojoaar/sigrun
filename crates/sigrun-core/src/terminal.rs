@@ -263,13 +263,14 @@ pub fn terminal_launch_specs(
                     // instead, and `wait after command` is Ghostty's own
                     // keep-open, the equivalent of the shell chain elsewhere.
                     // The line goes through `/bin/sh -c` for the same
-                    // single-parse reason as the other terminals.
-                    // shortcut: the `\"…\"` wrapper only holds while
-                    // `keep_open` has no double quote, which `shell_escape`'s
-                    // single-quoting guarantees; re-check this if
-                    // `shell_escape` ever changes.
-                    let line = applescript_escape(&keep_open);
-                    let command = format!("/bin/sh -c \\\"{line}\\\"");
+                    // single-parse reason as the other terminals, and it must
+                    // arrive there as one single-quoted literal: Ghostty parses
+                    // this `command` with its own shell first, so a `"…"`
+                    // wrapper is expanded *there* and `$?`, `$rc` and
+                    // `${SHELL}` never reach our shell intact (verified against
+                    // Ghostty 1.3.1).
+                    let command =
+                        applescript_escape(&format!("/bin/sh -c {}", shell_escape(&keep_open)));
                     let script = format!(
                         r#"tell application "Ghostty"
   if (count of windows) is 0 then
@@ -982,9 +983,11 @@ mod tests {
         );
         assert!(script.contains("(count of windows) is 0"), "{script:?}");
         assert!(script.contains("wait after command:true"), "{script:?}");
-        // AppleScript's escaped double quotes: Ghostty must receive
-        // `/bin/sh -c "<line>"` so the shell parses the line exactly once.
-        assert!(script.contains("/bin/sh -c \\\""), "{script:?}");
+        // Ghostty parses this `command` with its own shell first, so the line is
+        // single-quoted: a `"…"` wrapper would expand `$?`, `$rc` and `${SHELL}`
+        // there, before our own shell ever sees them.
+        assert!(script.contains("/bin/sh -c '"), "{script:?}");
+        assert!(!script.contains("\\\""), "{script:?}");
     }
 
     #[test]
