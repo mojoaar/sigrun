@@ -276,8 +276,9 @@ you select into the vault first.
   force-quitting the terminal and crashing all clear the dot within about two
   seconds. It can stay lit until that process exits if its process id is recycled
   to an unrelated process in the meantime (rare). With two sessions of the same
-  connection it clears when the last watched shell dies; a vault lock or a host
-  restart clears it while a session is still running.
+  connection it clears as soon as either one ends, even while the other is still
+  live; a vault lock or a host restart clears it while a session is still
+  running.
 
 ## License
 

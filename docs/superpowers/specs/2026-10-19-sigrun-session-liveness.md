@@ -60,9 +60,11 @@ auto-lock clock.
 - **Pid reuse.** A pid could be recycled between the death and the next 2-second
   tick, leaving the dot lit until that unrelated process exits. The window is a
   couple of seconds; accepted and documented rather than mitigated.
-- **Two sessions of one connection.** The second `SessionStarted` overwrites the
-  first, so the dot clears when the *last* watched shell dies. This is the same
-  behaviour the notify already had.
+- **Two sessions of one connection.** `ConnectionEnded` from either session
+  clears `active` at once, and the sweep tracks only the pid of the last
+  `SessionStarted`. The dot therefore clears as soon as *either* session ends,
+  and can go out while its sibling is still live. That is what the notify
+  already did, so the behaviour is unchanged.
 - **Stale pid from a previous host run.** The map is in memory only, so a restart
   starts empty.
 - **Windows.** The `cmd.exe /k` launch path carries no report, so Windows is

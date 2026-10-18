@@ -118,6 +118,11 @@ impl HostState {
         self.session_map().insert(id.to_string(), pid);
     }
 
+    /// Forget the watched shell for `id`, alongside [`Self::clear_active`].
+    pub fn forget_session(&self, id: &str) {
+        self.session_map().remove(id);
+    }
+
     /// Clears every connection whose watched shell is gone. True when the active
     /// set changed, so the caller can emit. Only ever clears, so a late report
     /// can never resurrect a session that a sweep already ended.
@@ -308,6 +313,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             }
             state.store.remove_connection(&id)?;
             state.clear_active(&id);
+            state.forget_session(&id);
             Ok(Response::Ok)
         }
         Request::ConnectionsSetPassword { id, password } => {
@@ -1365,11 +1371,36 @@ mod tests {
             .upsert_connection(Connection::managed("c1", "web"))
             .unwrap();
         state.mark_active("c1");
+        state.report_session("c1", 4242);
         assert_eq!(state.active_ids(), vec!["c1".to_string()]);
         assert!(matches!(
             handle(&state, Request::ConnectionsRemove { id: "c1".into() }).await,
             Response::Ok
         ));
+        assert!(state.active_ids().is_empty());
+        // The watched pid goes with it, so nothing is left to sweep.
+        assert!(state.session_map().is_empty());
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_second_session_report_replaces_the_watched_pid() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.report_session("c1", 1111);
+        state.report_session("c1", 2222);
+        assert_eq!(state.session_map().get("c1"), Some(&2222));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn locking_the_vault_forgets_the_watched_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.report_session("c1", 1111);
+        state.mark_active("c1");
+        state.lock_vault().await;
+        assert!(state.session_map().is_empty());
         assert!(state.active_ids().is_empty());
         state.shutdown.cancel();
     }

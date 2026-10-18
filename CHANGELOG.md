@@ -61,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The launched line's session-start report is now bounded to two seconds, so a host that accepts the socket but never answers no longer delays every connect by up to 30 seconds.
+- A malformed `session-started` invocation (a missing or unparsable pid) now exits quietly instead of starting a second copy of the app.
 - The host re-checks every watched shell pid on each poll tick, so a killed session clears the connected dot on the tick it is noticed rather than after the next report.
 - A live session is now watched by its own shell's pid, so a terminal that kills the whole process group (closing a Ghostty tab, a force-quit) still clears the connected dot on the next tick.
 - The app now declares the Tauri permission its webview needs, so the UI really receives host events: the connected dot clears within a tick of a session ending (it used to stay lit until a tab switch), and the idle auto-lock notice and a tray connect error reach the UI again.

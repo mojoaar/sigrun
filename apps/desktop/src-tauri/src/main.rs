@@ -30,6 +30,12 @@ fn main() {
         }
         std::process::exit(0);
     }
+    // The `session-started` token is only ever emitted by our own launched line.
+    // A malformed report — a missing id, or a pid that did not parse — is still
+    // ours, so it exits quietly instead of booting a second copy of the app.
+    if is_session_started(&args) {
+        std::process::exit(1);
+    }
     sigrun_desktop::run()
 }
 
@@ -45,6 +51,13 @@ fn connection_ended_args(args: &[String]) -> Option<(Option<std::path::PathBuf>,
         .find(|w| w[0] == "--socket")
         .map(|w| std::path::PathBuf::from(&w[1]));
     Some((socket, id))
+}
+
+/// True when the invocation carries the `session-started` token, whether or not
+/// its pid parsed. The token is our own launched line's alone.
+fn is_session_started(args: &[String]) -> bool {
+    args.get(1..)
+        .is_some_and(|rest| rest.iter().any(|a| a == "session-started"))
 }
 
 /// The `session-started` shape the launched line passes this binary: the socket
@@ -152,7 +165,8 @@ mod tests {
     }
 
     // The line hands this helper `$$`, which the shell has already expanded, so
-    // a shape that is missing the pid is not this helper.
+    // a shape that is missing the pid is not a *parsable* report — but the token
+    // is still ours, which is what `is_session_started` guards.
     #[test]
     fn session_started_args_needs_an_id_and_a_pid() {
         assert_eq!(
@@ -163,6 +177,33 @@ mod tests {
             session_started_args(&args(&["sigrun-desktop", "session-started", "c1", "$$"])),
             None
         );
+    }
+
+    #[test]
+    fn is_session_started_recognises_an_unparsable_report_but_not_an_ordinary_launch() {
+        // Present but malformed: still ours, so main exits instead of booting.
+        assert!(is_session_started(&args(&[
+            "sigrun-desktop",
+            "session-started",
+            "c1"
+        ])));
+        assert!(is_session_started(&args(&[
+            "sigrun-desktop",
+            "session-started",
+            "c1",
+            "$$"
+        ])));
+        assert!(is_session_started(&args(&[
+            "sigrun-desktop",
+            "--socket",
+            "/tmp/h.sock",
+            "session-started",
+            "c1",
+            "4242"
+        ])));
+        // Ordinary launches never carry the token.
+        assert!(!is_session_started(&args(&["sigrun-desktop"])));
+        assert!(!is_session_started(&args(&["sigrun-desktop", "--foo"])));
     }
 
     #[test]
