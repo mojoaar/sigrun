@@ -9,6 +9,7 @@ vi.mock("../api", () => ({
     theme: "nordlys",
     language: "en",
     terminal: null,
+    open_in: "window",
     auto_lock_minutes: 30,
     start_minimized: false,
   }),

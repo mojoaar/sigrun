@@ -201,6 +201,8 @@ pub struct Settings {
     pub theme: String,
     pub language: String,
     pub terminal: Option<String>,
+    /// Where a connect opens: "window" or "tab". Anything else is "window".
+    pub open_in: String,
     pub agent_enabled: bool,
     pub start_minimized: bool,
     /// Idle minutes before the vault auto-locks; 0 disables it.
@@ -214,6 +216,7 @@ impl Default for Settings {
             theme: "nordlys".into(),
             language: "en".into(),
             terminal: None,
+            open_in: "window".into(),
             agent_enabled: true,
             start_minimized: false,
             auto_lock_minutes: 30,
@@ -224,6 +227,17 @@ impl Default for Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_default_to_opening_a_window() {
+        assert_eq!(Settings::default().open_in, "window");
+    }
+
+    #[test]
+    fn settings_without_an_open_in_key_still_load() {
+        let parsed: Settings = toml::from_str("version = 1\ntheme = \"nordlys\"\n").unwrap();
+        assert_eq!(parsed.open_in, "window");
+    }
 
     #[test]
     fn connection_defaults_do_not_disable_password_auth() {

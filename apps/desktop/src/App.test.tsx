@@ -52,7 +52,7 @@ test("vault-locked event re-gates the UI with a notice", async () => {
 
 test("a tray connection error brings the connections tab forward with its trust dialog", async () => {
   vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
-  vi.mocked(getSettings).mockResolvedValueOnce({ theme: "ravn", language: "en", terminal: null, agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 });
+  vi.mocked(getSettings).mockResolvedValueOnce({ theme: "ravn", language: "en", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 });
   render(<App />);
   // A tray click can find the window parked on another tab.
   fireEvent.click(await screen.findByRole("button", { name: "Keys" }));
