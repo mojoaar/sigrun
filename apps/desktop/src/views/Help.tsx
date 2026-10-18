@@ -72,7 +72,7 @@ export default function Help() {
         <p className="text-muted">{t("help.about.author")}</p>
         <div className="flex gap-3">
           {LINKS.map(({ url, label }) => (
-            <button key={url} type="button" className="text-accent underline" onClick={() => { void openExternal(url); }}>
+            <button key={url} type="button" className="text-accent underline" onClick={() => { void openExternal(url).catch(() => {}); }}>
               {t(label)}
             </button>
           ))}

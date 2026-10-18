@@ -6,7 +6,7 @@ import * as api from "../api";
 
 vi.mock("../api", () => ({
   getStatus: vi.fn().mockResolvedValue({ version: "0.1.0", vault: "Unlocked", agent_socket: null, host_addr: "x" }),
-  openExternal: vi.fn(),
+  openExternal: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("Help", () => {
