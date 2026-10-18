@@ -55,7 +55,8 @@ there you can manage connections and keys, and connect — which opens your
 terminal with `ssh` running.
 
 - **Tray:** a connection menu to connect directly, plus Open and Quit.
-  Left-clicking the tray icon shows or hides the window.
+  Left-clicking the tray icon opens the connection menu when the vault is
+  unlocked, and shows the window when it is locked.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
   and dark, following the OS by default with an override.
 - **i18n:** English and Danish.
