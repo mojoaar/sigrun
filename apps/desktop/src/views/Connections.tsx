@@ -5,21 +5,48 @@ import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
-// Same grouping rules as tray_menu_model (blank groups are ungrouped), but
-// sorted case-insensitively for the UI.
-export function groupConnections(conns: Connection[]): { group: string | null; items: Connection[] }[] {
+export type TreeNode = { name: string; path: string; items: Connection[]; children: TreeNode[] };
+
+// A group is a `/`-separated path (`PVE/Folder 1` nests one level): same rules
+// as tray_menu_model, but sorted case-insensitively for the UI.
+export function groupTree(conns: Connection[]): TreeNode[] {
+  const roots: TreeNode[] = [];
   const loose: Connection[] = [];
-  const groups = new Map<string, Connection[]>();
   for (const c of conns) {
-    const group = c.group?.trim();
-    if (group) groups.set(group, [...(groups.get(group) ?? []), c]);
-    else loose.push(c);
+    const segments = (c.group ?? "").split("/").map((s) => s.trim()).filter(Boolean);
+    if (segments.length === 0) {
+      loose.push(c);
+      continue;
+    }
+    let level = roots;
+    let path = "";
+    let node: TreeNode | null = null;
+    for (const segment of segments) {
+      path = path ? `${path}/${segment}` : segment;
+      node = level.find((n) => n.name === segment) ?? null;
+      if (!node) {
+        node = { name: segment, path, items: [], children: [] };
+        level.push(node);
+      }
+      level = node.children;
+    }
+    node!.items.push(c);
   }
   const byLabel = (a: Connection, b: Connection) => a.label.localeCompare(b.label);
+  const byName = (a: TreeNode, b: TreeNode) => a.name.localeCompare(b.name);
+  const sortNode = (n: TreeNode) => {
+    n.items.sort(byLabel);
+    n.children.sort(byName);
+    n.children.forEach(sortNode);
+  };
+  roots.sort(byName);
+  roots.forEach(sortNode);
+  loose.sort(byLabel);
+  // Ungrouped connections lead, in a headingless node (empty name/path).
   return [
-    { group: null, items: loose.sort(byLabel) },
-    ...[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([group, items]) => ({ group, items: items.sort(byLabel) })),
-  ].filter((s) => s.items.length > 0);
+    ...(loose.length > 0 ? [{ name: "", path: "", items: loose, children: [] }] : []),
+    ...roots,
+  ];
 }
 
 function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
@@ -296,6 +323,29 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
 
   const hasUsableKey = keys.some((k) => k.available);
 
+  const renderNode = (node: TreeNode) => (
+    <section key={node.path} className="flex flex-col gap-2">
+      {node.name !== "" && <h3 className="text-sm font-semibold text-muted">{node.name}</h3>}
+      {node.items.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {node.items.map((c) => (
+            <ConnectionRow
+              key={c.id}
+              conn={c}
+              canProvision={hasUsableKey}
+              onProvision={() => openProvision(c)}
+              onConnect={() => { setMismatch(false); void doConnect(c); }}
+              onEdit={() => setForm({ edit: c })}
+              onRemove={() => setConfirmRemove(c)}
+              onGoToKeys={onGoToKeys}
+            />
+          ))}
+        </ul>
+      )}
+      {node.children.length > 0 && <div className="flex flex-col gap-2 pl-3">{node.children.map(renderNode)}</div>}
+    </section>
+  );
+
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -336,25 +386,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
         </div>
       )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
-      {groupConnections(conns).map(({ group, items }) => (
-        <section key={group ?? ""} className="flex flex-col gap-2">
-          {group !== null && <h3 className="text-sm font-semibold text-muted">{group}</h3>}
-          <ul className="flex flex-col gap-2">
-            {items.map((c) => (
-              <ConnectionRow
-                key={c.id}
-                conn={c}
-                canProvision={hasUsableKey}
-                onProvision={() => openProvision(c)}
-                onConnect={() => { setMismatch(false); void doConnect(c); }}
-                onEdit={() => setForm({ edit: c })}
-                onRemove={() => setConfirmRemove(c)}
-                onGoToKeys={onGoToKeys}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {groupTree(conns).map(renderNode)}
       {confirmRemove && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
           <div role="dialog" aria-label={t("common.delete")} className="rounded border border-border bg-surface p-3">

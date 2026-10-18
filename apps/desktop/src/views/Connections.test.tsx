@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import "../i18n";
-import Connections, { groupConnections } from "./Connections";
+import Connections, { groupTree } from "./Connections";
 import * as api from "../api";
 
 vi.mock("../api", () => ({
@@ -43,10 +43,30 @@ describe("Connections", () => {
     expect(screen.queryByRole("heading", { name: "Ungrouped" })).toBeNull();
   });
 
+  it("nests group paths like PVE/Folder 1", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "pve01", group: "PVE" },
+      { ...conn, id: "c2", label: "web1", group: "PVE/Folder 1" },
+      { ...conn, id: "c3", label: "web2", group: "PVE/Folder 2" },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "PVE" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Folder 1" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Folder 2" })).toBeTruthy();
+    expect(screen.getByText("pve01")).toBeTruthy();
+  });
+
+  it("treats extra or blank separators as one level", () => {
+    const tree = groupTree([{ ...conn, id: "a", group: " PVE//Folder 1/ " }]);
+    expect(tree).toHaveLength(1);
+    expect(tree[0].name).toBe("PVE");
+    expect(tree[0].children[0].name).toBe("Folder 1");
+  });
+
   it("treats a blank group as ungrouped", () => {
-    const out = groupConnections([{ ...conn, id: "a", group: "   " }]);
+    const out = groupTree([{ ...conn, id: "a", group: "   " }]);
     expect(out).toHaveLength(1);
-    expect(out[0].group).toBeNull();
+    expect(out[0].path).toBe("");
   });
 
   it("renders rows from listConnections", async () => {

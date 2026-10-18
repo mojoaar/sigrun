@@ -48,16 +48,53 @@ pub enum TrayEntry {
     Submenu {
         label: String,
         items: Vec<(String, String)>,
+        children: Vec<TrayEntry>,
     },
     Separator,
 }
 
+/// A group path (`PVE/Folder 1`) as a tree: a node holds its own connections
+/// plus any child nodes a deeper group path created.
+#[derive(Default)]
+struct GroupNode<'a> {
+    items: Vec<&'a Connection>,
+    children: std::collections::BTreeMap<String, GroupNode<'a>>,
+}
+
+/// Trimmed, non-empty segments of a group path; `None`/blank yields nothing.
+fn group_path(group: Option<&str>) -> Vec<&str> {
+    group
+        .unwrap_or("")
+        .split('/')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn group_submenu(label: &str, node: &GroupNode) -> TrayEntry {
+    let mut items = node.items.clone();
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    TrayEntry::Submenu {
+        label: label.to_string(),
+        items: items
+            .into_iter()
+            .map(|c| (connection_id(c), c.label.clone()))
+            .collect(),
+        children: node
+            .children
+            .iter()
+            .map(|(name, child)| group_submenu(name, child))
+            .collect(),
+    }
+}
+
 /// The tray menu as data, so it can be tested without a Tauri runtime.
 ///
-/// Ungrouped connections come first, then one submenu per group, then the hosts
-/// discovered in `~/.ssh/config`. A locked vault offers no connections: there is
-/// nothing to connect to. Linux never delivers tray click events, so its locked
-/// menu leads with the unlock item instead of relying on the click-to-show path.
+/// Ungrouped connections come first, then one submenu per group (nested when a
+/// group path has several segments), then the hosts discovered in
+/// `~/.ssh/config`. A locked vault offers no connections: there is nothing to
+/// connect to. Linux never delivers tray click events, so its locked menu leads
+/// with the unlock item instead of relying on the click-to-show path.
 pub fn tray_menu_model(
     conns: &[Connection],
     unlocked: bool,
@@ -68,16 +105,26 @@ pub fn tray_menu_model(
     if unlocked {
         let mut loose = Vec::new();
         let mut discovered = Vec::new();
-        let mut groups: std::collections::BTreeMap<String, Vec<&Connection>> = Default::default();
+        let mut groups: std::collections::BTreeMap<String, GroupNode> = Default::default();
         for c in conns {
             if c.source == ConnectionSource::Discovered {
                 discovered.push(c);
                 continue;
             }
-            match c.group.as_deref().map(str::trim).filter(|g| !g.is_empty()) {
-                Some(g) => groups.entry(g.to_string()).or_default().push(c),
-                None => loose.push(c),
+            let segments = group_path(c.group.as_deref());
+            if segments.is_empty() {
+                loose.push(c);
+                continue;
             }
+            let mut node: Option<&mut GroupNode> = None;
+            for segment in segments {
+                let level = match node {
+                    Some(n) => &mut n.children,
+                    None => &mut groups,
+                };
+                node = Some(level.entry(segment.to_string()).or_default());
+            }
+            node.unwrap().items.push(c);
         }
         let by_label = |v: &mut Vec<&Connection>| v.sort_by(|a, b| a.label.cmp(&b.label));
         by_label(&mut loose);
@@ -91,15 +138,8 @@ pub fn tray_menu_model(
         if !out.is_empty() && (!groups.is_empty() || !discovered.is_empty()) {
             out.push(TrayEntry::Separator);
         }
-        for (group, mut members) in groups {
-            by_label(&mut members);
-            out.push(TrayEntry::Submenu {
-                label: group,
-                items: members
-                    .into_iter()
-                    .map(|c| (connection_id(c), c.label.clone()))
-                    .collect(),
-            });
+        for (group, node) in &groups {
+            out.push(group_submenu(group, node));
         }
         if !discovered.is_empty() {
             out.push(TrayEntry::Submenu {
@@ -108,6 +148,7 @@ pub fn tray_menu_model(
                     .into_iter()
                     .map(|c| (connection_id(c), c.label.clone()))
                     .collect(),
+                children: Vec::new(),
             });
         }
         if !out.is_empty() {
@@ -136,6 +177,29 @@ fn connection_id(c: &Connection) -> String {
     format!("conn:{}", c.id)
 }
 
+fn build_submenu(
+    app: &AppHandle,
+    label: &str,
+    items: &[(String, String)],
+    children: &[TrayEntry],
+) -> tauri::Result<Submenu<tauri::Wry>> {
+    let submenu = Submenu::new(app, label, true)?;
+    for (id, item_label) in items {
+        submenu.append(&MenuItem::with_id(app, id, item_label, true, None::<&str>)?)?;
+    }
+    for child in children {
+        if let TrayEntry::Submenu {
+            label,
+            items,
+            children,
+        } = child
+        {
+            submenu.append(&build_submenu(app, label, items, children)?)?;
+        }
+    }
+    Ok(submenu)
+}
+
 fn build_menu(app: &AppHandle, entries: &[TrayEntry]) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
     for entry in entries {
@@ -144,13 +208,11 @@ fn build_menu(app: &AppHandle, entries: &[TrayEntry]) -> tauri::Result<Menu<taur
             TrayEntry::Item { id, label } => {
                 menu.append(&MenuItem::with_id(app, id, label, true, None::<&str>)?)?
             }
-            TrayEntry::Submenu { label, items } => {
-                let submenu = Submenu::new(app, label, true)?;
-                for (id, item_label) in items {
-                    submenu.append(&MenuItem::with_id(app, id, item_label, true, None::<&str>)?)?;
-                }
-                menu.append(&submenu)?;
-            }
+            TrayEntry::Submenu {
+                label,
+                items,
+                children,
+            } => menu.append(&build_submenu(app, label, items, children)?)?,
         }
     }
     Ok(menu)
@@ -357,6 +419,7 @@ mod tests {
                 .iter()
                 .map(|(id, l)| ((*id).to_string(), (*l).to_string()))
                 .collect(),
+            children: Vec::new(),
         }
     }
 
@@ -378,6 +441,32 @@ mod tests {
                 TrayEntry::Separator,
                 submenu("Work", &[("conn:4", "api"), ("conn:1", "prod-web")]),
                 submenu("Discovered", &[("conn:3", "github.com")]),
+                TrayEntry::Separator,
+                item("open", "Open Sigrun"),
+                item("quit", "Quit"),
+            ]
+        );
+    }
+
+    #[test]
+    fn nests_group_paths() {
+        let en = labels("en");
+        let conns = vec![
+            conn("1", "pve01", Some("PVE"), ConnectionSource::Managed),
+            conn("2", "web1", Some("PVE/Folder 1"), ConnectionSource::Managed),
+            conn("3", "web2", Some("PVE/Folder 2"), ConnectionSource::Managed),
+        ];
+        assert_eq!(
+            tray_menu_model(&conns, true, &en, false),
+            vec![
+                TrayEntry::Submenu {
+                    label: "PVE".into(),
+                    items: vec![("conn:1".into(), "pve01".into())],
+                    children: vec![
+                        submenu("Folder 1", &[("conn:2", "web1")]),
+                        submenu("Folder 2", &[("conn:3", "web2")]),
+                    ],
+                },
                 TrayEntry::Separator,
                 item("open", "Open Sigrun"),
                 item("quit", "Quit"),
