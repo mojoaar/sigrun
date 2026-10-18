@@ -107,7 +107,7 @@ it("asks before removing a connection, then removes it", async () => {
 
 **Interfaces:**
 - Consumes: `vault::Secret::Password { password: String }`, `UnlockedVault::{get,put,remove}`, `HostState.vault`.
-- Produces: `Request::ConnectionsSetPassword { id: String, password: Option<String> } -> Response::Ok`; `Request::PasswordGet { id: String } -> Response::Password(String)`; `Connection.has_password: bool` (`#[serde(default, skip_deserializing)]`, filled by the host from the vault, so it is never persisted and never accepted from the frontend).
+- Produces: `Request::ConnectionsSetPassword { id: String, password: Option<String> } -> Response::Ok`; `Request::PasswordGet { id: String } -> Response::Password(String)`; `Connection.has_password: bool` (`#[serde(default)]`, filled by the host from the vault, so it is never persisted and never accepted from the frontend).
 
 - [ ] **Step 1: Write the failing tests** (three, in the existing `HostState` test module)
 
@@ -155,7 +155,7 @@ async fn removing_a_connection_removes_its_password() {
 ```
 
 - [ ] **Step 2: Run to verify failure** — `cargo test -p sigrun-core connection_password` → fails to compile (no such variants).
-- [ ] **Step 3: Implement** — `model.rs`: add `#[serde(default, skip_deserializing)] pub has_password: bool` to `Connection` (documented as host-filled, never persisted). `protocol.rs`: the two variants plus `Response::Password(String)`. `host.rs`: `ConnectionsSetPassword` requires an unlocked vault (`VaultLocked` otherwise), rejects an unknown id (`NotFound`) and an empty string (`InvalidInput("password must not be empty")`), writes/removes `Secret::Password` under the connection id; `PasswordGet` requires an unlocked vault and returns the stored value or `NotFound`; `ConnectionsList`/`ConnectionsAdd`/`ConnectionsUpdate` fill `has_password` from the vault (false when locked, which is honest); `ConnectionsRemove` removes the vault entry for that id when the vault is unlocked. Never log or echo the value.
+- [ ] **Step 3: Implement** — `model.rs`: add `#[serde(default)] pub has_password: bool` to `Connection` (documented as host-filled; `ConnectionsAdd`/`ConnectionsUpdate` clear it to `false` immediately before `upsert_connection`, so a client-supplied value is never persisted). `protocol.rs`: the two variants plus `Response::Password(String)`. `host.rs`: `ConnectionsSetPassword` requires an unlocked vault (`VaultLocked` otherwise), rejects an unknown id (`NotFound`) and an empty string (`InvalidInput("password must not be empty")`), writes/removes `Secret::Password` under the connection id; `PasswordGet` requires an unlocked vault and returns the stored value or `NotFound`; `ConnectionsList`/`ConnectionsAdd`/`ConnectionsUpdate` fill `has_password` from the vault (false when locked, which is honest); `ConnectionsRemove` removes the vault entry for that id when the vault is unlocked. Never log or echo the value.
 - [ ] **Step 4: Run tests** — `cargo test -p sigrun-core` green, plus the full gate.
 - [ ] **Step 5: Commit** — `git commit -am "feat(host): store a per-connection password in the vault"` 
 
