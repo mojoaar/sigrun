@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
 import i18n from "./i18n";
 import { applyTheme, DEFAULT_THEME, readModeOverride, resolveMode, type ThemeName } from "./themes";
-import Connections from "./views/Connections";
+import Connections, { type ConnectionError } from "./views/Connections";
 import Help from "./views/Help";
 import Keys from "./views/Keys";
 import Settings from "./views/Settings";
@@ -19,6 +19,7 @@ export default function App() {
   const [vault, setVault] = useState<VaultState | null>(null);
   const [tab, setTab] = useState<Tab>("connections");
   const [notice, setNotice] = useState(false);
+  const [connectionError, setConnectionError] = useState<ConnectionError | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,14 +34,18 @@ export default function App() {
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    let un: (() => void) | undefined;
+    let unLocked: (() => void) | undefined;
+    let unError: (() => void) | undefined;
     let gone = false;
     try {
       listen("vault-locked", () => { setNotice(true); setVault("Locked"); })
-        .then((f) => { if (gone) f(); else un = f; })
+        .then((f) => { if (gone) f(); else unLocked = f; })
+        .catch(() => {});
+      listen<ConnectionError>("connection-error", (e) => setConnectionError(e.payload))
+        .then((f) => { if (gone) f(); else unError = f; })
         .catch(() => {});
     } catch { /* not running under Tauri */ }
-    return () => { gone = true; un?.(); };
+    return () => { gone = true; unLocked?.(); unError?.(); };
   }, []);
 
   const locked = () => { setNotice(true); void refresh(); };
@@ -64,7 +69,7 @@ export default function App() {
         {vault === "Uninitialized" && <VaultGate mode="create" onDone={done} />}
         {vault === "Locked" && <VaultGate notice={notice} onDone={done} />}
         {vault === "Unlocked" && tab === "connections" && (
-          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} onGoToKeys={() => setTab("keys")} /></ErrorBoundary>
+          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} onGoToKeys={() => setTab("keys")} connectionError={connectionError} onConnectionErrorHandled={() => setConnectionError(null)} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "keys" && (
           <ErrorBoundary key="keys"><Keys onVaultLocked={locked} /></ErrorBoundary>

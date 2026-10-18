@@ -154,6 +154,22 @@ describe("Connections", () => {
     await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("1"));
   });
 
+  it("opens the trust dialog from a tray error", async () => {
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "host_key_unknown", message: "SHA256:x ssh-ed25519 AAAA", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("SHA256:x");
+    fireEvent.click(within(dialog).getByRole("button", { name: /trust and connect/i }));
+    await waitFor(() => expect(api.connectGuarded).toHaveBeenCalledWith("c1"));
+  });
+
+  it("opens the unreachable dialog from a tray error", async () => {
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "unreachable", message: "connection refused on h:22", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("connection refused on h:22");
+    fireEvent.click(within(dialog).getByRole("button", { name: /connect anyway/i }));
+    await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("c1"));
+  });
+
   it("warns before disabling password auth", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
       { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },

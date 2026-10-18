@@ -133,6 +133,10 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
 
 type TrustRetry = { host: string; port: number; run: () => Promise<void> };
 
+// A connect failure raised outside this view (a tray click), carried in so the
+// same dialog the in-window Connect would show can open here.
+export type ConnectionError = { id: string; code: string; message: string; host: string; port: number };
+
 function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onClose, onDone }: {
   conn: Connection;
   keys: KeyView[];
@@ -257,7 +261,12 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   );
 }
 
-export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLocked: () => void; onGoToKeys: () => void }) {
+export default function Connections({ onVaultLocked, onGoToKeys, connectionError, onConnectionErrorHandled }: {
+  onVaultLocked: () => void;
+  onGoToKeys: () => void;
+  connectionError?: ConnectionError | null;
+  onConnectionErrorHandled?: () => void;
+}) {
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
   const [keys, setKeys] = useState<KeyView[]>([]);
@@ -284,6 +293,20 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
     listKeys().then(setKeys).catch(handle);
   }, [handle]);
   useEffect(refresh, [refresh]);
+
+  // A tray connect that failed (untrusted or unreachable host) opens the same
+  // dialog the in-window Connect would, then the host clears the carried error.
+  useEffect(() => {
+    if (!connectionError) return;
+    const { id, code, message, host, port } = connectionError;
+    if (code.startsWith("host_key_")) {
+      const [fp, algo, key] = message.split(" ");
+      setTrust({ host, port, fp, algo, key, run: () => connectGuarded(id) });
+    } else if (code === "unreachable") {
+      setUnreachable({ message, retry: () => connectForce(id) });
+    }
+    onConnectionErrorHandled?.();
+  }, [connectionError, onConnectionErrorHandled]);
 
   const handleTrustError = useCallback((err: unknown, retry: TrustRetry) => {
     const e = err as CommandError;

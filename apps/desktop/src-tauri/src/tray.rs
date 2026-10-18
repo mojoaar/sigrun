@@ -347,23 +347,46 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                         // A tray click is "just connect": skip the reachability
                         // probe (it is advisory and misses VPN/ProxyJump), but
                         // still run the TOFU trust check.
-                        let title =
-                            match crate::commands::connect_guarded(st.clone(), cid, false, true)
-                                .await
-                            {
-                                Ok(_) => NORMAL_TITLE,
-                                Err(e) => {
-                                    show_main(&app);
-                                    if e.code == "vault_locked" {
-                                        let _ = app.emit("vault-locked", ());
-                                    }
-                                    if e.code.starts_with("host_key_") {
-                                        ATTENTION_TITLE
-                                    } else {
-                                        NORMAL_TITLE
-                                    }
+                        let title = match crate::commands::connect_guarded(
+                            st.clone(),
+                            cid.clone(),
+                            false,
+                            true,
+                        )
+                        .await
+                        {
+                            Ok(_) => NORMAL_TITLE,
+                            Err(e) => {
+                                show_main(&app);
+                                if e.code == "vault_locked" {
+                                    let _ = app.emit("vault-locked", ());
                                 }
-                            };
+                                // Carry the failure into the window, where the
+                                // trust/unreachable dialog can retry the connect.
+                                let host_port = load_connections(&st)
+                                    .await
+                                    .into_iter()
+                                    .find(|c| c.id == cid)
+                                    .map(|c| (c.host, c.port));
+                                if let Some((host, port)) = host_port {
+                                    let _ = app.emit(
+                                        "connection-error",
+                                        serde_json::json!({
+                                            "id": cid,
+                                            "code": e.code,
+                                            "message": e.message,
+                                            "host": host,
+                                            "port": port,
+                                        }),
+                                    );
+                                }
+                                if e.code.starts_with("host_key_") {
+                                    ATTENTION_TITLE
+                                } else {
+                                    NORMAL_TITLE
+                                }
+                            }
+                        };
                         set_title(&app, title);
                         sync_tray(&app, &st);
                     });

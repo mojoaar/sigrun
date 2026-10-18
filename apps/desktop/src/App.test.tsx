@@ -35,7 +35,7 @@ test("vault-locked event re-gates the UI with a notice", async () => {
   render(<App />);
   await screen.findByRole("button", { name: /lås op|unlock/i });
   expect(screen.queryByRole("status")).toBeNull();
-  const handler = vi.mocked(listen).mock.calls.at(-1)![1] as () => void;
+  const handler = vi.mocked(listen).mock.calls.filter(([e]) => e === "vault-locked").at(-1)![1] as () => void;
   act(() => handler());
   expect(await screen.findByRole("status")).toBeTruthy();
 });
