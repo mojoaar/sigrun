@@ -41,7 +41,7 @@ export default function App() {
       listen("vault-locked", () => { setNotice(true); setVault("Locked"); })
         .then((f) => { if (gone) f(); else unLocked = f; })
         .catch(() => {});
-      listen<ConnectionError>("connection-error", (e) => setConnectionError(e.payload))
+      listen<ConnectionError>("connection-error", (e) => { setConnectionError(e.payload); setTab("connections"); })
         .then((f) => { if (gone) f(); else unError = f; })
         .catch(() => {});
     } catch { /* not running under Tauri */ }
