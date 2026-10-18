@@ -287,6 +287,36 @@ fn set_title(app: &AppHandle, title: &str) {
 const TRAY_TEMPLATE: &[u8] = include_bytes!("../icons/tray-template.png");
 const TRAY_LIGHT: &[u8] = include_bytes!("../icons/tray-light.png");
 
+/// Whether a tray click skips the reachability probe. It no longer does: the
+/// probe's `unreachable` answer is what puts *Host is not reachable* — with a
+/// **Connect anyway** retry — in the window, instead of the tray looking inert
+/// on a dead host. A dead host also pays the `ssh-keyscan` trust probe
+/// (5 s, fail-open) before the reachability probe, so the worst case is about
+/// 8 s before that dialog appears. A helper, not a literal, so the intent is
+/// greppable and unit-testable without a Tauri runtime.
+fn tray_connect_force() -> bool {
+    false
+}
+
+/// The `connection-error` payload the window turns back into the dialog the
+/// in-window Connect would show. Pure, so its shape is unit-testable without a
+/// Tauri runtime.
+fn connection_error_payload(
+    id: &str,
+    code: &str,
+    message: &str,
+    host: &str,
+    port: u16,
+) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "code": code,
+        "message": message,
+        "host": host,
+        "port": port,
+    })
+}
+
 pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
     let st = state.clone();
     // macOS recolours a template icon white/dark to match the menu bar; the
@@ -344,26 +374,45 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                     let (app, st, cid) = (app.clone(), st.clone(), cid.to_string());
                     tauri::async_runtime::spawn(async move {
                         // Unknown/mismatched keys and any other error surface in the window.
-                        // A tray click is "just connect": skip the reachability
-                        // probe (it is advisory and misses VPN/ProxyJump), but
-                        // still run the TOFU trust check.
-                        let title =
-                            match crate::commands::connect_guarded(st.clone(), cid, false, true)
-                                .await
-                            {
-                                Ok(_) => NORMAL_TITLE,
-                                Err(e) => {
-                                    show_main(&app);
-                                    if e.code == "vault_locked" {
-                                        let _ = app.emit("vault-locked", ());
-                                    }
-                                    if e.code.starts_with("host_key_") {
-                                        ATTENTION_TITLE
-                                    } else {
-                                        NORMAL_TITLE
-                                    }
+                        // A tray click runs the reachability probe, so a dead
+                        // host is reported there rather than in the tray; the
+                        // TOFU trust check runs either way.
+                        let title = match crate::commands::connect_guarded(
+                            st.clone(),
+                            cid.clone(),
+                            false,
+                            tray_connect_force(),
+                        )
+                        .await
+                        {
+                            Ok(_) => NORMAL_TITLE,
+                            Err(e) => {
+                                show_main(&app);
+                                if e.code == "vault_locked" {
+                                    let _ = app.emit("vault-locked", ());
                                 }
-                            };
+                                // Carry the failure into the window, where the
+                                // trust/unreachable dialog can retry the connect.
+                                let host_port = load_connections(&st)
+                                    .await
+                                    .into_iter()
+                                    .find(|c| c.id == cid)
+                                    .map(|c| (c.host, c.port));
+                                if let Some((host, port)) = host_port {
+                                    let _ = app.emit(
+                                        "connection-error",
+                                        connection_error_payload(
+                                            &cid, &e.code, &e.message, &host, port,
+                                        ),
+                                    );
+                                }
+                                if e.code.starts_with("host_key_") {
+                                    ATTENTION_TITLE
+                                } else {
+                                    NORMAL_TITLE
+                                }
+                            }
+                        };
                         set_title(&app, title);
                         sync_tray(&app, &st);
                     });
@@ -516,6 +565,47 @@ mod tests {
                 item("quit", "Quit"),
             ]
         );
+    }
+
+    #[test]
+    fn tray_connects_run_the_reachability_probe() {
+        assert!(
+            !tray_connect_force(),
+            "the tray must not skip the reachability probe"
+        );
+    }
+
+    /// The helper's value is not enough: the call site must actually use it, or
+    /// the tray silently goes back to skipping the probe with every test green.
+    #[test]
+    fn the_tray_connect_passes_the_helper() {
+        let src = include_str!("tray.rs");
+        let call = src
+            .split("connect_guarded(")
+            .nth(1)
+            .expect("tray call site");
+        let args = &call[..call.find(".await").expect("call site ends")];
+        assert!(
+            args.contains("tray_connect_force(),"),
+            "the tray must use the helper, not a literal"
+        );
+    }
+
+    #[test]
+    fn connection_error_payload_pins_the_shape() {
+        let v = connection_error_payload(
+            "c1",
+            "host_key_unknown",
+            "SHA256:abc ssh-ed25519 AAAA",
+            "h",
+            22,
+        );
+        assert_eq!(v["id"], "c1");
+        assert_eq!(v["code"], "host_key_unknown");
+        assert_eq!(v["message"], "SHA256:abc ssh-ed25519 AAAA");
+        assert_eq!(v["host"], "h");
+        assert_eq!(v["port"], 22);
+        assert!(v["port"].is_u64(), "port must serialize as a JSON number");
     }
 
     #[test]

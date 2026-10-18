@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray connect menu groups connections by their group, lists `~/.ssh/config` hosts under "Discovered", and shows no connections while the vault is locked.
 - The Connections list shows one section per group (the tray menu groups connections too).
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
-- The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect skips the check.
+- The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect runs the same check.
 - iTerm opens a tab in the current window.
 - Per-connection passwords: stored in the vault, handed to `ssh` through an askpass helper so a password-only host never prompts in the terminal, and settable from the app or with `sigrun connections password <id-or-label> [--password-stdin] [--clear]`.
 - Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.
@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - "Start minimized to tray" now sits at the end of Settings, after the other options.
 - A connection whose `ssh` fails now drops into a shell instead of losing the error as the terminal closes.
+- A tray/menu-bar connect failure now opens the trust or unreachable dialog in the window instead of failing silently.
+- The tray/menu-bar connect now runs the reachability probe, so a dead host is reported before a terminal opens.
+- The header Lock button stands out in danger red.
+- The README and AGENTS.md now describe Sigrun as an SSH connection manager with key-based authentication; the README leads with connections and presents keys as what makes them work.
 
 ### Fixed
 
