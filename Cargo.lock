@@ -4995,6 +4995,7 @@ dependencies = [
  "dirs 6.0.0",
  "ed25519-dalek 2.2.0",
  "fs2",
+ "libc",
  "p256 0.13.2",
  "rand 0.8.8",
  "rsa 0.9.10",

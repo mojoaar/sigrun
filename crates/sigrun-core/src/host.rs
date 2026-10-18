@@ -39,6 +39,10 @@ pub struct HostState {
     /// Ids with a live session, reported as `Connection.active`. Transient:
     /// never persisted, and dropped when the vault locks.
     pub active: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// The launched shell's pid per connection id, so a session whose terminal
+    /// killed the whole process group can still be swept. In memory only: never
+    /// persisted, and dropped when the vault locks with `active`.
+    pub sessions: std::sync::Mutex<std::collections::HashMap<String, u32>>,
     pub lock_file: std::fs::File,
 }
 
@@ -64,6 +68,7 @@ impl HostState {
             last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             auto_locked: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             active: std::sync::Mutex::new(std::collections::HashSet::new()),
+            sessions: std::sync::Mutex::new(std::collections::HashMap::new()),
             paths,
             lock_file,
         })
@@ -100,11 +105,46 @@ impl HostState {
         ids
     }
 
+    /// The watched pids. Same poisoning recovery as [`Self::active_set`].
+    fn session_map(&self) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, u32>> {
+        self.sessions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Remember the launched shell that owns `id`'s session. A second report
+    /// overwrites the first, so the session lasts as long as the last shell.
+    pub fn report_session(&self, id: &str, pid: u32) {
+        self.session_map().insert(id.to_string(), pid);
+    }
+
+    /// Clears every connection whose watched shell is gone. True when the active
+    /// set changed, so the caller can emit. Only ever clears, so a late report
+    /// can never resurrect a session that a sweep already ended.
+    ///
+    /// A pid recycled inside the poll window reads as alive and is accepted: the
+    /// next sweep of the reaped process catches it.
+    pub fn sweep_dead_sessions(&self) -> bool {
+        let mut changed = false;
+        self.session_map().retain(|id, pid| {
+            if pid_is_alive(*pid) {
+                return true;
+            }
+            if self.is_active(id) {
+                self.clear_active(id);
+                changed = true;
+            }
+            false
+        });
+        changed
+    }
+
     /// Drop everything that only exists while the vault is unlocked.
     async fn lock_vault(&self) {
         *self.vault.lock().await = None;
         self.agent.clear();
         self.clear_all_active();
+        self.session_map().clear();
     }
 
     /// Lock the vault after `auto_lock_minutes` of no vault-touching activity.
@@ -141,6 +181,25 @@ impl HostState {
             }
         }
     }
+}
+
+/// Whether `pid` names a live process. `kill(pid, 0)` sends no signal; it only
+/// checks existence and permission. Any errno other than `ESRCH` counts as
+/// alive, so a permission quirk never clears a live session.
+#[cfg(unix)]
+fn pid_is_alive(pid: u32) -> bool {
+    // SAFETY: signal 0 performs only the existence and permission check.
+    if unsafe { libc::kill(pid as libc::pid_t, 0) } == 0 {
+        return true;
+    }
+    std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+}
+
+/// Nothing is ever swept where there is no way to ask: Windows launches through
+/// `cmd.exe /k` and reports no pid at all.
+#[cfg(not(unix))]
+fn pid_is_alive(_pid: u32) -> bool {
+    true
 }
 
 /// Dispatch a request, mapping any internal error to a safe `Error` response.
@@ -285,6 +344,12 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         // bumped the clock, and that must not defer the idle auto-lock.
         Request::ConnectionEnded { id } => {
             state.clear_active(&id);
+            Ok(Response::Ok)
+        }
+        // Not vault-touching either: the report arrives right after a launch the
+        // connect already bumped, and it must not defer the idle auto-lock.
+        Request::SessionStarted { id, pid } => {
+            state.report_session(&id, pid);
             Ok(Response::Ok)
         }
         Request::Shutdown => {
@@ -1091,6 +1156,103 @@ mod tests {
             Response::Ok
         ));
         assert!(!state.is_active("c1"));
+        state.shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_session_report_keeps_the_connection_active_while_its_pid_lives() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        assert!(matches!(
+            handle(
+                &state,
+                Request::SessionStarted {
+                    id: "c1".into(),
+                    pid: child.id()
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        state.mark_active("c1");
+        assert!(!state.sweep_dead_sessions());
+        assert!(state.is_active("c1"));
+        child.kill().unwrap();
+        child.wait().unwrap();
+        state.shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_dead_pid_clears_the_connection_on_the_next_sweep() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        state.mark_active("c1");
+        handle(
+            &state,
+            Request::SessionStarted {
+                id: "c1".into(),
+                pid,
+            },
+        )
+        .await;
+        // Kill and reap: an unreaped child is a zombie, and `kill(pid, 0)` still
+        // answers "alive" for a zombie.
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(state.sweep_dead_sessions());
+        assert!(!state.is_active("c1"));
+        // The dead pid is forgotten too, so a later sweep has nothing to report.
+        assert!(!state.sweep_dead_sessions());
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn sweeping_with_no_sessions_reports_no_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        // A connection nobody reported a pid for (Windows, or an older client)
+        // is never swept: no report means nothing to check.
+        state.mark_active("c1");
+        assert!(!state.sweep_dead_sessions());
+        assert!(state.is_active("c1"));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_session_report_is_not_a_vault_touching_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let before = state
+            .last_vault_activity
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(matches!(
+            handle(
+                &state,
+                Request::SessionStarted {
+                    id: "c1".into(),
+                    pid: std::process::id()
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        assert_eq!(
+            state
+                .last_vault_activity
+                .load(std::sync::atomic::Ordering::Relaxed),
+            before
+        );
         state.shutdown.cancel();
     }
 

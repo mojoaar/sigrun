@@ -55,6 +55,15 @@ pub enum Request {
     ConnectionEnded {
         id: String,
     },
+    /// A launched shell's own pid, reported once before `ssh` runs. The host
+    /// watches it because a terminal that kills the whole process group
+    /// (closing a Ghostty tab) runs no handler inside that shell, so the end
+    /// notify never comes. Sent by the launched line, never by a user; the
+    /// field name rides `rename_all = "snake_case"` for free.
+    SessionStarted {
+        id: String,
+        pid: u32,
+    },
     KeysList,
     KeysGenerate {
         name: String,

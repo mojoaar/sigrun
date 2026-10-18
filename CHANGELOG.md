@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A live session is now watched by its own shell's pid, so a terminal that kills the whole process group (closing a Ghostty tab, a force-quit) still clears the connected dot on the next tick.
 - The app now declares the Tauri permission its webview needs, so the UI really receives host events: the connected dot clears within a tick of a session ending (it used to stay lit until a tab switch), and the idle auto-lock notice and a tray connect error reach the UI again.
 - Closing the terminal window now clears a connection's live dot: the launched command traps `HUP`/`TERM`/`INT`, so a window close still reports the session's end instead of leaving the dot lit.
 - A disk-backed key with no vault key no longer hides the install action (the grey hint is now a button that opens Keys).
