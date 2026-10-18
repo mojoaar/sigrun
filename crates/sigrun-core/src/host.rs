@@ -178,12 +178,14 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             if connection.id.trim().is_empty() {
                 connection.id = uuid::Uuid::new_v4().to_string();
             }
-            fill_password_flags(state, std::slice::from_mut(&mut connection)).await;
+            // `has_password` is host-derived. Clearing it keeps anything a
+            // client sends out of `data.toml`; readers fill it from the vault.
+            connection.has_password = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsUpdate { mut connection } => {
-            fill_password_flags(state, std::slice::from_mut(&mut connection)).await;
+            connection.has_password = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
@@ -819,6 +821,33 @@ mod tests {
             handle(&state, Request::PasswordGet { id: "c1".into() }).await,
             Response::Error { .. }
         ));
+        state.shutdown.cancel();
+    }
+
+    #[test]
+    fn has_password_survives_the_ipc_wire_round_trip() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.has_password = true;
+        let wire =
+            crate::ipc::protocol::encode(&Response::Connections(vec![conn])).expect("encode");
+        match crate::ipc::protocol::decode::<Response>(&wire) {
+            Ok(Response::Connections(cs)) => assert!(cs[0].has_password),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_client_supplied_password_flag_is_not_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut c = Connection::managed("c1", "web");
+        c.has_password = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].has_password);
         state.shutdown.cancel();
     }
 

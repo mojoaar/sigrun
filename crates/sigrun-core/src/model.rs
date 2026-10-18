@@ -56,9 +56,10 @@ pub struct Connection {
     #[serde(default)]
     pub disable_password_auth: bool,
     /// Host-filled: whether the vault holds a password for this connection.
-    /// Recomputed on every read, ignored on the way in (never trusted from the
-    /// frontend) and never authoritative on disk.
-    #[serde(default, skip_deserializing)]
+    /// Ignored on write (a client cannot set it; the host clears it before
+    /// persisting) and serialized as a derived value on the wire and in
+    /// `data.toml`.
+    #[serde(default)]
     pub has_password: bool,
 }
 
