@@ -888,7 +888,12 @@ mod tests {
         else {
             panic!("expected a command");
         };
+        // The askpass helper cannot run on Windows, so `ssh_invocation`
+        // deliberately omits the single-prompt limit there.
+        #[cfg(not(windows))]
         assert!(cmd.contains("NumberOfPasswordPrompts=1"), "{cmd}");
+        #[cfg(windows)]
+        assert!(!cmd.contains("NumberOfPasswordPrompts"), "{cmd}");
 
         connections_set_password(&state, "c1".into(), None)
             .await
