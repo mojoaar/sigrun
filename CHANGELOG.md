@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The header Lock button stands out in danger red.
 - The README and AGENTS.md now describe Sigrun as an SSH connection manager with key-based authentication; the README leads with connections and presents keys as what makes them work.
 - Documented that live sessions show a dot on macOS and Linux only; the Windows launch path cannot report a session end.
+- Documented how the live-session dot clears: the host watches the launched shell's own process, so closing a window or tab, a force-quit, and a crash all clear it within a tick.
 
 ### Fixed
 

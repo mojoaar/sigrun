@@ -86,15 +86,16 @@ newtype variants holding a sequence.
   Ghostty tabs; otherwise argv on macOS (Ghostty window and Alacritty via `-e`,
   `kitty /bin/sh -c`, `wezterm start --`); `sh -c` on Linux, `cmd.exe /k` on
   Windows.
-- On macOS and Linux the launched command reports its own end to the host when
-  `ssh` exits (`connection-ended`) and then keeps the window open on failure
-  with the same `|| exec ${SHELL:-/bin/sh}` chain, so the error stays on screen.
-  Windows keeps the bare command with `cmd.exe /k`, which has nowhere to chain
-  the report: its sessions are not tracked and no live dot appears. The dot is
-  best-effort: the wrapper traps HUP/TERM/INT so closing the window still
-  reports, but a force-quit that kills the shell outright leaves the id active
-  until the next vault lock or a host restart, and a vault lock clears it while a
-  session is still running.
+- On macOS and Linux the launched command reports its own shell pid before `ssh`
+  runs and its own end when `ssh` exits (`connection-ended`), and then keeps the
+  window open on failure with the same `|| exec ${SHELL:-/bin/sh}` chain, so the
+  error stays on screen. Windows keeps the bare command with `cmd.exe /k`, which
+  has nowhere to chain a report: its sessions are not tracked and no live dot
+  appears. The dot is best-effort: the trap covers a window close, and the host
+  re-checks each watched pid (`kill(pid, 0)`) on every poll tick, so a
+  force-quit or a crash that kills the shell outright clears the dot on the next
+  tick too. A pid recycled inside the poll window holds the dot until that
+  process exits, and a vault lock clears it while a session is still running.
 
 ## Process rules
 

@@ -271,11 +271,13 @@ you select into the vault first.
 - A live session is tracked on macOS and Linux only. The Windows launch is a
   bare `cmd.exe /k`, which has nowhere to chain the session-end report, so a
   Windows session never shows the dot.
-- The live-session dot is best-effort. Closing the window or the tab reports the
-  session's end, but a force-quit or a crash that kills the shell outright cannot
-  report anything, and the dot then stays lit until the next vault lock or a host
-  restart. A vault lock also clears it while a session is still running, and with
-  two sessions of the same connection the dot clears when either one ends.
+- The live-session dot is best-effort. The host checks the launched shell's own
+  process every two seconds, so closing the window, closing the tab,
+  force-quitting the terminal and crashing all clear the dot within about two
+  seconds. It can stay lit until that process exits if its process id is recycled
+  to an unrelated process in the meantime (rare). With two sessions of the same
+  connection it clears when the last watched shell dies; a vault lock or a host
+  restart clears it while a session is still running.
 
 ## License
 
