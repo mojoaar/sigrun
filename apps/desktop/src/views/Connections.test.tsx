@@ -69,6 +69,56 @@ describe("Connections", () => {
     expect(out[0].path).toBe("");
   });
 
+  it("renders ungrouped connections before the first group", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "pve01", group: "PVE" },
+      { ...conn, id: "c2", label: "web", group: null },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const loose = await screen.findByText("web");
+    const heading = screen.getByRole("heading", { name: "PVE" });
+    // FOLLOWING means the PVE heading comes after the ungrouped row.
+    expect(loose.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("sorts group roots case-insensitively", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "banana1", group: "Banana" },
+      { ...conn, id: "c2", label: "apple1", group: "apple" },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const apple = await screen.findByRole("heading", { name: "apple" });
+    const banana = screen.getByRole("heading", { name: "Banana" });
+    expect(apple.compareDocumentPosition(banana) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("sorts child groups case-insensitively", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "z1", group: "PVE/Zebra" },
+      { ...conn, id: "c2", label: "a1", group: "PVE/apple" },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const apple = await screen.findByRole("heading", { name: "apple" });
+    const zebra = screen.getByRole("heading", { name: "Zebra" });
+    expect(apple.compareDocumentPosition(zebra) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("renders a child group inside its parent section, indented", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "pve01", group: "PVE" },
+      { ...conn, id: "c2", label: "web1", group: "PVE/Folder 1" },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const parent = (await screen.findByRole("heading", { name: "PVE" })).closest("section") as HTMLElement;
+    const child = screen.getByRole("heading", { name: "Folder 1" });
+    expect(parent.contains(child)).toBe(true);
+    // The child section sits in the parent's pl-3 indentation wrapper.
+    expect(child.closest("section")?.parentElement?.className).toContain("pl-3");
+  });
+
   it("renders rows from listConnections", async () => {
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
     expect(await screen.findByText("Prod")).toBeTruthy();
