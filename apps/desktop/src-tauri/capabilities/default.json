@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window listens for host events: the idle auto-lock and the live-session changes that drive the connected dot.",
+  "windows": ["main"],
+  "permissions": ["core:event:default"]
+}

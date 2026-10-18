@@ -303,7 +303,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
     try {
       listen("connections-changed", () => refresh())
         .then((f) => { if (gone) f(); else unChanged = f; })
-        .catch(() => {});
+        .catch((err) => console.warn("sigrun: could not listen for connections-changed", err));
     } catch { /* not running under Tauri */ }
     return () => { gone = true; unChanged?.(); };
   }, [refresh]);

@@ -68,6 +68,10 @@ newtype variants holding a sequence.
 - Every user-facing string goes through `t(...)` with its key in **both**
   `apps/desktop/src/i18n/en.json` and `da.json`; a recursive completeness guard
   enforces it.
+- A frontend `listen(...)` needs a permission: every Tauri plugin API the webview
+  calls must be granted in `apps/desktop/src-tauri/capabilities/default.json`.
+  Without an entry the call is rejected, so a swallowed promise makes the feature
+  silently do nothing.
 - Tests assert real behaviour. Frontend tests use the built-in matchers and
   `within(...)` to disambiguate — `@testing-library/jest-dom` is deliberately
   absent.

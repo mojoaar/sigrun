@@ -40,10 +40,10 @@ export default function App() {
     try {
       listen("vault-locked", () => { setNotice(true); setVault("Locked"); })
         .then((f) => { if (gone) f(); else unLocked = f; })
-        .catch(() => {});
+        .catch((err) => console.warn("sigrun: could not listen for vault-locked", err));
       listen<ConnectionError>("connection-error", (e) => { setConnectionError(e.payload); setTab("connections"); })
         .then((f) => { if (gone) f(); else unError = f; })
-        .catch(() => {});
+        .catch((err) => console.warn("sigrun: could not listen for connection-error", err));
     } catch { /* not running under Tauri */ }
     return () => { gone = true; unLocked?.(); unError?.(); };
   }, []);
