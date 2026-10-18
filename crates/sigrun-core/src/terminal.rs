@@ -231,9 +231,14 @@ pub fn terminal_launch_specs(
         // The notify must run before the shell takes over, and `rc` keeps the
         // failure path exactly as it was: drop into a shell so the error stays
         // on screen instead of the window closing.
-        Some(notify) => {
-            format!("{cmd}; rc=$?; {notify}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc")
-        }
+        //
+        // The trap is what makes the dot go out when the window is closed: that
+        // kills this shell with SIGHUP, and without a trap it dies before the
+        // notify below ever runs.
+        Some(notify) => format!(
+            "trap {} HUP TERM INT; {cmd}; rc=$?; {notify}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc",
+            shell_escape(&format!("{notify}; exit"))
+        ),
         None => format!("{cmd} || exec ${{SHELL:-/bin/sh}}"),
     };
     match platform {
@@ -805,7 +810,11 @@ mod tests {
         )
         .unwrap();
         let line = specs[0].args.last().unwrap();
-        assert!(line.starts_with(&prefix), "{line}");
+        // The trap runs before the command, so the prefix no longer leads the
+        // line; it still has to be attached to the `ssh` invocation itself.
+        let prefix_at = line.find(&prefix).expect("the askpass env is still there");
+        let ssh_at = line.find("ssh deploy@example.com").expect("ssh runs");
+        assert!(prefix_at < ssh_at, "{line}");
         assert!(
             line.ends_with("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
             "{line}"
@@ -830,10 +839,22 @@ mod tests {
         .unwrap();
         let line = specs[0].args.join(" ");
         assert!(line.contains("connection-ended c1"), "{line}");
+        // Closing the window kills this shell with SIGHUP before the notify
+        // below runs, so the trap has to be installed first and report the end
+        // itself.
+        assert!(
+            line.contains(
+                "trap 'sigrun --socket /tmp/h.sock connection-ended c1; exit' HUP TERM INT; ssh u@h"
+            ),
+            "{line}"
+        );
         // The rc is captured right after the command and the notify runs before
         // the failure path can take over the shell.
         let rc_at = line.find("rc=$?").expect("rc is captured");
-        let notify_at = line.find("connection-ended c1").expect("notify runs");
+        // The trap carries a copy of the notify as well, so the ordered pair we
+        // care about is the trailing one: rc, then the notify, then the failure
+        // path.
+        let notify_at = line.rfind("connection-ended c1").expect("notify runs");
         let keep_at = line
             .find("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc")
             .expect("the failure path survives");

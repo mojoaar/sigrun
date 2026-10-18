@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closing the terminal window now clears a connection's live dot: the launched command traps `HUP`/`TERM`/`INT`, so a window close still reports the session's end instead of leaving the dot lit.
 - A disk-backed key with no vault key no longer hides the install action (the grey hint is now a button that opens Keys).
 - A failed key install now shows the host's own error message instead of a generic one.
 - Keys view and the connection key-select no longer blank the app (the flattened `KeyView` wire shape is re-nested; views are wrapped in an error boundary).
