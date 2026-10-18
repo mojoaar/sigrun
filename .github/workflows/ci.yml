@@ -1,6 +1,19 @@
 name: CI
+# Pushes run a single Linux leg; pull requests and tags run the full matrix.
 on: [push, pull_request]
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.pick.outputs.os }}
+    steps:
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] || [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo 'os=["ubuntu-latest","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          fi
   lint-workflows:
     runs-on: ubuntu-latest
     steps:
@@ -28,10 +41,11 @@ jobs:
           grep -q "^## \[$tag\]" CHANGELOG.md || { echo "CHANGELOG.md has no ## [$tag] section"; exit 1; }
           echo "tag v$tag matches Cargo.toml and has a changelog section"
   rust:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
