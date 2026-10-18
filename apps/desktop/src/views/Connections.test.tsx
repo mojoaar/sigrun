@@ -288,6 +288,35 @@ describe("Connections", () => {
     await waitFor(() => expect(api.removeConnection).toHaveBeenCalledWith("c1"));
   });
 
+  it("removes nothing when the confirm card is cancelled", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    vi.mocked(api.removeConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.removeConnection).not.toHaveBeenCalled();
+  });
+
+  it("re-targets the confirm card to the last row whose delete was clicked", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "c1", label: "web" },
+      { ...conn, id: "c2", label: "db" },
+    ]);
+    vi.mocked(api.removeConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    const row = (label: string) => screen.getByText(label).closest("li") as HTMLElement;
+    await screen.findByText("web");
+    fireEvent.click(within(row("web")).getByRole("button", { name: /delete/i }));
+    expect(api.removeConnection).not.toHaveBeenCalled();
+    fireEvent.click(within(row("db")).getByRole("button", { name: /delete/i }));
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /delete/i }));
+    await waitFor(() => expect(api.removeConnection).toHaveBeenCalledWith("c2"));
+    expect(api.removeConnection).toHaveBeenCalledTimes(1);
+  });
+
   it("offers to import a key when it has no usable key", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
     vi.mocked(api.listKeys).mockResolvedValue([]);
