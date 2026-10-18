@@ -290,11 +290,31 @@ const TRAY_LIGHT: &[u8] = include_bytes!("../icons/tray-light.png");
 /// Whether a tray click skips the reachability probe. It no longer does: the
 /// probe's `unreachable` answer is what puts *Host is not reachable* — with a
 /// **Connect anyway** retry — in the window, instead of the tray looking inert
-/// on a dead host. The cost is up to the probe's 3 s timeout before that
-/// dialog appears. A helper, not a literal, so the intent is greppable and
-/// unit-testable without a Tauri runtime.
+/// on a dead host. A dead host also pays the `ssh-keyscan` trust probe
+/// (5 s, fail-open) before the reachability probe, so the worst case is about
+/// 8 s before that dialog appears. A helper, not a literal, so the intent is
+/// greppable and unit-testable without a Tauri runtime.
 fn tray_connect_force() -> bool {
     false
+}
+
+/// The `connection-error` payload the window turns back into the dialog the
+/// in-window Connect would show. Pure, so its shape is unit-testable without a
+/// Tauri runtime.
+fn connection_error_payload(
+    id: &str,
+    code: &str,
+    message: &str,
+    host: &str,
+    port: u16,
+) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "code": code,
+        "message": message,
+        "host": host,
+        "port": port,
+    })
 }
 
 pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
@@ -381,13 +401,9 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                                 if let Some((host, port)) = host_port {
                                     let _ = app.emit(
                                         "connection-error",
-                                        serde_json::json!({
-                                            "id": cid,
-                                            "code": e.code,
-                                            "message": e.message,
-                                            "host": host,
-                                            "port": port,
-                                        }),
+                                        connection_error_payload(
+                                            &cid, &e.code, &e.message, &host, port,
+                                        ),
                                     );
                                 }
                                 if e.code.starts_with("host_key_") {
@@ -573,6 +589,23 @@ mod tests {
             args.contains("tray_connect_force(),"),
             "the tray must use the helper, not a literal"
         );
+    }
+
+    #[test]
+    fn connection_error_payload_pins_the_shape() {
+        let v = connection_error_payload(
+            "c1",
+            "host_key_unknown",
+            "SHA256:abc ssh-ed25519 AAAA",
+            "h",
+            22,
+        );
+        assert_eq!(v["id"], "c1");
+        assert_eq!(v["code"], "host_key_unknown");
+        assert_eq!(v["message"], "SHA256:abc ssh-ed25519 AAAA");
+        assert_eq!(v["host"], "h");
+        assert_eq!(v["port"], 22);
+        assert!(v["port"].is_u64(), "port must serialize as a JSON number");
     }
 
     #[test]

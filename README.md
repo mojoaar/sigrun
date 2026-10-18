@@ -234,7 +234,9 @@ you select into the vault first.
   unreachable when it is only reachable through a VPN or an `~/.ssh/config`
   ProxyJump. It runs before a terminal opens from the app's **Connect** action
   and from the tray/menu-bar connect, and offers **Connect anyway** (CLI:
-  `--force`) rather than blocking.
+  `--force`) rather than blocking. The tray runs the same checks as the app's
+  Connect, so a dead host can take a few seconds (up to about 8 s) before the
+  terminal opens.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served
