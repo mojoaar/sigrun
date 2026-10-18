@@ -7,15 +7,33 @@ The name comes from Sigrún, a valkyrie in Norse mythology. It breaks into
 right for a tool whose whole job is secrets: the same *rún* that runs through
 cryptography and keys. Pronounced SIG-roon.
 
-Sigrun is a cross-platform SSH key and connection manager. It keeps your private
-keys in an encrypted local vault, generates new keys, discovers the ones already
-in `~/.ssh`, serves vault-backed keys to `ssh` through an in-process OpenSSH
-agent, and launches connections — replacing scattered `~/.ssh` bookkeeping with
-one tool that works the same on macOS, Linux, and Windows.
+Sigrun is a cross-platform SSH connection manager. Add a host, group it — a
+`/`-separated path like `PVE/Folder 1` nests — and click Connect to open `ssh`
+in your terminal, from the app, the tray, or the CLI. It works the same on
+macOS, Linux, and Windows.
+
+Keys are what make those connections work. Sigrun keeps your private keys in an
+encrypted local vault, generates new ones, discovers the ones already in
+`~/.ssh`, and serves vault-backed keys to `ssh` through an in-process OpenSSH
+agent. Installing a key on a server that only takes a password is one step too,
+replacing scattered `~/.ssh` bookkeeping with one tool.
 
 It has three faces that share one vault: a **desktop app** (window + system
 tray), a **CLI** (`sigrun`), and a long-lived host that owns the vault, the
 agent, and the local IPC they both talk to.
+
+## What it does
+
+- **Manage connections.** Add a host and group it; a `/`-separated path like
+  `PVE/Folder 1` nests in the Connections list and the tray menu, and
+  `~/.ssh/config` hosts are listed alongside the ones you manage.
+- **Connect anywhere.** Click Connect and `ssh` opens in your terminal — from
+  the app, the system tray, or `sigrun connections connect` on the CLI.
+- **Keep keys in an encrypted vault.** Generate Ed25519, RSA, or ECDSA keys,
+  import or discover the ones already in `~/.ssh`, and let an in-process
+  OpenSSH agent serve vault keys to `ssh`.
+- **Reach password-only servers.** Store a per-connection password in the vault,
+  or install a key on a server with **Install SSH key…** using the password once.
 
 ## Requirements
 
@@ -119,21 +137,25 @@ vault, the agent, and the IPC socket every other `sigrun` command talks to.
 # Terminal 1 — the long-lived host (leave it running)
 sigrun host
 
-# Terminal 2 — configure and connect
+# Terminal 2 — add a connection and connect
 sigrun vault init                          # choose a passphrase
 sigrun vault unlock
-sigrun keys generate --name work --algorithm ed25519
-sigrun keys import ~/.ssh/id_ed25519 --name personal
-sigrun connections add --label web --host example.com --user deploy --key <key-id>
+sigrun connections add --label web --host example.com --user deploy
 sigrun connections connect web --print     # prints the ssh command
 sigrun connections connect web             # opens ssh in your terminal
 sigrun status
+
+# Then keys and passwords for the servers that need them
+sigrun keys generate --name work --algorithm ed25519
+sigrun keys import ~/.ssh/id_ed25519 --name personal
+sigrun connections password web            # prompt (never argv)
 sigrun vault lock
 ```
 
 `--key` takes a key's id, not its `--name`; list ids with `sigrun keys list
 --json`. Generated and imported keys get a UUID id, disk-discovered keys use
-their fingerprint. Leave `--key` off to let the agent and your own
+their fingerprint. Pass it when you create the connection (`sigrun connections
+add … --key <key-id>`), or leave it off to let the agent and your own
 `~/.ssh/config` choose the key.
 
 ## Install a key on a server
@@ -211,8 +233,8 @@ you select into the vault first.
 - The reachability probe is a plain TCP connect, so it can report a host as
   unreachable when it is only reachable through a VPN or an `~/.ssh/config`
   ProxyJump. It runs before a terminal opens from the app's **Connect** action
-  and offers **Connect anyway** (CLI: `--force`) rather than blocking; the
-  tray/menu-bar connect skips the check.
+  and from the tray/menu-bar connect, and offers **Connect anyway** (CLI:
+  `--force`) rather than blocking.
 - The host does not auto-start; run `sigrun host` yourself.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served

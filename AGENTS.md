@@ -2,8 +2,8 @@
 
 ## What this is
 
-Sigrun is a cross-platform (macOS, Linux, Windows) SSH key and connection
-manager. It keeps private keys in an encrypted local vault, generates new keys,
+Sigrun is a cross-platform (macOS, Linux, Windows) SSH connection manager with key-based authentication.
+It keeps private keys in an encrypted local vault, generates new keys,
 discovers the ones already in `~/.ssh`, serves vault-backed keys to `ssh`
 through an in-process OpenSSH agent, and launches connections.
 
