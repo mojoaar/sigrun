@@ -216,6 +216,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
   const [unreachable, setUnreachable] = useState<{ message: string; retry: () => Promise<void> } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<Connection | null>(null);
   const formSync = useRef<((disablePasswordAuth: boolean) => void) | null>(null);
   const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
     formSync.current = sync;
@@ -322,13 +323,33 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
                 onProvision={() => openProvision(c)}
                 onConnect={() => { setMismatch(false); void doConnect(c); }}
                 onEdit={() => setForm({ edit: c })}
-                onRemove={() => { if (window.confirm(t("connections.removeConfirm"))) removeConnection(c.id).then(refresh).catch(handle); }}
+                onRemove={() => setConfirmRemove(c)}
                 onGoToKeys={onGoToKeys}
               />
             ))}
           </ul>
         </section>
       ))}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-label={t("common.delete")} className="rounded border border-border bg-surface p-3">
+            <h3 className="font-semibold">{t("connections.removeConfirm")}</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmRemove(null)}>{t("common.cancel")}</button>
+              <button
+                className="rounded bg-accent px-3 py-1 text-bg"
+                onClick={() => {
+                  const id = confirmRemove.id;
+                  setConfirmRemove(null);
+                  removeConnection(id).then(refresh).catch(handle);
+                }}
+              >
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} />}
       {provision && (
         <ProvisionPanel

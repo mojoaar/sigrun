@@ -277,6 +277,17 @@ describe("Connections", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("connection refused");
   });
 
+  it("asks before removing a connection, then removes it", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    vi.mocked(api.removeConnection).mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
+    expect(api.removeConnection).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /delete/i }));
+    await waitFor(() => expect(api.removeConnection).toHaveBeenCalledWith("c1"));
+  });
+
   it("offers to import a key when it has no usable key", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
     vi.mocked(api.listKeys).mockResolvedValue([]);
