@@ -75,6 +75,21 @@ only hands it the argv and `SSH_AUTH_SOCK`.
 
 kitty and WezTerm are supported but were not tested on this machine.
 
+## Password connections
+
+A connection can carry a password instead of, or alongside, a key. It lives
+only in the encrypted vault; on connect Sigrun hands it to `ssh` through its
+askpass helper, so it is never typed into the terminal. The vault must be
+unlocked when the connection opens, and deleting the connection deletes the
+stored password. Set or clear it in the connection's edit form, or from the
+CLI:
+
+```bash
+sigrun connections password web                    # prompt (never argv)
+printf '%s\n' "$PASSWORD" | sigrun connections password web --password-stdin
+sigrun connections password web --clear
+```
+
 ## Install
 
 Build from source:

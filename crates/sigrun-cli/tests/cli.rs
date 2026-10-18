@@ -248,6 +248,24 @@ fn provision_reaches_the_host_without_leaking_the_password() {
         .stderr(predicate::str::contains("hunter2").not());
 }
 
+#[test]
+fn password_rejects_an_empty_password_before_contacting_the_host() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args(["connections", "password", "bogus", "--password-stdin"])
+        .write_stdin("\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("password must not be empty"))
+        // The missing host would say "sigrun host"; reading the secret comes first.
+        .stderr(predicate::str::contains("sigrun host").not());
+}
+
 // `--force` must parse, and a host error must surface as `code: message`.
 // `bogus` is resolved by the host (not by `resolve_connection`, which passes an
 // unknown arg through), so this also proves no reachability probe ran first.

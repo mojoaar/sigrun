@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
 - The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect skips the check.
 - iTerm opens a tab in the current window.
+- Per-connection passwords: stored in the vault, handed to `ssh` through an askpass helper so a password-only host never prompts in the terminal, and settable from the app or with `sigrun connections password <id-or-label> [--password-stdin] [--clear]`.
 
 ### Fixed
 

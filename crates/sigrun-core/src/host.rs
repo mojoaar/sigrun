@@ -931,6 +931,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_client_supplied_password_flag_is_not_persisted_on_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        let mut c = Connection::managed("c1", "web");
+        c.has_password = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsUpdate { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
     async fn a_locked_vault_refuses_to_store_a_password() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;

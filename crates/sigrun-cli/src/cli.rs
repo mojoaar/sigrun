@@ -111,6 +111,19 @@ pub enum ConnectionsCommand {
         #[arg(long)]
         yes: bool,
     },
+    /// Store or clear the password for a connection, resolved by id or label.
+    ///
+    /// The password is read from stdin with `--password-stdin`, or prompted for;
+    /// it never appears on argv.
+    Password {
+        id_or_label: String,
+        /// Read the password from stdin instead of prompting.
+        #[arg(long, conflicts_with = "clear")]
+        password_stdin: bool,
+        /// Forget the stored password instead of setting one.
+        #[arg(long)]
+        clear: bool,
+    },
     /// Open a connection, resolved by id or label.
     Connect {
         id_or_label: String,
@@ -431,6 +444,33 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
             let resp = client::request(&addr, &Request::ConnectionsRemove { id }).await?;
             match resp {
                 Response::Ok => println!("connection removed"),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
+        ConnectionsCommand::Password {
+            id_or_label,
+            password_stdin,
+            clear,
+        } => {
+            // Read (or skip) the secret before any network call; argv is never used.
+            let password = if clear {
+                None
+            } else {
+                match read_passphrase("password: ", password_stdin, false)? {
+                    Some(p) => Some(p),
+                    None => anyhow::bail!("invalid_input: password must not be empty"),
+                }
+            };
+            let resp = client::request(&addr, &Request::ConnectionsList).await?;
+            let conns = match resp {
+                Response::Connections(c) => c,
+                _ => anyhow::bail!("internal: unexpected response"),
+            };
+            let id = resolve_connection(&conns, &id_or_label)?;
+            let resp =
+                client::request(&addr, &Request::ConnectionsSetPassword { id, password }).await?;
+            match resp {
+                Response::Ok => println!("password {}", if clear { "cleared" } else { "saved" }),
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }
