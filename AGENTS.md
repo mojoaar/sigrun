@@ -59,7 +59,7 @@ newtype variants holding a sequence.
 
 - Rust 2021, MSRV 1.85. Dependencies only via `[workspace.dependencies]`.
 - **The gate** is `cargo fmt --all -- --check && cargo clippy --workspace
-  --all-targets -- -D warnings && cargo test --all-targets`.
+  --all-targets --all-features -- -D warnings && cargo test --all-targets`.
 - When frontend files change, also run `npm test -- --run && npm run typecheck
   && npm run lint && npm run build` in `apps/desktop`. When workflows change,
   run `actionlint`.
@@ -78,8 +78,10 @@ newtype variants holding a sequence.
   socket pick a unique per-test name.
 - Terminal launch is per platform: AppleScript for Terminal/iTerm, `-e` for
   Ghostty/kitty/Alacritty/WezTerm, `sh -c` on Linux, `cmd.exe /k` on Windows.
-- Every launched command ends with `|| exec ${SHELL:-/bin/sh}` so a failed
-  connection keeps its error on screen instead of the terminal closing.
+- On macOS and Linux every launched command ends with
+  `|| exec ${SHELL:-/bin/sh}` so a failed connection keeps its error on screen
+  instead of the terminal closing. Windows keeps the bare command and its
+  window with `cmd.exe /k`.
 
 ## Process rules
 
@@ -96,6 +98,8 @@ newtype variants holding a sequence.
 - The version lives in exactly two files: `Cargo.toml` and
   `apps/desktop/package.json`. CI's `version-sync` job keeps them in lockstep
   and, on a `v*` tag, also requires a `## [<tag>]` heading in `CHANGELOG.md`.
+  `Cargo.lock` records the version too, but it is regenerated, never
+  hand-edited.
 - Every change gets a Keep-a-Changelog entry under `## [Unreleased]`.
 - Tags matching `v*` build and publish the installers.
 - The first tag will be `v0.1.0`. Never tag from a dirty tree.

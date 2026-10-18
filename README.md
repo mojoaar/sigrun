@@ -78,17 +78,25 @@ kitty and WezTerm are supported but were not tested on this machine.
 ## Password connections
 
 A connection can carry a password instead of, or alongside, a key. It lives
-only in the encrypted vault; on connect Sigrun hands it to `ssh` through its
-askpass helper, so it is never typed into the terminal. The vault must be
-unlocked when the connection opens, and deleting the connection deletes the
-stored password. Set or clear it in the connection's edit form, or from the
-CLI:
+only in the encrypted vault; on connect Sigrun writes the askpass variables
+into the launched command line, so `ssh` fetches the password through Sigrun's
+askpass helper and it is never typed into the terminal. Because the variables
+travel on the command line they reach every macOS/Linux launch path —
+Terminal.app and iTerm via `do script`, Ghostty/kitty/Alacritty/WezTerm via
+`-e`, and Linux `sh -c`. The vault must be unlocked when the connection opens,
+and deleting the connection removes the stored password once the vault is
+unlocked; while the vault is locked the vault entry stays until the next
+unlock. Set or clear it in the connection's edit form, or from the CLI:
 
 ```bash
 sigrun connections password web                    # prompt (never argv)
 printf '%s\n' "$PASSWORD" | sigrun connections password web --password-stdin
 sigrun connections password web --clear
 ```
+
+With the vault locked, `sigrun connections connect` cannot tell that a
+password is stored and falls back to `ssh`'s own prompt; the app and the tray
+refuse through the vault gate instead.
 
 ## Install
 
@@ -209,6 +217,10 @@ you select into the vault first.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served
   path.
+- Vault-backed keys require an argv-based terminal (Ghostty/kitty/Alacritty/
+  WezTerm, or Linux `sh -c`). Sigrun injects `SSH_AUTH_SOCK` into the spawner's
+  environment, which the AppleScript-driven Terminal.app and iTerm cannot
+  inherit, so connecting from those two does not see the agent.
 - RSA agent signing always uses SHA-256: ssh-key 0.6 cannot emit a legacy
   `ssh-rsa`/SHA-1 signature, so a client that only offers SHA-1 will reject
   Sigrun's signatures.
