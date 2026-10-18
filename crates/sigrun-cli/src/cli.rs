@@ -29,6 +29,12 @@ pub enum Command {
     Host,
     /// Show host, vault, and agent status.
     Status,
+    /// SSH askpass helper: print a stored password. Internal.
+    #[command(hide = true)]
+    Askpass {
+        /// The prompt ssh passes; ignored.
+        prompt: Option<String>,
+    },
     #[command(subcommand)]
     Vault(VaultCommand),
     #[command(subcommand)]
@@ -181,13 +187,27 @@ impl From<KeyAlgorithmArg> for KeyAlgorithm {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    let Cli { socket, command } = Cli::parse();
+    // ssh execs `$SSH_ASKPASS` with the prompt as its only argument, so an
+    // askpass call has no subcommand to parse. `SIGRUN_CONNECTION_ID` is set
+    // only by `terminal::env_prefix`, which makes it the marker.
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) if matches!(err.kind(), clap::error::ErrorKind::InvalidSubcommand) => {
+            if std::env::var_os("SIGRUN_CONNECTION_ID").is_some() {
+                return askpass();
+            }
+            err.exit()
+        }
+        Err(err) => err.exit(),
+    };
+    let Cli { socket, command } = cli;
     match command {
         Command::Host => {
             sigrun_core::host::run(Paths::resolve()?, socket.clone()).await?;
             Ok(())
         }
         Command::Status => status(&socket).await,
+        Command::Askpass { prompt: _ } => askpass(),
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
@@ -197,6 +217,27 @@ pub async fn run() -> anyhow::Result<()> {
 fn resolve_addr(socket: &Option<PathBuf>) -> anyhow::Result<PathBuf> {
     let paths = Paths::resolve()?;
     Ok(socket.clone().unwrap_or_else(|| paths.socket_path()))
+}
+
+/// `sigrun askpass`: ssh's `SSH_ASKPASS` helper. The password is the only thing
+/// on stdout; the prompt argument and stdin are ignored. Every failure exits 2
+/// with a fixed reason — never the password, never the underlying error.
+///
+/// ssh finds this through `SSH_ASKPASS=<exe>` and runs it as `<exe> '<prompt>'`
+/// (no arguments allowed), so `run` also routes such an invocation here.
+fn askpass() -> anyhow::Result<()> {
+    let target = std::env::var_os("SIGRUN_SOCKET")
+        .map(PathBuf::from)
+        .or_else(|| Paths::resolve().ok().map(|p| p.socket_path()))
+        .zip(std::env::var("SIGRUN_CONNECTION_ID").ok());
+    if let Some((socket, id)) = target {
+        if let Ok(password) = sigrun_core::askpass::answer(&socket, &id) {
+            println!("{password}");
+            return Ok(());
+        }
+    }
+    eprintln!("sigrun: could not read the stored password from the Sigrun host");
+    std::process::exit(2)
 }
 
 async fn status(socket: &Option<PathBuf>) -> anyhow::Result<()> {

@@ -88,6 +88,13 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
         argv.push("IdentitiesOnly=yes".to_string());
     }
 
+    // A stored password is served by the askpass helper. Never let ssh try it
+    // three times: one wrong attempt is enough to report the failure.
+    if conn.has_password {
+        argv.push("-o".to_string());
+        argv.push("NumberOfPasswordPrompts=1".to_string());
+    }
+
     Ok(argv)
 }
 
@@ -157,13 +164,31 @@ fn applescript_escape(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// The environment assignments that point ssh at the askpass helper. The helper
+/// receives the connection id and socket; the password itself never appears.
+/// One trailing space, so it can be prepended to the command verbatim.
+pub fn env_prefix(socket: &Path, connection_id: &str) -> String {
+    let exe = std::env::current_exe()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "sigrun".to_string());
+    format!(
+        "SSH_ASKPASS={} SSH_ASKPASS_REQUIRE=force SIGRUN_CONNECTION_ID={} SIGRUN_SOCKET={} ",
+        shell_escape(&exe),
+        shell_escape(connection_id),
+        shell_escape(&socket.to_string_lossy()),
+    )
+}
+
 /// Candidate terminal launch specs for this platform, in fallback order.
 pub fn terminal_launch_specs(
     platform: Platform,
     configured: Option<&str>,
     argv: &[String],
+    env_prefix: &str,
 ) -> Result<Vec<LaunchSpec>> {
-    let cmd = render_command(argv);
+    // The prefix must come first so it applies to the `ssh` command, which is
+    // re-escaped here; it ends with a space already.
+    let cmd = format!("{env_prefix}{}", render_command(argv));
     // A failed connection must not take the window with it: Ghostty shows a
     // "failed to launch the requested command" screen when ssh exits non-zero
     // within a few frames, and other terminals simply close, hiding the error.
@@ -288,28 +313,33 @@ end tell"#
                 })
                 .collect())
         }
-        Platform::Windows => match configured {
-            Some(prog) if !prog.is_empty() => Ok(vec![LaunchSpec {
-                program: prog.to_string(),
-                args: vec!["/k".into(), cmd],
-            }]),
-            _ => Ok(vec![
-                LaunchSpec {
-                    program: "wt.exe".into(),
-                    args: vec![
-                        "new-tab".into(),
-                        "--".into(),
-                        "cmd.exe".into(),
-                        "/k".into(),
-                        cmd.clone(),
-                    ],
-                },
-                LaunchSpec {
-                    program: "cmd.exe".into(),
+        Platform::Windows => {
+            // `cmd.exe` does not understand POSIX env assignments or the
+            // keep-open chain, so Windows keeps the bare command.
+            let cmd = render_command(argv);
+            match configured {
+                Some(prog) if !prog.is_empty() => Ok(vec![LaunchSpec {
+                    program: prog.to_string(),
                     args: vec!["/k".into(), cmd],
-                },
-            ]),
-        },
+                }]),
+                _ => Ok(vec![
+                    LaunchSpec {
+                        program: "wt.exe".into(),
+                        args: vec![
+                            "new-tab".into(),
+                            "--".into(),
+                            "cmd.exe".into(),
+                            "/k".into(),
+                            cmd.clone(),
+                        ],
+                    },
+                    LaunchSpec {
+                        program: "cmd.exe".into(),
+                        args: vec!["/k".into(), cmd],
+                    },
+                ]),
+            }
+        }
     }
 }
 
@@ -547,8 +577,8 @@ mod tests {
 
     #[test]
     fn macos_uses_terminal_app_by_default() {
-        let specs =
-            terminal_launch_specs(Platform::MacOs, None, &["ssh".into(), "u@h".into()]).unwrap();
+        let specs = terminal_launch_specs(Platform::MacOs, None, &["ssh".into(), "u@h".into()], "")
+            .unwrap();
         assert_eq!(specs[0].program, "osascript");
         assert!(specs[0].args.iter().any(|a| a.contains("Terminal")));
     }
@@ -558,7 +588,7 @@ mod tests {
         let argv = ["ssh".to_string(), "u@h".to_string()];
         // A failed connect must not close the terminal before the error is read.
         for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
-            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv).unwrap();
+            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, "").unwrap();
             assert!(
                 specs[0]
                     .args
@@ -567,13 +597,58 @@ mod tests {
                 "macos {configured:?} should keep the window open"
             );
         }
-        for spec in terminal_launch_specs(Platform::Linux, None, &argv).unwrap() {
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, "").unwrap() {
             assert!(spec.args.join(" ").contains("|| exec ${SHELL:-/bin/sh}"));
         }
         // Windows keeps its window with `cmd.exe /k`.
-        for spec in terminal_launch_specs(Platform::Windows, None, &argv).unwrap() {
+        for spec in terminal_launch_specs(Platform::Windows, None, &argv, "").unwrap() {
             assert!(spec.args.contains(&"/k".to_string()));
         }
+    }
+
+    #[test]
+    fn the_launch_line_carries_the_askpass_env_and_survives_every_terminal() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.host = "example.com".into();
+        conn.user = "deploy".into();
+        conn.has_password = true;
+        let argv = ssh_invocation(&conn, None).unwrap();
+        let prefix = env_prefix(Path::new("/tmp/host.sock"), "c1");
+        assert!(prefix.starts_with("SSH_ASKPASS="));
+        assert!(prefix.contains("SSH_ASKPASS_REQUIRE=force"));
+        assert!(prefix.contains("SIGRUN_CONNECTION_ID=c1"));
+        assert!(prefix.contains("SIGRUN_SOCKET=/tmp/host.sock"));
+        for configured in [None, Some("iterm"), Some("ghostty")] {
+            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
+            let line = specs[0].args.join(" ");
+            assert!(line.contains("SSH_ASKPASS="), "{configured:?}");
+            assert!(line.contains("|| exec ${SHELL:-/bin/sh}"), "{configured:?}");
+        }
+        // Every `-e /bin/sh -c` and `sh -c` path carries it too.
+        for configured in [Some("kitty"), Some("alacritty"), Some("wezterm")] {
+            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix).unwrap();
+            let line = specs[0].args.join(" ");
+            assert!(line.contains("SSH_ASKPASS="), "{configured:?}");
+            assert!(line.contains("|| exec ${SHELL:-/bin/sh}"), "{configured:?}");
+        }
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv, &prefix).unwrap() {
+            assert!(spec.args.join(" ").contains("SSH_ASKPASS="));
+        }
+        // No stored password: the line is unchanged and ssh prompts as before.
+        let plain = terminal_launch_specs(Platform::MacOs, None, &argv, "").unwrap();
+        assert!(!plain[0].args.join(" ").contains("SSH_ASKPASS="));
+    }
+
+    #[test]
+    fn a_stored_password_limits_ssh_to_one_prompt() {
+        let mut conn = Connection::managed("c1", "web");
+        let plain = ssh_invocation(&conn, None).unwrap();
+        assert!(!plain.iter().any(|a| a == "NumberOfPasswordPrompts=1"));
+
+        conn.has_password = true;
+        let argv = ssh_invocation(&conn, None).unwrap();
+        let tail = &argv[argv.len() - 2..];
+        assert_eq!(tail, ["-o", "NumberOfPasswordPrompts=1"]);
     }
 
     #[test]
@@ -582,6 +657,7 @@ mod tests {
             Platform::MacOs,
             Some("iterm"),
             &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
+            "",
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
@@ -599,14 +675,14 @@ mod tests {
     #[test]
     fn linux_prefers_override_then_env_then_known_terminals() {
         let specs =
-            terminal_launch_specs(Platform::Linux, Some("konsole"), &["ssh".into()]).unwrap();
+            terminal_launch_specs(Platform::Linux, Some("konsole"), &["ssh".into()], "").unwrap();
         assert_eq!(specs[0].program, "konsole");
         assert!(specs.iter().any(|s| s.program == "gnome-terminal"));
     }
 
     #[test]
     fn windows_prefers_windows_terminal() {
-        let specs = terminal_launch_specs(Platform::Windows, None, &["ssh".into()]).unwrap();
+        let specs = terminal_launch_specs(Platform::Windows, None, &["ssh".into()], "").unwrap();
         assert_eq!(specs[0].program, "wt.exe");
         assert!(specs.iter().any(|s| s.program == "cmd.exe"));
     }
@@ -619,7 +695,8 @@ mod tests {
         let platform = Platform::current();
         let found = detect_terminals(platform);
         for t in &found {
-            let specs = terminal_launch_specs(platform, Some(&t.id), &["ssh".into(), "u@h".into()]);
+            let specs =
+                terminal_launch_specs(platform, Some(&t.id), &["ssh".into(), "u@h".into()], "");
             assert!(specs.is_ok(), "{} should be launchable", t.id);
         }
         match platform {

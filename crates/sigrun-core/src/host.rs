@@ -12,7 +12,8 @@ use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
 use crate::terminal::{
-    launch_first, probe_reachable, render_command, ssh_invocation, terminal_launch_specs, Platform,
+    env_prefix, launch_first, probe_reachable, render_command, ssh_invocation,
+    terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
 use zeroize::Zeroizing;
@@ -460,7 +461,7 @@ async fn connections_connect(
     force: bool,
 ) -> Result<Response> {
     let data = state.store.load_data()?;
-    let conn = data
+    let mut conn = data
         .connections
         .iter()
         .find(|c| c.id == id)
@@ -499,12 +500,34 @@ async fn connections_connect(
         probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await?;
     }
 
+    // The store never persists `has_password`, so fill it from the vault now:
+    // it drives both the ssh argv and the askpass prefix. A locked vault cannot
+    // answer, so the connection stays password-less and ssh prompts as before.
+    let stored = {
+        let guard = state.vault.lock().await;
+        (*guard)
+            .as_ref()
+            .is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })))
+    };
+    conn.has_password = stored;
+
     let argv = ssh_invocation(&conn, meta.as_ref())?;
     if print_only {
         return Ok(Response::Command(render_command(&argv)));
     }
 
-    let specs = terminal_launch_specs(Platform::current(), settings.terminal.as_deref(), &argv)?;
+    let prefix = if stored {
+        env_prefix(&state.paths.socket_path(), &conn.id)
+    } else {
+        String::new()
+    };
+
+    let specs = terminal_launch_specs(
+        Platform::current(),
+        settings.terminal.as_deref(),
+        &argv,
+        &prefix,
+    )?;
     launch_first(&specs, Some(&state.paths.agent_socket()))?;
     Ok(Response::Ok)
 }
@@ -821,6 +844,40 @@ mod tests {
             handle(&state, Request::PasswordGet { id: "c1".into() }).await,
             Response::Error { .. }
         ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connecting_with_a_stored_password_limits_the_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let mut c = Connection::managed("c1", "web");
+        c.host = "example.com".into();
+        state.store.upsert_connection(c).unwrap();
+
+        connections_set_password(&state, "c1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+        // `print_only` builds the same argv without contacting the host.
+        let Response::Command(cmd) = connections_connect(&state, "c1".into(), true, false)
+            .await
+            .unwrap()
+        else {
+            panic!("expected a command");
+        };
+        assert!(cmd.contains("NumberOfPasswordPrompts=1"), "{cmd}");
+
+        connections_set_password(&state, "c1".into(), None)
+            .await
+            .unwrap();
+        let Response::Command(cmd) = connections_connect(&state, "c1".into(), true, false)
+            .await
+            .unwrap()
+        else {
+            panic!("expected a command");
+        };
+        assert!(!cmd.contains("NumberOfPasswordPrompts"), "{cmd}");
         state.shutdown.cancel();
     }
 

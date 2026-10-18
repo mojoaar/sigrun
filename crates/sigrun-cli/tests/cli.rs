@@ -74,6 +74,37 @@ fn status_without_a_host_explains_what_to_do() {
 }
 
 #[test]
+fn askpass_without_a_host_prints_nothing_and_leaks_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    // `sigrun askpass` is the explicit entry point; `sigrun '<prompt>'` is the
+    // shape ssh produces from `SSH_ASKPASS=<exe>`. Both must fail the same way.
+    for args in [vec!["askpass", "s3cret-prompt"], vec!["s3cret-prompt"]] {
+        let out = Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path())
+            .env("SIGRUN_CONNECTION_ID", "c1")
+            // The prompt ssh passes: stdio is ignored, and it must never be echoed.
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        assert!(
+            out.stdout.is_empty(),
+            "stdout was {:?}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("could not read the stored password"),
+            "{stderr:?}"
+        );
+        assert!(!stderr.contains("s3cret-prompt"), "{stderr:?}");
+    }
+}
+
+#[test]
 fn provision_rejects_an_empty_password() {
     Command::cargo_bin("sigrun")
         .unwrap()
