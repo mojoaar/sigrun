@@ -62,9 +62,9 @@ terminal with `ssh` running.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
   and dark, following the OS by default with an override.
 - **i18n:** English and Danish.
-- **Settings:** appearance, language, terminal, an idle **auto-lock** for the
-  vault (default 30 minutes; 0 disables it), and "start minimized to tray"
-  last.
+- **Settings:** appearance, language, terminal, whether a connect opens in a new
+  window or a new tab, an idle **auto-lock** for the vault (default 30 minutes;
+  0 disables it), and "start minimized to tray" last.
 
 The **terminal** for connect is auto-detected: Settings lists the launchable
 terminals actually installed (Terminal, iTerm, Ghostty, kitty, Alacritty,
@@ -88,14 +88,24 @@ only hands it the argv and `SSH_AUTH_SOCK`.
 
 ### Where the terminal opens
 
-- **iTerm** opens a **tab in the current window** (a window when none is open).
+The **Open in** setting, next to the terminal picker in Settings, chooses a
+**new window** or a **new tab** for each connect. Ghostty and iTerm honour it on
+macOS.
+
+- **Ghostty** opens a **tab in the front window** when asked, or a **new window**
+  when none is open, so the first connect is not a no-op. `open -na Ghostty.app
+  --args --command=…` does not add a tab, so it is not used.
+- **iTerm** opens a **tab in the current window** when asked, or a **new window**
+  when none is open.
 - **Terminal.app** opens a **new window on each connect** (`do script` without
   `in window`); tab reuse did not reproduce in testing.
-- **Ghostty** and **Alacritty** open a **new window** (`-e`); neither exposes a
-  tab API on macOS. Support for them is retained, not a fallback we intend to
-  drop.
+- **Alacritty** opens a **new window** (`-e`); it exposes no tab API on macOS.
+  Support is retained, not a fallback we intend to drop.
 
-kitty and WezTerm are supported but were not tested on this machine.
+kitty and WezTerm are supported but were not tested on this machine; both open a
+window per connect, as they expose no reliable tab API.
+
+A failed connection keeps its window or tab open, with the error.
 
 ## Password connections
 
@@ -105,7 +115,7 @@ into the launched command line, so `ssh` fetches the password through Sigrun's
 askpass helper and it is never typed into the terminal. Because the variables
 travel on the command line they reach every macOS/Linux launch path —
 Terminal.app and iTerm via `do script`, Ghostty/kitty/Alacritty/WezTerm via
-`-e`, and Linux `sh -c`.
+their argv launch (Ghostty tabs via AppleScript), and Linux `sh -c`.
 
 On Windows there is no askpass helper, so the launched command carries no
 askpass variables and a stored password falls back to `ssh`'s own prompt. The
@@ -249,10 +259,12 @@ you select into the vault first.
 - Passphrase-protected keys found on disk are used with `-i` and prompt for the
   passphrase in the terminal. Importing a key into the vault is the agent-served
   path.
-- Vault-backed keys require an argv-based terminal (Ghostty/kitty/Alacritty/
-  WezTerm, or Linux `sh -c`). Sigrun injects `SSH_AUTH_SOCK` into the spawner's
-  environment, which the AppleScript-driven Terminal.app and iTerm cannot
-  inherit, so connecting from those two does not see the agent.
+- Vault-backed keys need an argv-based terminal: Ghostty in window mode, kitty,
+  Alacritty, WezTerm, or Linux `sh -c`. Sigrun injects `SSH_AUTH_SOCK` into the
+  spawner's environment. The AppleScript-driven launches — Terminal.app, iTerm,
+  and Ghostty tabs via AppleScript — do not inherit it (the Ghostty tab is
+  created by the long-lived app, not by the `osascript` Sigrun spawns), so a
+  connect that way does not see the agent.
 - RSA agent signing always uses SHA-256: ssh-key 0.6 cannot emit a legacy
   `ssh-rsa`/SHA-1 signature, so a client that only offers SHA-1 will reject
   Sigrun's signatures.

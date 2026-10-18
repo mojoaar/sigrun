@@ -78,8 +78,10 @@ newtype variants holding a sequence.
 - Windows named-pipe names derive from the user **and** a hash of the data dir,
   so two hosts with different data dirs never share a pipe. Tests that bind a
   socket pick a unique per-test name.
-- Terminal launch is per platform: AppleScript for Terminal/iTerm, `-e` for
-  Ghostty/kitty/Alacritty/WezTerm, `sh -c` on Linux, `cmd.exe /k` on Windows.
+- Terminal launch is per platform: AppleScript for Terminal.app, iTerm and
+  Ghostty tabs; otherwise argv on macOS (Ghostty window and Alacritty via `-e`,
+  `kitty /bin/sh -c`, `wezterm start --`); `sh -c` on Linux, `cmd.exe /k` on
+  Windows.
 - On macOS and Linux the launched command reports its own end to the host when
   `ssh` exits (`connection-ended`) and then keeps the window open on failure
   with the same `|| exec ${SHELL:-/bin/sh}` chain, so the error stays on screen.
