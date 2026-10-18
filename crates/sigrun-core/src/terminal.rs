@@ -167,7 +167,7 @@ fn applescript_escape(value: &str) -> String {
 }
 
 /// The path to this running binary. A launched shell calls back into it for the
-/// askpass helper and for the session-end notify; the bare name is a `PATH`
+/// askpass helper and for the session reports; the bare name is a `PATH`
 /// fallback for the rare case where the executable path cannot be read.
 fn helper_exe() -> String {
     std::env::current_exe()
@@ -189,24 +189,42 @@ pub fn env_prefix(socket: &Path, connection_id: &str) -> String {
     )
 }
 
-/// The command the launched line runs once `ssh` exits: it points back at the
-/// running binary so the shell can report its own session to the host and the
-/// GUI can stop showing the connection live. Carries no secret — only the
-/// executable, the socket, and the connection id.
-pub fn connection_ended_notify(socket: &Path, connection_id: &str) -> String {
+/// The `<exe> --socket <socket>` prefix both session reports share. Carries no
+/// secret — only the running binary and the socket path.
+fn report_prefix(socket: &Path) -> String {
     format!(
-        "{} --socket {} connection-ended {}",
+        "{} --socket {}",
         shell_escape(&helper_exe()),
         shell_escape(&socket.to_string_lossy()),
-        shell_escape(connection_id),
     )
 }
 
-/// The notify to embed in a launch line, or `None` on Windows: `cmd.exe /k`
-/// gives no way to chain a notify, so the active flag is only set where the
-/// launched line can clear it again.
-pub fn launch_notify(platform: Platform, socket: &Path, connection_id: &str) -> Option<String> {
-    (platform != Platform::Windows).then(|| connection_ended_notify(socket, connection_id))
+/// The two fragments a launched line hands back to this binary: the shell's own
+/// pid, reported before `ssh` runs, and the session's end. Carries no secret —
+/// only the executable, the socket, the connection id, and the pid.
+#[derive(Debug)]
+pub struct SessionReports {
+    /// `<exe> --socket <socket> session-started <id> $$`. The `$$` is expanded
+    /// by the launched shell, so it stays outside any quoting.
+    pub started: String,
+    /// `<exe> --socket <socket> connection-ended <id>`.
+    pub ended: String,
+}
+
+/// The reports to embed in a launch line, or `None` on Windows: `cmd.exe /k`
+/// gives no way to chain one, so the active flag is only set where the launched
+/// line can clear it again.
+pub fn launch_reports(
+    platform: Platform,
+    socket: &Path,
+    connection_id: &str,
+) -> Option<SessionReports> {
+    let prefix = report_prefix(socket);
+    let id = shell_escape(connection_id);
+    (platform != Platform::Windows).then(|| SessionReports {
+        started: format!("{prefix} session-started {id} $$"),
+        ended: format!("{prefix} connection-ended {id}"),
+    })
 }
 
 /// Candidate terminal launch specs for this platform, in fallback order.
@@ -217,7 +235,7 @@ pub fn terminal_launch_specs(
     configured: Option<&str>,
     argv: &[String],
     env_prefix: &str,
-    notify: Option<&str>,
+    reports: Option<&SessionReports>,
     open_in: &str,
 ) -> Result<Vec<LaunchSpec>> {
     // The prefix must come first so it applies to the `ssh` command, which is
@@ -227,17 +245,22 @@ pub fn terminal_launch_specs(
     // "failed to launch the requested command" screen when ssh exits non-zero
     // within a few frames, and other terminals simply close, hiding the error.
     // Drop into a shell instead so the reason stays on screen.
-    let keep_open = match notify {
-        // The notify must run before the shell takes over, and `rc` keeps the
-        // failure path exactly as it was: drop into a shell so the error stays
-        // on screen instead of the window closing.
+    let keep_open = match reports {
+        // The end report must run before the shell takes over, and `rc` keeps
+        // the failure path exactly as it was: drop into a shell so the error
+        // stays on screen instead of the window closing.
         //
         // The trap is what makes the dot go out when the window is closed: that
         // kills this shell with SIGHUP, and without a trap it dies before the
-        // notify below ever runs.
-        Some(notify) => format!(
-            "trap {} HUP TERM INT; {cmd}; rc=$?; {notify}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc",
-            shell_escape(&format!("{notify}; exit"))
+        // end report below ever runs.
+        //
+        // The pid report runs before `ssh`, so a session killed the instant it
+        // starts is still watched.
+        Some(reports) => format!(
+            "trap {} HUP TERM INT; {}; {cmd}; rc=$?; {}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc",
+            shell_escape(&format!("{}; exit", reports.ended)),
+            reports.started,
+            reports.ended,
         ),
         None => format!("{cmd} || exec ${{SHELL:-/bin/sh}}"),
     };
@@ -699,16 +722,16 @@ mod tests {
         {
             assert!(spec.args.contains(&"/k".to_string()));
         }
-        // Off Windows the launched line always carries a notify; a failed
+        // Off Windows the launched line always carries a report; a failed
         // connect must still keep the window open in that shape too.
-        let notify = "sigrun --socket /tmp/h.sock connection-ended c1";
+        let reports = launch_reports(Platform::MacOs, Path::new("/tmp/h.sock"), "c1").unwrap();
         for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
             let specs = terminal_launch_specs(
                 Platform::MacOs,
                 configured,
                 &argv,
                 "",
-                Some(notify),
+                Some(&reports),
                 "window",
             )
             .unwrap();
@@ -717,11 +740,12 @@ mod tests {
                     .args
                     .join(" ")
                     .contains("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}"),
-                "macos {configured:?} should keep the window open with a notify"
+                "macos {configured:?} should keep the window open with a report"
             );
         }
         for spec in
-            terminal_launch_specs(Platform::Linux, None, &argv, "", Some(notify), "window").unwrap()
+            terminal_launch_specs(Platform::Linux, None, &argv, "", Some(&reports), "window")
+                .unwrap()
         {
             assert!(spec
                 .args
@@ -798,15 +822,15 @@ mod tests {
                 spec.program
             );
         }
-        // With a notify the prefix still comes first and the keep-open chain —
+        // With a report the prefix still comes first and the keep-open chain —
         // now built around `rc` — still ends the line.
-        let notify = "sigrun --socket /tmp/host.sock connection-ended c1";
+        let reports = launch_reports(Platform::MacOs, Path::new("/tmp/host.sock"), "c1").unwrap();
         let specs = terminal_launch_specs(
             Platform::MacOs,
             Some("ghostty"),
             &argv,
             &prefix,
-            Some(notify),
+            Some(&reports),
             "window",
         )
         .unwrap();
@@ -827,43 +851,52 @@ mod tests {
     }
 
     #[test]
-    fn the_launch_line_reports_the_session_end_to_the_host() {
-        let notify = Some("sigrun --socket /tmp/h.sock connection-ended c1");
+    fn the_launch_line_reports_the_session_start_and_end_to_the_host() {
+        let reports = launch_reports(Platform::MacOs, Path::new("/tmp/h.sock"), "c1").unwrap();
         let specs = terminal_launch_specs(
             Platform::MacOs,
             None,
             &["ssh".into(), "u@h".into()],
             "",
-            notify,
+            Some(&reports),
             "window",
         )
         .unwrap();
         let line = specs[0].args.join(" ");
+        // The pid is the shell's own (`$$`), so the host can watch it: a killed
+        // terminal group cannot report its own end.
+        assert!(line.contains("session-started c1 $$"), "{line}");
+        let started_at = line
+            .find("session-started c1")
+            .expect("the pid is reported");
+        let ssh_at = line.find("ssh u@h").expect("ssh runs");
+        assert!(started_at < ssh_at, "{line}");
         assert!(line.contains("connection-ended c1"), "{line}");
-        // Closing the window kills this shell with SIGHUP before the notify
+        // Closing the window kills this shell with SIGHUP before the end report
         // below runs, so the trap has to be installed first and report the end
-        // itself.
-        assert!(
-            line.contains(
-                "trap 'sigrun --socket /tmp/h.sock connection-ended c1; exit' HUP TERM INT; ssh u@h"
-            ),
-            "{line}"
-        );
-        // The rc is captured right after the command and the notify runs before
-        // the failure path can take over the shell.
+        // itself — and the pid report must sit after the trap but before `ssh`,
+        // so a session killed instantly is still watched.
+        let trap_at = line
+            .find(&format!("trap '{}; exit' HUP TERM INT;", reports.ended))
+            .expect("the trap is installed first");
+        assert!(trap_at < started_at && started_at < ssh_at, "{line}");
+        // The rc is captured right after the command and the end report runs
+        // before the failure path can take over the shell.
         let rc_at = line.find("rc=$?").expect("rc is captured");
-        // The trap carries a copy of the notify as well, so the ordered pair we
-        // care about is the trailing one: rc, then the notify, then the failure
-        // path.
-        let notify_at = line.rfind("connection-ended c1").expect("notify runs");
+        // The trap carries a copy of the end report as well, so the ordered pair
+        // we care about is the trailing one: rc, then the report, then the
+        // failure path.
+        let ended_at = line
+            .rfind("connection-ended c1")
+            .expect("the end is reported");
         let keep_at = line
             .find("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc")
             .expect("the failure path survives");
-        assert!(rc_at < notify_at && notify_at < keep_at, "{line}");
+        assert!(rc_at < ended_at && ended_at < keep_at, "{line}");
     }
 
     #[test]
-    fn a_launch_line_without_a_notify_keeps_the_plain_keep_open_suffix() {
+    fn a_launch_line_without_a_report_keeps_the_plain_keep_open_suffix() {
         let specs = terminal_launch_specs(
             Platform::MacOs,
             None,
@@ -876,29 +909,61 @@ mod tests {
         let line = specs[0].args.join(" ");
         assert!(line.contains("ssh u@h || exec ${SHELL:-/bin/sh}"), "{line}");
         assert!(!line.contains("rc=$?"), "{line}");
+        assert!(!line.contains("session-started"), "{line}");
     }
 
     #[test]
-    fn the_notify_escapes_the_socket_and_the_id() {
-        let notify = connection_ended_notify(Path::new("/tmp/a b.sock"), "c 1");
-        assert!(notify.contains("--socket '/tmp/a b.sock'"), "{notify}");
-        assert!(notify.ends_with("connection-ended 'c 1'"), "{notify}");
+    fn the_reports_escape_the_socket_and_the_id() {
+        let reports = launch_reports(Platform::MacOs, Path::new("/tmp/a b.sock"), "c 1").unwrap();
+        assert!(
+            reports.started.contains("--socket '/tmp/a b.sock'"),
+            "{}",
+            reports.started
+        );
+        assert!(
+            reports.started.ends_with("session-started 'c 1' $$"),
+            "{}",
+            reports.started
+        );
+        assert!(
+            reports.ended.contains("--socket '/tmp/a b.sock'"),
+            "{}",
+            reports.ended
+        );
+        assert!(
+            reports.ended.ends_with("connection-ended 'c 1'"),
+            "{}",
+            reports.ended
+        );
     }
 
     #[test]
-    fn the_notify_is_built_only_where_the_launched_line_can_report_it() {
-        // Windows keeps `cmd.exe /k` and cannot chain the notify, so the host
+    fn the_reports_are_built_only_where_the_launched_line_can_send_them() {
+        // Windows keeps `cmd.exe /k` and cannot chain a report, so the host
         // must not mark a session active there.
-        assert_eq!(
-            launch_notify(Platform::Windows, Path::new("/tmp/h.sock"), "c1"),
-            None
+        assert!(
+            launch_reports(Platform::Windows, Path::new("/tmp/h.sock"), "c1").is_none(),
+            "windows cannot report a session"
         );
         for platform in [Platform::MacOs, Platform::Linux] {
-            let Some(notify) = launch_notify(platform, Path::new("/tmp/h.sock"), "c1") else {
-                panic!("{platform:?} should carry a notify");
-            };
-            assert!(notify.contains("--socket /tmp/h.sock"), "{notify}");
-            assert!(notify.ends_with("connection-ended c1"), "{notify}");
+            let reports = launch_reports(platform, Path::new("/tmp/h.sock"), "c1")
+                .unwrap_or_else(|| panic!("{platform:?} should carry a report"));
+            assert!(
+                reports.started.contains("--socket /tmp/h.sock"),
+                "{}",
+                reports.started
+            );
+            // The pid is expanded by our own shell, so it is appended bare.
+            assert!(
+                reports.started.ends_with("session-started c1 $$"),
+                "{}",
+                reports.started
+            );
+            assert!(
+                reports.ended.ends_with("connection-ended c1"),
+                "{}",
+                reports.ended
+            );
         }
     }
 
@@ -960,12 +1025,13 @@ mod tests {
 
     #[test]
     fn macos_ghostty_opens_a_tab_when_the_setting_says_so() {
+        let reports = launch_reports(Platform::MacOs, Path::new("/tmp/h.sock"), "c1").unwrap();
         let specs = terminal_launch_specs(
             Platform::MacOs,
             Some("ghostty"),
             &["ssh".into(), "u@h".into(), "-p".into(), "22".into()],
             "",
-            None,
+            Some(&reports),
             "tab",
         )
         .unwrap();
@@ -988,6 +1054,9 @@ mod tests {
         // there, before our own shell ever sees them.
         assert!(script.contains("/bin/sh -c '"), "{script:?}");
         assert!(!script.contains("\\\""), "{script:?}");
+        // Inside those single quotes the `$$` stays literal for Ghostty's own
+        // parse and reaches our shell to expand into its pid.
+        assert!(script.contains("session-started c1 $$"), "{script:?}");
     }
 
     #[test]

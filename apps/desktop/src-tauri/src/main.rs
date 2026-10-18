@@ -22,6 +22,14 @@ fn main() {
         }
         std::process::exit(0);
     }
+    // The same line reports its own shell's pid before `ssh` runs, so the host
+    // can notice a session whose terminal is killed outright.
+    if let Some((socket, id, pid)) = session_started_args(&args) {
+        if let Some(socket) = sigrun_core::session_started::helper_socket(socket) {
+            tauri::async_runtime::block_on(sigrun_core::session_started::report(&socket, &id, pid));
+        }
+        std::process::exit(0);
+    }
     sigrun_desktop::run()
 }
 
@@ -37,6 +45,21 @@ fn connection_ended_args(args: &[String]) -> Option<(Option<std::path::PathBuf>,
         .find(|w| w[0] == "--socket")
         .map(|w| std::path::PathBuf::from(&w[1]));
     Some((socket, id))
+}
+
+/// The `session-started` shape the launched line passes this binary: the socket
+/// it should report to, the connection id, and the shell's pid. `None` for every
+/// other invocation, including a `session-started` without both values.
+fn session_started_args(args: &[String]) -> Option<(Option<std::path::PathBuf>, String, u32)> {
+    let rest = args.get(1..)?;
+    let at = rest.iter().position(|a| a == "session-started")?;
+    let id = rest.get(at + 1)?.clone();
+    let pid = rest.get(at + 2)?.parse().ok()?;
+    let socket = rest
+        .windows(2)
+        .find(|w| w[0] == "--socket")
+        .map(|w| std::path::PathBuf::from(&w[1]));
+    Some((socket, id, pid))
 }
 
 /// Print the stored password on stdout and nothing else; every failure exits 2
@@ -105,6 +128,48 @@ mod tests {
         assert_eq!(connection_ended_args(&args(&["sigrun-desktop"])), None);
         assert_eq!(
             connection_ended_args(&args(&["sigrun-desktop", "--foo"])),
+            None
+        );
+    }
+
+    #[test]
+    fn session_started_args_reads_the_launched_line() {
+        assert_eq!(
+            session_started_args(&args(&[
+                "sigrun-desktop",
+                "--socket",
+                "/tmp/h.sock",
+                "session-started",
+                "c1",
+                "4242"
+            ])),
+            Some((Some(PathBuf::from("/tmp/h.sock")), "c1".to_string(), 4242))
+        );
+        assert_eq!(
+            session_started_args(&args(&["sigrun-desktop", "session-started", "c1", "4242"])),
+            Some((None, "c1".to_string(), 4242))
+        );
+    }
+
+    // The line hands this helper `$$`, which the shell has already expanded, so
+    // a shape that is missing the pid is not this helper.
+    #[test]
+    fn session_started_args_needs_an_id_and_a_pid() {
+        assert_eq!(
+            session_started_args(&args(&["sigrun-desktop", "session-started", "c1"])),
+            None
+        );
+        assert_eq!(
+            session_started_args(&args(&["sigrun-desktop", "session-started", "c1", "$$"])),
+            None
+        );
+    }
+
+    #[test]
+    fn session_started_args_ignores_an_ordinary_launch() {
+        assert_eq!(session_started_args(&args(&["sigrun-desktop"])), None);
+        assert_eq!(
+            session_started_args(&args(&["sigrun-desktop", "--foo"])),
             None
         );
     }

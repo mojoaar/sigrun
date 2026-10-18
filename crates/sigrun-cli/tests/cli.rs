@@ -488,3 +488,98 @@ fn connection_ended_takes_exactly_one_id() {
         .assert()
         .failure();
 }
+
+// `sigrun session-started <id> <pid>` is the hidden helper the launched line
+// runs *before* `ssh`: it hands the host the pid of the shell running the
+// session, so a terminal that kills the whole process group is still noticed.
+// Like the end report it stays silent and succeeds even when the host is gone.
+#[test]
+fn session_started_is_hidden_from_help() {
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("session-started").not());
+}
+
+#[test]
+fn session_started_without_a_host_is_silent_and_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args(["session-started", "c1", "4242"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{:?}", out.status);
+    assert!(
+        out.stdout.is_empty() && out.stderr.is_empty(),
+        "stdout {:?} stderr {:?}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn session_started_reaches_a_running_host_silently() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    // An id the host does not know is a no-op, and the helper says nothing
+    // either way — the whole point is that it never writes to the terminal.
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(&sock)
+        .args(["session-started", "c1", "4242"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{:?}", out.status);
+    assert!(
+        out.stdout.is_empty() && out.stderr.is_empty(),
+        "stdout {:?} stderr {:?}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
+// The id and the pid are exactly two arguments; the shell has already expanded
+// `$$` by the time this runs.
+#[test]
+fn session_started_takes_exactly_an_id_and_a_pid() {
+    let dir = tempfile::tempdir().unwrap();
+    for argv in [
+        vec!["c1"],
+        vec!["c1", "4242", "extra"],
+        vec!["c1", "not-a-pid"],
+    ] {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("session-started")
+            .args(argv)
+            .assert()
+            .failure();
+    }
+}

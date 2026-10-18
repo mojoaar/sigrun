@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.
 - An inline help and about view in the app, describing what Sigrun does and how the pieces fit together.
 - A pulsing dot on a connection row while its session is live (macOS and Linux): the host keeps the live sessions in memory, the launched command reports its own end, and the dot clears when the session closes.
+- The launched line reports its own shell's pid before `ssh` runs, so the host notices a session whose terminal is killed outright (macOS and Linux).
 
 ### Changed
 

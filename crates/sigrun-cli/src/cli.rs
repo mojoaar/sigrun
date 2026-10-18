@@ -41,6 +41,14 @@ pub enum Command {
         /// The connection whose session ended.
         id: String,
     },
+    /// Report that a launched session started. Internal.
+    #[command(hide = true)]
+    SessionStarted {
+        /// The connection whose session started.
+        id: String,
+        /// The pid of the shell running the session.
+        pid: u32,
+    },
     #[command(subcommand)]
     Vault(VaultCommand),
     #[command(subcommand)]
@@ -231,6 +239,7 @@ pub async fn run() -> anyhow::Result<()> {
         Command::Askpass { prompt: _ } => askpass(socket.as_deref()),
         // Explicit entry point too: the launched line passes the id outright.
         Command::ConnectionEnded { id } => connection_ended(socket, id).await,
+        Command::SessionStarted { id, pid } => session_started(socket, id, pid).await,
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
@@ -278,6 +287,17 @@ fn askpass(socket: Option<&std::path::Path>) -> anyhow::Result<()> {
 async fn connection_ended(socket: Option<PathBuf>, id: String) -> anyhow::Result<()> {
     if let Some(addr) = sigrun_core::connection_ended::helper_socket(socket) {
         sigrun_core::connection_ended::report(&addr, &id).await;
+    }
+    Ok(())
+}
+
+/// `sigrun session-started <id> <pid>`: the launched line tells the host at
+/// `socket` the pid of the shell running the session, so the host can notice a
+/// terminal that kills the whole process group. Like the end report it runs
+/// inside the user's terminal: it never prints and never fails.
+async fn session_started(socket: Option<PathBuf>, id: String, pid: u32) -> anyhow::Result<()> {
+    if let Some(addr) = sigrun_core::session_started::helper_socket(socket) {
+        sigrun_core::session_started::report(&addr, &id, pid).await;
     }
     Ok(())
 }

@@ -10,6 +10,7 @@ pub mod keys;
 pub mod model;
 pub mod paths;
 pub mod provision;
+pub mod session_started;
 pub mod ssh_config;
 pub mod store;
 pub mod terminal;
