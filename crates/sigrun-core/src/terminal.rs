@@ -164,43 +164,58 @@ pub fn terminal_launch_specs(
     argv: &[String],
 ) -> Result<Vec<LaunchSpec>> {
     let cmd = render_command(argv);
+    // A failed connection must not take the window with it: Ghostty shows a
+    // "failed to launch the requested command" screen when ssh exits non-zero
+    // within a few frames, and other terminals simply close, hiding the error.
+    // Drop into a shell instead so the reason stays on screen.
+    let keep_open = format!("{cmd} || exec ${{SHELL:-/bin/sh}}");
     match platform {
         Platform::MacOs => {
             // CLI terminals run the command directly; the two GUI apps use AppleScript.
             match configured {
                 Some("ghostty") => {
-                    let mut args = vec!["-e".to_string()];
-                    args.extend(argv.iter().cloned());
                     return Ok(vec![LaunchSpec {
                         program: "ghostty".into(),
-                        args,
+                        args: vec![
+                            "-e".into(),
+                            "/bin/sh".into(),
+                            "-c".into(),
+                            keep_open.clone(),
+                        ],
                     }]);
                 }
                 Some("kitty") => {
                     return Ok(vec![LaunchSpec {
                         program: "kitty".into(),
-                        args: argv.to_vec(),
+                        args: vec!["/bin/sh".into(), "-c".into(), keep_open.clone()],
                     }]);
                 }
                 Some("alacritty") => {
-                    let mut args = vec!["-e".to_string()];
-                    args.extend(argv.iter().cloned());
                     return Ok(vec![LaunchSpec {
                         program: "alacritty".into(),
-                        args,
+                        args: vec![
+                            "-e".into(),
+                            "/bin/sh".into(),
+                            "-c".into(),
+                            keep_open.clone(),
+                        ],
                     }]);
                 }
                 Some("wezterm") => {
-                    let mut args = vec!["start".to_string(), "--".to_string()];
-                    args.extend(argv.iter().cloned());
                     return Ok(vec![LaunchSpec {
                         program: "wezterm".into(),
-                        args,
+                        args: vec![
+                            "start".into(),
+                            "--".into(),
+                            "/bin/sh".into(),
+                            "-c".into(),
+                            keep_open.clone(),
+                        ],
                     }]);
                 }
                 _ => {}
             }
-            let cmd = applescript_escape(&cmd);
+            let cmd = applescript_escape(&keep_open);
             let (app, script) = if configured == Some("iterm") {
                 (
                     "iTerm",
@@ -259,14 +274,14 @@ end tell"#
                             "--".to_string(),
                             "sh".to_string(),
                             "-c".to_string(),
-                            cmd.clone(),
+                            keep_open.clone(),
                         ]
                     } else {
                         vec![
                             "-e".to_string(),
                             "sh".to_string(),
                             "-c".to_string(),
-                            cmd.clone(),
+                            keep_open.clone(),
                         ]
                     };
                     LaunchSpec { program, args }
@@ -539,6 +554,29 @@ mod tests {
     }
 
     #[test]
+    fn launches_keep_the_window_open_when_the_connection_fails() {
+        let argv = ["ssh".to_string(), "u@h".to_string()];
+        // A failed connect must not close the terminal before the error is read.
+        for configured in [None, Some("iterm"), Some("ghostty"), Some("kitty")] {
+            let specs = terminal_launch_specs(Platform::MacOs, configured, &argv).unwrap();
+            assert!(
+                specs[0]
+                    .args
+                    .join(" ")
+                    .contains("|| exec ${SHELL:-/bin/sh}"),
+                "macos {configured:?} should keep the window open"
+            );
+        }
+        for spec in terminal_launch_specs(Platform::Linux, None, &argv).unwrap() {
+            assert!(spec.args.join(" ").contains("|| exec ${SHELL:-/bin/sh}"));
+        }
+        // Windows keeps its window with `cmd.exe /k`.
+        for spec in terminal_launch_specs(Platform::Windows, None, &argv).unwrap() {
+            assert!(spec.args.contains(&"/k".to_string()));
+        }
+    }
+
+    #[test]
     fn macos_iterm_reuses_a_tab_and_still_handles_no_windows() {
         let specs = terminal_launch_specs(
             Platform::MacOs,
@@ -576,20 +614,25 @@ mod tests {
     #[test]
     fn detect_terminals_returns_launchable_terminals() {
         // Every detected id must be one `terminal_launch_specs` can build a
-        // spec for, and the platform's built-in is always present.
+        // spec for. macOS and Windows always offer a built-in; Linux detection
+        // is best-effort, so a bare host (a CI runner) legitimately finds none.
         let platform = Platform::current();
         let found = detect_terminals(platform);
-        assert!(!found.is_empty());
         for t in &found {
             let specs = terminal_launch_specs(platform, Some(&t.id), &["ssh".into(), "u@h".into()]);
             assert!(specs.is_ok(), "{} should be launchable", t.id);
         }
-        let builtin = match platform {
-            Platform::MacOs => "terminal",
-            Platform::Windows => "cmd.exe",
-            Platform::Linux => found[0].id.as_str(), // whatever was found first
-        };
-        assert!(found.iter().any(|t| t.id == builtin));
+        match platform {
+            Platform::MacOs => assert!(found.iter().any(|t| t.id == "terminal")),
+            Platform::Windows => assert!(found.iter().any(|t| t.id == "cmd.exe")),
+            Platform::Linux => assert!(found.iter().all(|t| [
+                "gnome-terminal",
+                "konsole",
+                "x-terminal-emulator",
+                "xterm"
+            ]
+            .contains(&t.id.as_str()))),
+        }
     }
 
     #[cfg(unix)]

@@ -78,7 +78,7 @@ impl Paths {
     /// Windows.
     pub fn socket_path(&self) -> PathBuf {
         if cfg!(windows) {
-            PathBuf::from(format!(r"\\.\pipe\sigrun-{}", pipe_user()))
+            PathBuf::from(format!(r"\\.\pipe\sigrun-{}", self.pipe_id()))
         } else {
             self.data_dir.join("host.sock")
         }
@@ -88,11 +88,28 @@ impl Paths {
     /// on Windows.
     pub fn agent_socket(&self) -> PathBuf {
         if cfg!(windows) {
-            PathBuf::from(format!(r"\\.\pipe\sigrun-agent-{}", pipe_user()))
+            PathBuf::from(format!(r"\\.\pipe\sigrun-agent-{}", self.pipe_id()))
         } else {
             self.data_dir.join("agent.sock")
         }
     }
+
+    /// Windows named-pipe name suffix: the local user plus a stable hash of the
+    /// data directory. Without the directory, two hosts with different data
+    /// dirs (or two tests) would open the same pipe and the loser gets "access
+    /// is denied" (os error 5). The hash keeps the name deterministic for one
+    /// directory, so the single-instance lock still finds its own pipe.
+    fn pipe_id(&self) -> String {
+        format!("{}-{:016x}", pipe_user(), dir_hash(&self.data_dir))
+    }
+}
+
+/// Stable path hash, used to tell Windows named pipes apart.
+fn dir_hash(dir: &Path) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    dir.as_os_str().hash(&mut hasher);
+    hasher.finish()
 }
 
 fn app_folder() -> &'static str {
@@ -167,6 +184,15 @@ mod tests {
         assert_eq!(p.data_file(), d.join("data.toml"));
         assert_eq!(p.vault_file(), d.join("vault.json"));
         assert_eq!(p.lock_file(), d.join("data.lock"));
+    }
+
+    #[test]
+    fn windows_pipe_names_are_unique_per_data_dir() {
+        let a = Paths::with_roots("/c".into(), "/data-a".into(), "/h".into());
+        let b = Paths::with_roots("/c".into(), "/data-b".into(), "/h".into());
+        let same_as_a = Paths::with_roots("/c".into(), "/data-a".into(), "/h".into());
+        assert_ne!(a.pipe_id(), b.pipe_id());
+        assert_eq!(a.pipe_id(), same_as_a.pipe_id());
     }
 
     #[test]
