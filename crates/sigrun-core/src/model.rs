@@ -61,6 +61,11 @@ pub struct Connection {
     /// `data.toml`.
     #[serde(default)]
     pub has_password: bool,
+    /// Host-filled: whether a launched session for this connection is still
+    /// running. Ignored on write (the host clears it before persisting) and
+    /// recomputed per response, never durable.
+    #[serde(default)]
+    pub active: bool,
 }
 
 impl Connection {
@@ -80,6 +85,7 @@ impl Connection {
             source: ConnectionSource::Discovered,
             disable_password_auth: false,
             has_password: false,
+            active: false,
         }
     }
 
@@ -98,6 +104,7 @@ impl Connection {
             source: ConnectionSource::Managed,
             disable_password_auth: false,
             has_password: false,
+            active: false,
         }
     }
 }

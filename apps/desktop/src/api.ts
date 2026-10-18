@@ -15,6 +15,7 @@ export type Connection = {
   source: "managed" | "discovered";
   disable_password_auth: boolean;
   has_password: boolean;
+  active: boolean;
 };
 export type KeyMetadata = {
   id: string;

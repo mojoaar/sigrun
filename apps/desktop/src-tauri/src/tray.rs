@@ -451,6 +451,7 @@ mod tests {
             source,
             disable_password_auth: false,
             has_password: false,
+            active: false,
         }
     }
 

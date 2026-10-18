@@ -63,7 +63,7 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
 }) {
   const { t } = useTranslation();
   const [c, setC] = useState<Connection>(
-    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
   );
   // Only ever the freshly typed value: the stored password is never read back.
   const [password, setPassword] = useState("");

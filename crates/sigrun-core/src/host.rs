@@ -185,11 +185,14 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             // `has_password` is host-derived. Clearing it keeps anything a
             // client sends out of `data.toml`; readers fill it from the vault.
             connection.has_password = false;
+            // `active` is host-derived too: a client cannot claim a session.
+            connection.active = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsUpdate { mut connection } => {
             connection.has_password = false;
+            connection.active = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
@@ -951,6 +954,40 @@ mod tests {
         ));
         let stored = state.store.load_data().unwrap().connections;
         assert!(!stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_client_supplied_active_flag_is_not_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut c = Connection::managed("c1", "web");
+        c.active = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].active);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_client_supplied_active_flag_is_not_persisted_on_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        let mut c = Connection::managed("c1", "web");
+        c.active = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsUpdate { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].active);
         state.shutdown.cancel();
     }
 

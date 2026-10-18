@@ -6,7 +6,7 @@ import * as api from "../api";
 
 vi.mock("../api", () => ({
   listConnections: vi.fn().mockResolvedValue([
-    { id: "1", label: "Prod", host: "prod.example.com", user: "deploy", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+    { id: "1", label: "Prod", host: "prod.example.com", user: "deploy", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
   ]),
   listKeys: vi.fn().mockResolvedValue([]),
   addConnection: vi.fn(),
@@ -30,7 +30,7 @@ const diskKey = {
   available: true,
 };
 
-const conn: api.Connection = { id: "c0", label: "base", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false };
+const conn: api.Connection = { id: "c0", label: "base", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false };
 
 describe("Connections", () => {
   it("groups connections under headings", async () => {
@@ -194,7 +194,7 @@ describe("Connections", () => {
 
   it("warns before disabling password auth", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -205,7 +205,7 @@ describe("Connections", () => {
 
   it("provisions, persists the choice, and reports the outcome", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     vi.mocked(api.provisionConnection).mockResolvedValue({ installed: ["work"], verified: ["work"], hardening: "applied" });
@@ -228,7 +228,7 @@ describe("Connections", () => {
   it("retries provisioning after trusting an unknown host key", async () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     vi.mocked(api.provisionConnection)
@@ -255,7 +255,7 @@ describe("Connections", () => {
   it("does not persist the flag when hardening was skipped", async () => {
     vi.mocked(api.updateConnection).mockClear();
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     vi.mocked(api.provisionConnection).mockResolvedValue({ installed: ["work"], verified: ["work"], hardening: { skipped: "sudo is not available" } });
@@ -274,7 +274,7 @@ describe("Connections", () => {
   it("ignores a disk key_id when preselecting vault keys", async () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "d1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "d1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey, diskKey]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -290,7 +290,7 @@ describe("Connections", () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "internal", message: "boom" });
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -317,7 +317,7 @@ describe("Connections", () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "vault_locked", message: "vault is locked" });
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     const onVaultLocked = vi.fn();
@@ -334,7 +334,7 @@ describe("Connections", () => {
 
   it("offers installation only when editing a saved connection", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -351,7 +351,7 @@ describe("Connections", () => {
 
   it("imports a selected disk key and provisions with the new vault id", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([
       { key: { ...diskKey.key, id: "sha256:disk", name: "work", disk_path: "/home/u/.ssh/id_work", has_passphrase: false }, available: true },
@@ -372,7 +372,7 @@ describe("Connections", () => {
 
   it("shows the host's message when provisioning fails for a non-trust reason", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
     vi.mocked(api.provisionConnection).mockRejectedValueOnce({ code: "unreachable", message: "connection refused" });
@@ -438,7 +438,7 @@ describe("Connections", () => {
 
   it("imports a disk key once and reuses it across the trust retry", async () => {
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([diskKey]);
     // A second import would mint a different vault id, so the retry must reuse the first.
@@ -469,7 +469,7 @@ describe("Connections", () => {
   it("shows the import error and never provisions when a disk key needs a passphrase", async () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.listConnections).mockResolvedValue([
-      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
     ]);
     vi.mocked(api.listKeys).mockResolvedValue([
       { key: { ...diskKey.key, has_passphrase: true }, available: true },
