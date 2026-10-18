@@ -287,6 +287,16 @@ fn set_title(app: &AppHandle, title: &str) {
 const TRAY_TEMPLATE: &[u8] = include_bytes!("../icons/tray-template.png");
 const TRAY_LIGHT: &[u8] = include_bytes!("../icons/tray-light.png");
 
+/// Whether a tray click skips the reachability probe. It no longer does: the
+/// probe's `unreachable` answer is what puts *Host is not reachable* — with a
+/// **Connect anyway** retry — in the window, instead of the tray looking inert
+/// on a dead host. The cost is up to the probe's 3 s timeout before that
+/// dialog appears. A helper, not a literal, so the intent is greppable and
+/// unit-testable without a Tauri runtime.
+fn tray_connect_force() -> bool {
+    false
+}
+
 pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
     let st = state.clone();
     // macOS recolours a template icon white/dark to match the menu bar; the
@@ -344,14 +354,14 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                     let (app, st, cid) = (app.clone(), st.clone(), cid.to_string());
                     tauri::async_runtime::spawn(async move {
                         // Unknown/mismatched keys and any other error surface in the window.
-                        // A tray click is "just connect": skip the reachability
-                        // probe (it is advisory and misses VPN/ProxyJump), but
-                        // still run the TOFU trust check.
+                        // A tray click runs the reachability probe, so a dead
+                        // host is reported there rather than in the tray; the
+                        // TOFU trust check runs either way.
                         let title = match crate::commands::connect_guarded(
                             st.clone(),
                             cid.clone(),
                             false,
-                            true,
+                            tray_connect_force(),
                         )
                         .await
                         {
@@ -538,6 +548,14 @@ mod tests {
                 item("open", "Open Sigrun"),
                 item("quit", "Quit"),
             ]
+        );
+    }
+
+    #[test]
+    fn tray_connects_run_the_reachability_probe() {
+        assert!(
+            !tray_connect_force(),
+            "the tray must not skip the reachability probe"
         );
     }
 
