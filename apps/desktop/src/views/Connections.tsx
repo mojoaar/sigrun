@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { listen } from "@tauri-apps/api/event";
 import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
@@ -294,6 +295,19 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   }, [handle]);
   useEffect(refresh, [refresh]);
 
+  // The host only emits when its live set changes, so the dot clears within a
+  // tick of a session ending rather than on the next poll.
+  useEffect(() => {
+    let unChanged: (() => void) | undefined;
+    let gone = false;
+    try {
+      listen("connections-changed", () => refresh())
+        .then((f) => { if (gone) f(); else unChanged = f; })
+        .catch(() => {});
+    } catch { /* not running under Tauri */ }
+    return () => { gone = true; unChanged?.(); };
+  }, [refresh]);
+
   // A tray connect that failed (untrusted or unreachable host) opens the same
   // dialog the in-window Connect would, then the host clears the carried error.
   // A changed host key fails closed: it shows the mismatch banner, never an
@@ -333,7 +347,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const doConnect = (c: Connection, force = false): Promise<void> => {
     setUnreachable(null);
     const attempt = force ? connectForce(c.id) : connectGuarded(c.id);
-    return attempt.catch((err: unknown) => {
+    return attempt.then(() => { refresh(); }).catch((err: unknown) => {
       const e = err as CommandError;
       if (e?.code === "unreachable")
         setUnreachable({ message: e.message, retry: () => doConnect(c, true) });

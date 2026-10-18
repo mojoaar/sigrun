@@ -10,6 +10,13 @@ export default function ConnectionRow({ conn, canProvision, onProvision, onConne
     <li className="flex items-center justify-between gap-4 rounded border border-border bg-surface p-3">
       <div>
         <div className="flex items-center gap-2 font-medium">
+          {conn.active && (
+            <span
+              role="img"
+              aria-label={t("connections.active")}
+              className="h-2 w-2 rounded-full bg-accent animate-pulse motion-reduce:animate-none"
+            />
+          )}
           {conn.label}
           {conn.group?.trim() && <span className="rounded border border-border px-1 text-xs text-muted">{conn.group}</span>}
           {conn.has_password && <span className="rounded border border-border px-1 text-xs text-muted">{t("connections.hasPassword")}</span>}

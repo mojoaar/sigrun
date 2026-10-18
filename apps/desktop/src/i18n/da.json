@@ -29,6 +29,7 @@
     "connect": "Forbind",
     "unreachable": "Værten kan ikke nås",
     "connectAnyway": "Forbind alligevel",
+    "active": "Forbundet",
     "label": "Navn",
     "host": "Vært",
     "user": "Bruger",

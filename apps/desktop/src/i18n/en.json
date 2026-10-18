@@ -29,6 +29,7 @@
     "connect": "Connect",
     "unreachable": "Host is not reachable",
     "connectAnyway": "Connect anyway",
+    "active": "Connected",
     "label": "Label",
     "host": "Host",
     "user": "User",

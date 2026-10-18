@@ -1,8 +1,11 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+import { listen } from "@tauri-apps/api/event";
 import "../i18n";
 import Connections, { groupTree } from "./Connections";
 import * as api from "../api";
+
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 
 vi.mock("../api", () => ({
   listConnections: vi.fn().mockResolvedValue([
@@ -597,5 +600,27 @@ describe("Connections", () => {
     // No password was stored, and the form stays open for a retry.
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(screen.getByRole("dialog", { name: "Add connection" })).toBeTruthy();
+  });
+
+  it("shows a connected dot on a live row and hides it otherwise", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "live", active: true },
+      { ...conn, id: "c2", label: "idle", active: false },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await screen.findByText("live");
+    const row = (label: string) => screen.getByText(label).closest("li") as HTMLElement;
+    expect(within(row("live")).getByRole("img", { name: "Connected" })).toBeTruthy();
+    expect(within(row("idle")).queryByRole("img", { name: "Connected" })).toBeNull();
+  });
+
+  it("refetches when the host reports a changed active set", async () => {
+    vi.mocked(api.listConnections).mockClear().mockResolvedValue([]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await waitFor(() => expect(api.listConnections).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(listen).mock.calls.find(([event]) => event === "connections-changed");
+    expect(call).toBeTruthy();
+    await act(async () => { (call![1] as () => void)(); });
+    await waitFor(() => expect(api.listConnections).toHaveBeenCalledTimes(2));
   });
 });

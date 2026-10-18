@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transient host-side tracking of which connections have a live session, exposed as the `active` flag.
 - The launched command tells the host when a session ends, so the GUI can show which connections are live.
 - A hidden `connection-ended` helper mode in both binaries, so a launched session can report its own end.
+- A pulsing dot on a connection row while its session is running.
 
 ### Changed
 
