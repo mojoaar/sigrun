@@ -559,6 +559,22 @@ mod tests {
         );
     }
 
+    /// The helper's value is not enough: the call site must actually use it, or
+    /// the tray silently goes back to skipping the probe with every test green.
+    #[test]
+    fn the_tray_connect_passes_the_helper() {
+        let src = include_str!("tray.rs");
+        let call = src
+            .split("connect_guarded(")
+            .nth(1)
+            .expect("tray call site");
+        let args = &call[..call.find(".await").expect("call site ends")];
+        assert!(
+            args.contains("tray_connect_force(),"),
+            "the tray must use the helper, not a literal"
+        );
+    }
+
     #[test]
     fn labels_are_localized() {
         assert_eq!(labels("da").quit, "Afslut");
