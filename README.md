@@ -60,8 +60,9 @@ terminal with `ssh` running.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
   and dark, following the OS by default with an override.
 - **i18n:** English and Danish.
-- **Settings:** appearance, language, terminal, "start minimized to tray", and
-  an idle **auto-lock** for the vault (default 30 minutes; 0 disables it).
+- **Settings:** appearance, language, terminal, an idle **auto-lock** for the
+  vault (default 30 minutes; 0 disables it), and "start minimized to tray"
+  last.
 
 The **terminal** for connect is auto-detected: Settings lists the launchable
 terminals actually installed (Terminal, iTerm, Ghostty, kitty, Alacritty,
@@ -102,7 +103,11 @@ into the launched command line, so `ssh` fetches the password through Sigrun's
 askpass helper and it is never typed into the terminal. Because the variables
 travel on the command line they reach every macOS/Linux launch path —
 Terminal.app and iTerm via `do script`, Ghostty/kitty/Alacritty/WezTerm via
-`-e`, and Linux `sh -c`. The vault must be unlocked when the connection opens,
+`-e`, and Linux `sh -c`.
+
+On Windows there is no askpass helper, so the launched command carries no
+askpass variables and a stored password falls back to `ssh`'s own prompt. The
+vault must be unlocked when the connection opens,
 and deleting the connection removes the stored password once the vault is
 unlocked; while the vault is locked the vault entry stays until the next
 unlock. Set or clear it in the connection's edit form, or from the CLI:
