@@ -29,6 +29,12 @@ pub enum Command {
     Host,
     /// Show host, vault, and agent status.
     Status,
+    /// SSH askpass helper: print a stored password. Internal.
+    #[command(hide = true)]
+    Askpass {
+        /// The prompt ssh passes; ignored.
+        prompt: Option<String>,
+    },
     #[command(subcommand)]
     Vault(VaultCommand),
     #[command(subcommand)]
@@ -104,6 +110,19 @@ pub enum ConnectionsCommand {
         id: String,
         #[arg(long)]
         yes: bool,
+    },
+    /// Store or clear the password for a connection, resolved by id or label.
+    ///
+    /// The password is read from stdin with `--password-stdin`, or prompted for;
+    /// it never appears on argv.
+    Password {
+        id_or_label: String,
+        /// Read the password from stdin instead of prompting.
+        #[arg(long, conflicts_with = "clear")]
+        password_stdin: bool,
+        /// Forget the stored password instead of setting one.
+        #[arg(long)]
+        clear: bool,
     },
     /// Open a connection, resolved by id or label.
     Connect {
@@ -181,22 +200,67 @@ impl From<KeyAlgorithmArg> for KeyAlgorithm {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    let Cli { socket, command } = Cli::parse();
+    // ssh execs `$SSH_ASKPASS` with the prompt as its only argument, so an
+    // askpass call has no subcommand to parse. Both markers are required (see
+    // `terminal::env_prefix`): a stray connection id in the environment must
+    // still produce clap's normal "unrecognized subcommand" error.
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) if matches!(err.kind(), clap::error::ErrorKind::InvalidSubcommand) => {
+            if askpass_marker() {
+                return askpass(None);
+            }
+            err.exit()
+        }
+        Err(err) => err.exit(),
+    };
+    let Cli { socket, command } = cli;
     match command {
         Command::Host => {
             sigrun_core::host::run(Paths::resolve()?, socket.clone()).await?;
             Ok(())
         }
         Command::Status => status(&socket).await,
+        // Explicit entry point: no environment marker needed.
+        Command::Askpass { prompt: _ } => askpass(socket.as_deref()),
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
     }
 }
 
+/// True only for the environment `terminal::env_prefix` builds for ssh.
+fn askpass_marker() -> bool {
+    std::env::var("SIGRUN_ASKPASS").as_deref() == Ok("1")
+        && std::env::var("SIGRUN_CONNECTION_ID").is_ok_and(|id| !id.is_empty())
+}
+
 fn resolve_addr(socket: &Option<PathBuf>) -> anyhow::Result<PathBuf> {
     let paths = Paths::resolve()?;
     Ok(socket.clone().unwrap_or_else(|| paths.socket_path()))
+}
+
+/// `sigrun askpass`: ssh's `SSH_ASKPASS` helper. The password is the only thing
+/// on stdout; the prompt argument and stdin are ignored. Every failure exits 2
+/// with a fixed reason — never the password, never the underlying error.
+///
+/// ssh finds this through `SSH_ASKPASS=<exe>` and runs it as `<exe> '<prompt>'`
+/// (no arguments allowed), so `run` also routes such an invocation here.
+/// `socket` is the global `--socket` override, which wins over the environment.
+fn askpass(socket: Option<&std::path::Path>) -> anyhow::Result<()> {
+    let target = socket
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("SIGRUN_SOCKET").map(PathBuf::from))
+        .or_else(|| Paths::resolve().ok().map(|p| p.socket_path()))
+        .zip(std::env::var("SIGRUN_CONNECTION_ID").ok());
+    if let Some((socket, id)) = target {
+        if let Ok(password) = sigrun_core::askpass::answer(&socket, &id) {
+            println!("{password}");
+            return Ok(());
+        }
+    }
+    eprintln!("sigrun: could not read the stored password from the Sigrun host");
+    std::process::exit(2)
 }
 
 async fn status(socket: &Option<PathBuf>) -> anyhow::Result<()> {
@@ -319,6 +383,7 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 tags: tag,
                 source: ConnectionSource::Managed,
                 disable_password_auth: false,
+                has_password: false,
             };
             let resp = client::request(&addr, &Request::ConnectionsAdd { connection }).await?;
             match resp {
@@ -379,6 +444,33 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
             let resp = client::request(&addr, &Request::ConnectionsRemove { id }).await?;
             match resp {
                 Response::Ok => println!("connection removed"),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
+        ConnectionsCommand::Password {
+            id_or_label,
+            password_stdin,
+            clear,
+        } => {
+            // Read (or skip) the secret before any network call; argv is never used.
+            let password = if clear {
+                None
+            } else {
+                match read_passphrase("password: ", password_stdin, false)? {
+                    Some(p) => Some(p),
+                    None => anyhow::bail!("invalid_input: password must not be empty"),
+                }
+            };
+            let resp = client::request(&addr, &Request::ConnectionsList).await?;
+            let conns = match resp {
+                Response::Connections(c) => c,
+                _ => anyhow::bail!("internal: unexpected response"),
+            };
+            let id = resolve_connection(&conns, &id_or_label)?;
+            let resp =
+                client::request(&addr, &Request::ConnectionsSetPassword { id, password }).await?;
+            match resp {
+                Response::Ok => println!("password {}", if clear { "cleared" } else { "saved" }),
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }

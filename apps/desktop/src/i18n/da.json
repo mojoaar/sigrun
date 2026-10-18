@@ -1,6 +1,6 @@
 {
   "app": { "title": "Sigrun", "tagline": "Dine SSH-nøgler og forbindelser samlet ét sted." },
-  "nav": { "connections": "Forbindelser", "keys": "Nøgler", "settings": "Indstillinger" },
+  "nav": { "connections": "Forbindelser", "keys": "Nøgler", "settings": "Indstillinger", "help": "Hjælp" },
   "vault": {
     "uninitialized": {
       "title": "Opret dit pengeskab",
@@ -35,6 +35,10 @@
     "port": "Port",
     "key": "Nøgle",
     "group": "Gruppe",
+    "password": "Adgangskode",
+    "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
+    "removeSavedPassword": "Fjern den gemte adgangskode",
+    "hasPassword": "Adgangskode gemt",
     "search": "Søg i forbindelser",
     "discovered": "Fundet i ~/.ssh/config",
     "removeConfirm": "Vil du fjerne denne forbindelse? Det kan ikke fortrydes."
@@ -95,6 +99,53 @@
     "quit": "Afslut",
     "unlock": "Lås Sigrun op…",
     "discovered": "Fundet automatisk"
+  },
+  "help": {
+    "title": "Hjælp",
+    "intro": "Sigrun samler dine SSH-nøgler og forbindelser ét sted. Navnet kommer fra Sigrún: sigr betyder sejr, og rún betyder hemmelighed — sejr over nøglekaos.",
+    "quickStart": {
+      "title": "Kom hurtigt i gang",
+      "vault": "Opret eller lås pengeskabet op med din adgangssætning.",
+      "key": "Importér en nøgle fra disken, eller generér en ny.",
+      "connection": "Tilføj en forbindelse: navn, vært, bruger og port.",
+      "connect": "Forbind — Sigrun åbner din terminal med ssh.",
+      "provision": "På en server, der kun accepterer adgangskoder, kan du bruge “Installér SSH-nøgle…” til at installere en nøgle fra pengeskabet med serverens adgangskode."
+    },
+    "groups": {
+      "title": "Forbindelser og grupper",
+      "nesting": "Grupper kan nestes med “/”. En forbindelse i PVE/Folder 1 vises under Folder 1 inde i PVE.",
+      "tray": "Venstreklik på bakkeikonet: er pengeskabet låst, åbnes vinduet, så du kan låse det op; er pengeskabet låst op, åbnes menuen med forbindelserne grupperet på samme måde."
+    },
+    "keys": {
+      "title": "Nøgler",
+      "vault": "Nøgler i pengeskabet ligger krypteret i Sigrun og leveres af dets SSH-agent — ingen nøglefil på disken.",
+      "disk": "Nøgler på disken bliver, hvor de er. Sigrun sender -i <sti> videre til ssh og rører ikke din ~/.ssh."
+    },
+    "settings": {
+      "title": "Indstillinger",
+      "summary": "Tema og udseende, sprog, hvilken terminal der åbnes, automatisk låsning efter inaktivitet og start minimeret i systembakken."
+    },
+    "cli": {
+      "title": "Kommandolinje",
+      "host": { "cmd": "sigrun host", "desc": "Kør værten i forgrunden." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås pengeskabet op." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Tilføj en forbindelse." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åbn en forbindelse i terminalen." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Gem en forbindelses adgangskode." }
+    },
+    "data": {
+      "title": "Hvor data ligger",
+      "dir": "Dine data ligger i brugerens datamappe: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux og %APPDATA%\\Sigrun på Windows.",
+      "ssh": "Sigrun ændrer aldrig ~/.ssh."
+    },
+    "about": {
+      "title": "Om",
+      "version": "Version {{version}}",
+      "author": "Lavet af mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Udgivet under MIT-licensen."
+    }
   },
   "common": {
     "save": "Gem",

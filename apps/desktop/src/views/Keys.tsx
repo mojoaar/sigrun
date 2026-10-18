@@ -12,6 +12,7 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const [error, setError] = useState(false);
   const [gen, setGen] = useState({ name: "", algorithm: "ed25519" as KeyAlgorithm, passphrase: "" });
   const [imp, setImp] = useState({ path: "", name: "", passphrase: "" });
+  const [confirmRemove, setConfirmRemove] = useState<KeyView | null>(null);
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -31,9 +32,29 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
       {keys.length === 0 && <p className="text-muted">{t("keys.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {keys.map((k) => (
-          <KeyCard key={k.key.id} view={k} onRemove={() => { if (window.confirm(t("keys.removeConfirm"))) run(removeKey(k.key.id)); }} />
+          <KeyCard key={k.key.id} view={k} onRemove={() => setConfirmRemove(k)} />
         ))}
       </ul>
+      {confirmRemove && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-label={t("keys.removeConfirm")} className="rounded border border-border bg-surface p-3">
+            <h3 className="font-semibold">{t("keys.removeConfirm")}</h3>
+            <div className="flex gap-2">
+              <button className={field} onClick={() => setConfirmRemove(null)}>{t("common.cancel")}</button>
+              <button
+                className={btn}
+                onClick={() => {
+                  const id = confirmRemove.key.id;
+                  setConfirmRemove(null);
+                  run(removeKey(id));
+                }}
+              >
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <form onSubmit={onGen} className="flex flex-wrap items-end gap-2">
         <input required aria-label={t("keys.name")} placeholder={t("keys.name")} className={field} value={gen.name} onChange={(e) => setGen({ ...gen, name: e.target.value })} />
         <select aria-label={t("keys.algorithm")} className={field} value={gen.algorithm} onChange={(e) => setGen({ ...gen, algorithm: e.target.value as KeyAlgorithm })}>

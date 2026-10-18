@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Installing a key on a server (desktop) can use disk-backed keys, importing them into the vault as part of the step.
 - The app's Connect action reports an unreachable host before a terminal opens, with "Connect anyway"; the tray/menu-bar connect skips the check.
 - iTerm opens a tab in the current window.
+- Per-connection passwords: stored in the vault, handed to `ssh` through an askpass helper so a password-only host never prompts in the terminal, and settable from the app or with `sigrun connections password <id-or-label> [--password-stdin] [--clear]`.
+- Nested connection groups: a `/`-separated path like `PVE/Folder 1` renders as a nested submenu in the tray and a nested section in the Connections list.
+- An inline help and about view in the app, describing what Sigrun does and how the pieces fit together.
+
+### Changed
+
+- "Start minimized to tray" now sits at the end of Settings, after the other options.
+- A connection whose `ssh` fails now drops into a shell instead of losing the error as the terminal closes.
 
 ### Fixed
 
@@ -48,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clicking the dock icon with the window hidden now reopens it on macOS.
 - Tray labels follow the app language instead of always being English, and tray left-click shows the app when the vault is locked instead of toggling the window.
 - The dock shows `Sigrun`, not `sigrun-desktop`.
+- Deleting a connection or a key now asks in-app instead of calling `window.confirm`, which the webview ignores (so Delete silently did nothing).
+- Windows named pipes are derived from the user and a hash of the data dir, so two hosts with different data dirs no longer collide on the same pipe name.
+- A terminal no longer closes before a failed `ssh` has printed its error.
+- The Linux terminal-detection test no longer fails on a host with no known terminal installed.
+- `has_password` now survives the IPC wire round trip, so the saved-password state is correct after a reload.
 
 ### Notes
 

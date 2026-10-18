@@ -74,6 +74,153 @@ fn status_without_a_host_explains_what_to_do() {
 }
 
 #[test]
+fn askpass_without_a_host_prints_nothing_and_leaks_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    // `sigrun askpass` is the explicit entry point; `sigrun '<prompt>'` is the
+    // shape ssh produces from `SSH_ASKPASS=<exe>`. Both must fail the same way.
+    for args in [vec!["askpass", "s3cret-prompt"], vec!["s3cret-prompt"]] {
+        let out = Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path())
+            // What ssh's helper environment carries (see `terminal::env_prefix`).
+            .env("SIGRUN_ASKPASS", "1")
+            .env("SIGRUN_CONNECTION_ID", "c1")
+            // The prompt ssh passes: stdio is ignored, and it must never be echoed.
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        assert!(
+            out.stdout.is_empty(),
+            "stdout was {:?}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("could not read the stored password"),
+            "{stderr:?}"
+        );
+        assert!(!stderr.contains("s3cret-prompt"), "{stderr:?}");
+    }
+}
+
+#[test]
+fn a_connection_id_alone_is_not_an_askpass_call() {
+    let dir = tempfile::tempdir().unwrap();
+    // Without `SIGRUN_ASKPASS=1` a mistyped subcommand must be a clap error,
+    // never a password fetch.
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .env("SIGRUN_SSH_DIR", dir.path())
+        .env("SIGRUN_CONNECTION_ID", "c1")
+        .arg("statu")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        out.stdout.is_empty(),
+        "stdout was {:?}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("unrecognized subcommand"), "{stderr:?}");
+    assert!(
+        !stderr.contains("could not read the stored password"),
+        "{stderr:?}"
+    );
+}
+
+/// Serve one canned reply on a fresh Unix socket and return its path.
+#[cfg(unix)]
+fn fake_host_once(dir: &std::path::Path, name: &str, reply: Vec<u8>) -> PathBuf {
+    use std::io::{BufRead, Write};
+
+    let sock = dir.join(name);
+    let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+    std::thread::spawn(move || {
+        if let Ok((stream, _)) = listener.accept() {
+            let mut reader = std::io::BufReader::new(stream.try_clone().unwrap());
+            let mut line = Vec::new();
+            let _ = reader.read_until(b'\n', &mut line);
+            let mut stream = stream;
+            let _ = stream.write_all(&reply);
+            let _ = stream.flush();
+        }
+    });
+    sock
+}
+
+#[cfg(unix)]
+#[test]
+fn askpass_prefers_the_socket_flag_over_the_environment() {
+    let dir = tempfile::tempdir().unwrap();
+    let sock = fake_host_once(
+        dir.path(),
+        "flag.sock",
+        b"{\"type\":\"password\",\"value\":\"pw-flag\"}\n".to_vec(),
+    );
+    let out = Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONNECTION_ID", "c1")
+        .env("SIGRUN_SOCKET", dir.path().join("missing.sock"))
+        .arg("--socket")
+        .arg(&sock)
+        .args(["askpass", "deploy@example.com's password:"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    // Only the password, on stdout.
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "pw-flag\n");
+    assert!(out.stderr.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn askpass_fails_on_an_empty_password_and_on_a_host_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let replies = [
+        // A host that reports success with an empty value.
+        b"{\"type\":\"password\",\"value\":\"\"}\n".to_vec(),
+        // A host that rejects the id (Response::Error).
+        sigrun_core::ipc::protocol::encode(&sigrun_core::ipc::protocol::Response::Error {
+            code: "not_found".into(),
+            message: "not found: c1".into(),
+        })
+        .unwrap(),
+    ];
+    for (i, reply) in replies.into_iter().enumerate() {
+        let sock = fake_host_once(dir.path(), &format!("fake-{i}.sock"), reply);
+        let out = Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path())
+            .env("SIGRUN_CONNECTION_ID", "c1")
+            .env("SIGRUN_SOCKET", &sock)
+            .args(["askpass", "deploy@example.com's password:"])
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "case {i}");
+        assert!(
+            out.stdout.is_empty(),
+            "case {i} stdout was {:?}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("could not read the stored password"),
+            "case {i}: {stderr:?}"
+        );
+        // The host's error text and the empty value never reach the terminal.
+        assert!(!stderr.contains("not found"), "case {i}: {stderr:?}");
+    }
+}
+
+#[test]
 fn provision_rejects_an_empty_password() {
     Command::cargo_bin("sigrun")
         .unwrap()
@@ -99,6 +246,24 @@ fn provision_reaches_the_host_without_leaking_the_password() {
         .failure()
         .stderr(predicate::str::contains("sigrun host"))
         .stderr(predicate::str::contains("hunter2").not());
+}
+
+#[test]
+fn password_rejects_an_empty_password_before_contacting_the_host() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args(["connections", "password", "bogus", "--password-stdin"])
+        .write_stdin("\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("password must not be empty"))
+        // The missing host would say "sigrun host"; reading the secret comes first.
+        .stderr(predicate::str::contains("sigrun host").not());
 }
 
 // `--force` must parse, and a host error must surface as `code: message`.

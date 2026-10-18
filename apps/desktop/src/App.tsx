@@ -5,13 +5,14 @@ import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
 import i18n from "./i18n";
 import { applyTheme, DEFAULT_THEME, readModeOverride, resolveMode, type ThemeName } from "./themes";
 import Connections from "./views/Connections";
+import Help from "./views/Help";
 import Keys from "./views/Keys";
 import Settings from "./views/Settings";
 import VaultGate from "./views/VaultGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-type Tab = "connections" | "keys" | "settings";
-const TABS: Tab[] = ["connections", "keys", "settings"];
+type Tab = "connections" | "keys" | "settings" | "help";
+const TABS: Tab[] = ["connections", "keys", "settings", "help"];
 
 export default function App() {
   const { t } = useTranslation();
@@ -70,6 +71,9 @@ export default function App() {
         )}
         {vault === "Unlocked" && tab === "settings" && (
           <ErrorBoundary key="settings"><Settings /></ErrorBoundary>
+        )}
+        {vault === "Unlocked" && tab === "help" && (
+          <ErrorBoundary key="help"><Help /></ErrorBoundary>
         )}
       </main>
     </div>

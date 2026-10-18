@@ -21,6 +21,7 @@ pub fn run() {
             commands::add_connection,
             commands::update_connection,
             commands::remove_connection,
+            commands::set_connection_password,
             commands::connect,
             commands::provision_connection,
             commands::trust_host,
@@ -31,6 +32,7 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::list_terminals,
+            commands::open_external,
         ])
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;

@@ -30,6 +30,13 @@ pub enum Request {
     ConnectionsRemove {
         id: String,
     },
+    ConnectionsSetPassword {
+        id: String,
+        password: Option<String>,
+    },
+    PasswordGet {
+        id: String,
+    },
     ConnectionsConnect {
         id: String,
         print_only: bool,
@@ -61,7 +68,7 @@ pub enum Request {
     Shutdown,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 // Adjacently tagged: internally tagged enums cannot serialize newtype variants
 // that hold a sequence (`Connections(Vec<Connection>)`, `Keys(Vec<KeyView>)`).
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
@@ -75,7 +82,35 @@ pub enum Response {
     Command(String),
     Provisioned(crate::provision::ProvisionOutcome),
     Unlocked { warnings: Vec<String> },
+    Password(String),
     Error { code: String, message: String },
+}
+
+// Manual `Debug` because `Response::Password` carries a secret. Every other
+// variant prints exactly as the derive would; the password is redacted.
+impl std::fmt::Debug for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Response::Ok => f.write_str("Ok"),
+            Response::Status(v) => f.debug_tuple("Status").field(v).finish(),
+            Response::Connections(v) => f.debug_tuple("Connections").field(v).finish(),
+            Response::Keys(v) => f.debug_tuple("Keys").field(v).finish(),
+            Response::Key(v) => f.debug_tuple("Key").field(v).finish(),
+            Response::Terminals(v) => f.debug_tuple("Terminals").field(v).finish(),
+            Response::Command(v) => f.debug_tuple("Command").field(v).finish(),
+            Response::Provisioned(v) => f.debug_tuple("Provisioned").field(v).finish(),
+            Response::Unlocked { warnings } => f
+                .debug_struct("Unlocked")
+                .field("warnings", warnings)
+                .finish(),
+            Response::Password(_) => f.write_str("Password(\"<redacted>\")"),
+            Response::Error { code, message } => f
+                .debug_struct("Error")
+                .field("code", code)
+                .field("message", message)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -121,5 +156,17 @@ pub fn error_code(err: &Error) -> &'static str {
         Error::Unreachable(_) => "unreachable",
         Error::Ssh(_) => "ssh",
         _ => "internal",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn password_response_debug_is_redacted() {
+        let debug = format!("{:?}", Response::Password("s3cret".to_string()));
+        assert!(!debug.contains("s3cret"), "{debug}");
+        assert!(debug.contains("redacted"), "{debug}");
     }
 }

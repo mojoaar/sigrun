@@ -55,6 +55,12 @@ pub struct Connection {
     pub source: ConnectionSource,
     #[serde(default)]
     pub disable_password_auth: bool,
+    /// Host-filled: whether the vault holds a password for this connection.
+    /// Ignored on write (a client cannot set it; the host clears it before
+    /// persisting) and serialized as a derived value on the wire and in
+    /// `data.toml`.
+    #[serde(default)]
+    pub has_password: bool,
 }
 
 impl Connection {
@@ -73,6 +79,7 @@ impl Connection {
             tags: Vec::new(),
             source: ConnectionSource::Discovered,
             disable_password_auth: false,
+            has_password: false,
         }
     }
 
@@ -90,6 +97,7 @@ impl Connection {
             tags: Vec::new(),
             source: ConnectionSource::Managed,
             disable_password_auth: false,
+            has_password: false,
         }
     }
 }

@@ -1,28 +1,55 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
-// Same grouping rules as tray_menu_model (blank groups are ungrouped), but
-// sorted case-insensitively for the UI.
-export function groupConnections(conns: Connection[]): { group: string | null; items: Connection[] }[] {
+export type TreeNode = { name: string; path: string; items: Connection[]; children: TreeNode[] };
+
+// A group is a `/`-separated path (`PVE/Folder 1` nests one level): same rules
+// as tray_menu_model, but sorted case-insensitively for the UI.
+export function groupTree(conns: Connection[]): TreeNode[] {
+  const roots: TreeNode[] = [];
   const loose: Connection[] = [];
-  const groups = new Map<string, Connection[]>();
   for (const c of conns) {
-    const group = c.group?.trim();
-    if (group) groups.set(group, [...(groups.get(group) ?? []), c]);
-    else loose.push(c);
+    const segments = (c.group ?? "").split("/").map((s) => s.trim()).filter(Boolean);
+    if (segments.length === 0) {
+      loose.push(c);
+      continue;
+    }
+    let level = roots;
+    let path = "";
+    let node: TreeNode | null = null;
+    for (const segment of segments) {
+      path = path ? `${path}/${segment}` : segment;
+      node = level.find((n) => n.name === segment) ?? null;
+      if (!node) {
+        node = { name: segment, path, items: [], children: [] };
+        level.push(node);
+      }
+      level = node.children;
+    }
+    node!.items.push(c);
   }
   const byLabel = (a: Connection, b: Connection) => a.label.localeCompare(b.label);
+  const byName = (a: TreeNode, b: TreeNode) => a.name.localeCompare(b.name);
+  const sortNode = (n: TreeNode) => {
+    n.items.sort(byLabel);
+    n.children.sort(byName);
+    n.children.forEach(sortNode);
+  };
+  roots.sort(byName);
+  roots.forEach(sortNode);
+  loose.sort(byLabel);
+  // Ungrouped connections lead, in a headingless node (empty name/path).
   return [
-    { group: null, items: loose.sort(byLabel) },
-    ...[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([group, items]) => ({ group, items: items.sort(byLabel) })),
-  ].filter((s) => s.items.length > 0);
+    ...(loose.length > 0 ? [{ name: "", path: "", items: loose, children: [] }] : []),
+    ...roots,
+  ];
 }
 
-function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys }: {
+function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
   initial: Connection | null;
   keys: KeyView[];
   onClose: () => void;
@@ -32,24 +59,41 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
   // later Save on this still-open form cannot revert it.
   bindProvisioned: (sync: ((disablePasswordAuth: boolean) => void) | null) => void;
   onGoToKeys?: () => void;
+  onVaultLocked: () => void;
 }) {
   const { t } = useTranslation();
   const [c, setC] = useState<Connection>(
-    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false },
+    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false },
   );
-  const [error, setError] = useState(false);
+  // Only ever the freshly typed value: the stored password is never read back.
+  const [password, setPassword] = useState("");
+  const [removePassword, setRemovePassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const canProvision = keys.some((k) => k.available);
   useEffect(() => {
     bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
     return () => bindProvisioned(null);
   }, [bindProvisioned]);
+  const close = () => {
+    setPassword("");
+    setRemovePassword(false);
+    onClose();
+  };
   async function submit(e: FormEvent) {
     e.preventDefault();
     try {
+      // The connection must exist before its password: the id is generated here
+      // (`ConnectionsAdd` never returns one).
       await (initial ? updateConnection(c) : addConnection(c));
+      if (password) await setConnectionPassword(c.id, password);
+      else if (removePassword) await setConnectionPassword(c.id, null);
+      setPassword("");
+      setRemovePassword(false);
       onSaved();
-    } catch {
-      setError(true);
+    } catch (err) {
+      const e = err as CommandError;
+      if (e?.code === "vault_locked") onVaultLocked();
+      else setError(e?.message ?? "");
     }
   }
   return (
@@ -66,12 +110,20 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
             {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
           </select>
         </label>
-        {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+        <label>{t("connections.password")}<input type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <p className="text-sm text-muted">{t("connections.passwordHint")}</p>
+        {initial?.has_password && (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={removePassword} onChange={(e) => setRemovePassword(e.target.checked)} />
+            {t("connections.removeSavedPassword")}
+          </label>
+        )}
+        {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
           {initial && (canProvision
             ? <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={() => onProvision(initial)}>{t("provision.install")}</button>
             : <button type="button" className="mr-auto rounded border border-border px-2 py-1 hover:text-accent" onClick={onGoToKeys}>{t("provision.importKey")}</button>)}
-          <button type="button" onClick={onClose}>{t("common.cancel")}</button>
+          <button type="button" onClick={close}>{t("common.cancel")}</button>
           <button type="submit" className="rounded bg-accent px-3 py-1 text-bg">{t("common.save")}</button>
         </div>
       </form>
@@ -216,6 +268,7 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
   const [unreachable, setUnreachable] = useState<{ message: string; retry: () => Promise<void> } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<Connection | null>(null);
   const formSync = useRef<((disablePasswordAuth: boolean) => void) | null>(null);
   const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
     formSync.current = sync;
@@ -270,6 +323,29 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
 
   const hasUsableKey = keys.some((k) => k.available);
 
+  const renderNode = (node: TreeNode) => (
+    <section key={node.path} className="flex flex-col gap-2">
+      {node.name !== "" && <h3 className="text-sm font-semibold text-muted">{node.name}</h3>}
+      {node.items.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {node.items.map((c) => (
+            <ConnectionRow
+              key={c.id}
+              conn={c}
+              canProvision={hasUsableKey}
+              onProvision={() => openProvision(c)}
+              onConnect={() => { setMismatch(false); void doConnect(c); }}
+              onEdit={() => setForm({ edit: c })}
+              onRemove={() => setConfirmRemove(c)}
+              onGoToKeys={onGoToKeys}
+            />
+          ))}
+        </ul>
+      )}
+      {node.children.length > 0 && <div className="flex flex-col gap-2 pl-3">{node.children.map(renderNode)}</div>}
+    </section>
+  );
+
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -310,26 +386,28 @@ export default function Connections({ onVaultLocked, onGoToKeys }: { onVaultLock
         </div>
       )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
-      {groupConnections(conns).map(({ group, items }) => (
-        <section key={group ?? ""} className="flex flex-col gap-2">
-          {group !== null && <h3 className="text-sm font-semibold text-muted">{group}</h3>}
-          <ul className="flex flex-col gap-2">
-            {items.map((c) => (
-              <ConnectionRow
-                key={c.id}
-                conn={c}
-                canProvision={hasUsableKey}
-                onProvision={() => openProvision(c)}
-                onConnect={() => { setMismatch(false); void doConnect(c); }}
-                onEdit={() => setForm({ edit: c })}
-                onRemove={() => { if (window.confirm(t("connections.removeConfirm"))) removeConnection(c.id).then(refresh).catch(handle); }}
-                onGoToKeys={onGoToKeys}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
-      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} />}
+      {groupTree(conns).map(renderNode)}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-label={t("common.delete")} className="rounded border border-border bg-surface p-3">
+            <h3 className="font-semibold">{t("connections.removeConfirm")}</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmRemove(null)}>{t("common.cancel")}</button>
+              <button
+                className="rounded bg-accent px-3 py-1 text-bg"
+                onClick={() => {
+                  const id = confirmRemove.id;
+                  setConfirmRemove(null);
+                  removeConnection(id).then(refresh).catch(handle);
+                }}
+              >
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

@@ -61,6 +61,13 @@ pub async fn update_connection_inner(state: Arc<HostState>, conn: Connection) ->
 pub async fn remove_connection_inner(state: Arc<HostState>, id: String) -> CmdResult {
     call(state, Request::ConnectionsRemove { id }).await
 }
+pub async fn set_connection_password_inner(
+    state: Arc<HostState>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    call(state, Request::ConnectionsSetPassword { id, password }).await
+}
 pub async fn connect_inner(
     state: Arc<HostState>,
     id: String,
@@ -206,6 +213,14 @@ pub async fn remove_connection(state: St<'_>, app: tauri::AppHandle, id: String)
     let out = remove_connection_inner(st.clone(), id).await;
     crate::tray::sync_tray(&app, &st);
     out
+}
+#[tauri::command]
+pub async fn set_connection_password(
+    state: St<'_>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    set_connection_password_inner(state.inner().clone(), id, password).await
 }
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");
@@ -379,6 +394,44 @@ pub async fn save_settings(state: St<'_>, app: tauri::AppHandle, settings: Setti
     out
 }
 
+/// External links the UI may open. The allowlist is fixed: the host is the
+/// trust boundary, so the webview can never ask the OS to open anything else.
+const ALLOWED_URLS: [&str; 2] = ["https://johansen.foo", "https://github.com/mojoaar/sigrun"];
+
+fn allowed_url(url: &str) -> sigrun_core::error::Result<()> {
+    ALLOWED_URLS
+        .contains(&url)
+        .then_some(())
+        .ok_or_else(|| sigrun_core::error::Error::InvalidInput("unsupported url".into()))
+}
+
+/// Launch the OS opener detached; we never wait on the browser and discard its
+/// output. `url` is already allowlisted by `allowed_url`.
+fn spawn_opener(url: &str) {
+    use sigrun_core::terminal::Platform;
+    let (program, args): (&str, &[&str]) = match Platform::current() {
+        Platform::MacOs => ("open", &[url]),
+        Platform::Linux => ("xdg-open", &[url]),
+        Platform::Windows => ("cmd", &["/c", "start", "", url]),
+    };
+    let _ = std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}
+
+#[tauri::command]
+pub async fn open_external(url: String) -> CmdResult {
+    allowed_url(&url).map_err(|e| CommandError {
+        code: "invalid_input".into(),
+        message: e.to_string(),
+    })?;
+    spawn_opener(&url);
+    Ok(Response::Ok)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -415,6 +468,14 @@ mod tests {
                 .code,
             "host_key_unknown"
         );
+    }
+
+    #[test]
+    fn open_external_rejects_a_foreign_url() {
+        assert!(super::allowed_url("https://johansen.foo").is_ok());
+        assert!(super::allowed_url("https://github.com/mojoaar/sigrun").is_ok());
+        let err = super::allowed_url("https://example.com/evil").unwrap_err();
+        assert!(matches!(err, sigrun_core::error::Error::InvalidInput(_)));
     }
 
     #[tokio::test]

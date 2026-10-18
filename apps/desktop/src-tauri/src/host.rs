@@ -6,7 +6,11 @@ use sigrun_core::ipc::protocol::Request;
 use sigrun_core::paths::Paths;
 
 pub async fn start_host(paths: Paths) -> Result<Arc<HostState>> {
-    let state = Arc::new(HostState::new(paths.clone()).await?);
+    let addr = paths.socket_path();
+    let mut host = HostState::new(paths.clone()).await?;
+    // Advertise the socket this process really binds (the askpass prefix uses it).
+    host.ipc_addr = addr.display().to_string();
+    let state = Arc::new(host);
     // Handles are detached: IPC exits on shutdown.cancel(), the agent dies with the process.
     let _agent = sigrun_core::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
     {
@@ -14,7 +18,6 @@ pub async fn start_host(paths: Paths) -> Result<Arc<HostState>> {
         tokio::spawn(async move { st.watch_auto_lock().await });
     }
     let ipc_state = state.clone();
-    let addr = paths.socket_path();
     let ipc_addr = addr.clone();
     tokio::spawn(async move {
         if let Err(e) = sigrun_core::ipc::server::serve(&ipc_addr, ipc_state).await {

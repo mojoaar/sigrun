@@ -7,12 +7,13 @@ use crate::agent::{vault_keys, AgentState};
 use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
-use crate::model::{KeyAlgorithm, KeyMetadata, KeySource, KeyView};
+use crate::model::{Connection, KeyAlgorithm, KeyMetadata, KeySource, KeyView};
 use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
 use crate::terminal::{
-    launch_first, probe_reachable, render_command, ssh_invocation, terminal_launch_specs, Platform,
+    env_prefix, launch_first, probe_reachable, render_command, ssh_invocation,
+    terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
 use zeroize::Zeroizing;
@@ -25,7 +26,10 @@ pub struct HostState {
     pub vault: tokio::sync::Mutex<Option<UnlockedVault>>,
     pub agent: AgentState,
     pub agent_socket: String,
-    pub host_addr: String,
+    /// The IPC address this host actually serves on. `Paths::socket_path()` is
+    /// only the default: `sigrun host --socket …` overrides it, and the askpass
+    /// prefix must advertise the address the helper can really connect to.
+    pub ipc_addr: String,
     pub shutdown: tokio_util::sync::CancellationToken,
     /// Bumped on any vault-touching activity; the idle auto-lock watches it.
     pub last_vault_activity: std::sync::Arc<std::sync::atomic::AtomicU64>,
@@ -49,7 +53,7 @@ impl HostState {
 
         Ok(HostState {
             agent_socket: paths.agent_socket().display().to_string(),
-            host_addr: paths.socket_path().display().to_string(),
+            ipc_addr: paths.socket_path().display().to_string(),
             store: Store::new(paths.clone()),
             vault: tokio::sync::Mutex::new(None),
             agent: AgentState::new(),
@@ -121,6 +125,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::KeysRemove { .. }
             | Request::ConnectionsConnect { .. }
             | Request::ConnectionsProvision { .. }
+            | Request::ConnectionsSetPassword { .. }
     ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -137,7 +142,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
                 version: crate::VERSION.to_string(),
                 vault,
                 agent_socket: Some(state.agent_socket.clone()),
-                host_addr: state.host_addr.clone(),
+                host_addr: state.ipc_addr.clone(),
             }))
         }
         Request::VaultInit { passphrase } => {
@@ -168,22 +173,43 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             state.agent.clear();
             Ok(Response::Ok)
         }
-        Request::ConnectionsList => Ok(Response::Connections(state.store.load_data()?.connections)),
+        Request::ConnectionsList => {
+            let mut connections = state.store.load_data()?.connections;
+            fill_password_flags(state, &mut connections).await;
+            Ok(Response::Connections(connections))
+        }
         Request::ConnectionsAdd { mut connection } => {
             if connection.id.trim().is_empty() {
                 connection.id = uuid::Uuid::new_v4().to_string();
             }
+            // `has_password` is host-derived. Clearing it keeps anything a
+            // client sends out of `data.toml`; readers fill it from the vault.
+            connection.has_password = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
-        Request::ConnectionsUpdate { connection } => {
+        Request::ConnectionsUpdate { mut connection } => {
+            connection.has_password = false;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsRemove { id } => {
+            // Clear the stored password while we still can. A locked vault
+            // cannot reach it, so the connection is removed anyway rather than
+            // blocking the delete on an unlock.
+            {
+                let mut guard = state.vault.lock().await;
+                if let Some(vault) = (*guard).as_mut() {
+                    vault.remove(&id)?;
+                }
+            }
             state.store.remove_connection(&id)?;
             Ok(Response::Ok)
         }
+        Request::ConnectionsSetPassword { id, password } => {
+            connections_set_password(state, id, password).await
+        }
+        Request::PasswordGet { id } => password_get(state, id).await,
         Request::KeysList => keys_list(state).await,
         Request::KeysGenerate {
             name,
@@ -375,6 +401,62 @@ async fn keys_remove(state: &HostState, id: String) -> Result<Response> {
     Ok(Response::Ok)
 }
 
+/// Fill `has_password` for each connection from the unlocked vault. A locked
+/// vault cannot answer, so the flag stays `false` rather than guess.
+async fn fill_password_flags(state: &HostState, connections: &mut [Connection]) {
+    let guard = state.vault.lock().await;
+    for conn in connections {
+        with_password_flag((*guard).as_ref(), conn);
+    }
+}
+
+/// The host-owned half of `Connection.has_password`.
+fn with_password_flag(vault: Option<&UnlockedVault>, conn: &mut Connection) {
+    conn.has_password =
+        vault.is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })));
+}
+
+/// Store or clear a connection's password under its id. `None` clears; an absent
+/// entry is a silent no-op. The value is never logged or echoed in an error.
+async fn connections_set_password(
+    state: &HostState,
+    id: String,
+    password: Option<String>,
+) -> Result<Response> {
+    let mut guard = state.vault.lock().await;
+    let vault = (*guard).as_mut().ok_or(Error::VaultLocked)?;
+    if !state
+        .store
+        .load_data()?
+        .connections
+        .iter()
+        .any(|c| c.id == id)
+    {
+        return Err(Error::NotFound(id));
+    }
+    match password {
+        Some(password) => {
+            if password.is_empty() {
+                return Err(Error::InvalidInput("password must not be empty".into()));
+            }
+            vault.put(&id, Secret::Password { password })?;
+        }
+        None => vault.remove(&id)?,
+    }
+    Ok(Response::Ok)
+}
+
+/// Hand a stored password to the caller. The only request that ever returns a
+/// secret; it travels to the 0600 socket exactly as `VaultUnlock`'s passphrase.
+async fn password_get(state: &HostState, id: String) -> Result<Response> {
+    let guard = state.vault.lock().await;
+    let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
+    match vault.get(&id) {
+        Some(Secret::Password { password }) => Ok(Response::Password(password.clone())),
+        _ => Err(Error::NotFound(id)),
+    }
+}
+
 async fn connections_connect(
     state: &HostState,
     id: String,
@@ -382,7 +464,7 @@ async fn connections_connect(
     force: bool,
 ) -> Result<Response> {
     let data = state.store.load_data()?;
-    let conn = data
+    let mut conn = data
         .connections
         .iter()
         .find(|c| c.id == id)
@@ -421,12 +503,35 @@ async fn connections_connect(
         probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await?;
     }
 
+    // The store never persists `has_password`, so fill it from the vault now:
+    // it drives both the ssh argv and the askpass prefix. A locked vault cannot
+    // answer, so the connection stays password-less and ssh prompts as before.
+    let stored = {
+        let guard = state.vault.lock().await;
+        (*guard)
+            .as_ref()
+            .is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })))
+    };
+    conn.has_password = stored;
+
     let argv = ssh_invocation(&conn, meta.as_ref())?;
     if print_only {
         return Ok(Response::Command(render_command(&argv)));
     }
 
-    let specs = terminal_launch_specs(Platform::current(), settings.terminal.as_deref(), &argv)?;
+    let prefix = if stored {
+        // The host may serve on `--socket`, so advertise the bound address.
+        env_prefix(Path::new(&state.ipc_addr), &conn.id)
+    } else {
+        String::new()
+    };
+
+    let specs = terminal_launch_specs(
+        Platform::current(),
+        settings.terminal.as_deref(),
+        &argv,
+        &prefix,
+    )?;
     launch_first(&specs, Some(&state.paths.agent_socket()))?;
     Ok(Response::Ok)
 }
@@ -591,9 +696,12 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
 
 /// Run the host until shutdown: serve the agent and the IPC socket.
 pub async fn run(paths: Paths, socket: Option<PathBuf>) -> Result<()> {
-    let state = std::sync::Arc::new(HostState::new(paths.clone()).await?);
-    let agent = crate::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
     let addr = socket.unwrap_or_else(|| paths.socket_path());
+    let mut state = HostState::new(paths.clone()).await?;
+    // Advertise the socket this process really binds, not the derived default.
+    state.ipc_addr = addr.display().to_string();
+    let state = std::sync::Arc::new(state);
+    let agent = crate::agent::serve(&paths.agent_socket(), state.agent.clone()).await?;
     let result = crate::ipc::server::serve(&addr, state.clone()).await;
     agent.abort();
     state.agent.clear();
@@ -677,6 +785,237 @@ mod tests {
             Err(Error::InvalidInput(m)) => {
                 assert_eq!(m, "import the key into the vault to provision it")
             }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn setting_and_clearing_a_connection_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = HostState::new(paths).await.unwrap();
+        // unlock
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        let mut c = Connection::managed("c1", "web");
+        c.host = "example.com".into();
+        c.user = "deploy".into();
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: c }).await,
+            Response::Ok
+        ));
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsSetPassword {
+                    id: "c1".into(),
+                    password: Some("s3cret".into())
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        // listing reports it without leaking the value
+        match handle(&state, Request::ConnectionsList).await {
+            Response::Connections(cs) => assert!(cs[0].has_password),
+            other => panic!("{other:?}"),
+        }
+        // the secret is readable only through the dedicated request
+        match handle(&state, Request::PasswordGet { id: "c1".into() }).await {
+            Response::Password(p) => assert_eq!(p, "s3cret"),
+            other => panic!("{other:?}"),
+        }
+        // clearing
+        handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: None,
+            },
+        )
+        .await;
+        assert!(matches!(
+            handle(&state, Request::PasswordGet { id: "c1".into() }).await,
+            Response::Error { .. }
+        ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_bound_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_in(dir.path()).await;
+        // `sigrun host --socket …` overrides the derived default; the status is
+        // what the CLI reports and the askpass prefix is built from the same
+        // field, so both name the socket the host is really serving on.
+        state.ipc_addr = "/tmp/sigrun-bound.sock".into();
+        match handle(&state, Request::Status).await {
+            Response::Status(info) => assert_eq!(info.host_addr, "/tmp/sigrun-bound.sock"),
+            other => panic!("{other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connecting_with_a_stored_password_limits_the_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let mut c = Connection::managed("c1", "web");
+        c.host = "example.com".into();
+        state.store.upsert_connection(c).unwrap();
+
+        connections_set_password(&state, "c1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+        // `print_only` builds the same argv without contacting the host.
+        let Response::Command(cmd) = connections_connect(&state, "c1".into(), true, false)
+            .await
+            .unwrap()
+        else {
+            panic!("expected a command");
+        };
+        assert!(cmd.contains("NumberOfPasswordPrompts=1"), "{cmd}");
+
+        connections_set_password(&state, "c1".into(), None)
+            .await
+            .unwrap();
+        let Response::Command(cmd) = connections_connect(&state, "c1".into(), true, false)
+            .await
+            .unwrap()
+        else {
+            panic!("expected a command");
+        };
+        assert!(!cmd.contains("NumberOfPasswordPrompts"), "{cmd}");
+        state.shutdown.cancel();
+    }
+
+    #[test]
+    fn has_password_survives_the_ipc_wire_round_trip() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.has_password = true;
+        let wire =
+            crate::ipc::protocol::encode(&Response::Connections(vec![conn])).expect("encode");
+        match crate::ipc::protocol::decode::<Response>(&wire) {
+            Ok(Response::Connections(cs)) => assert!(cs[0].has_password),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_client_supplied_password_flag_is_not_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut c = Connection::managed("c1", "web");
+        c.has_password = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_client_supplied_password_flag_is_not_persisted_on_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        let mut c = Connection::managed("c1", "web");
+        c.has_password = true;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsUpdate { connection: c }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert!(!stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_locked_vault_refuses_to_store_a_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        // VaultInit but no VaultUnlock -> ConnectionsSetPassword is vault_locked
+        match handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: Some("s3cret".into()),
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "vault_locked"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn removing_a_connection_removes_its_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        handle(
+            &state,
+            Request::VaultInit {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "pw".into(),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::ConnectionsAdd {
+                connection: Connection::managed("c1", "web"),
+            },
+        )
+        .await;
+        handle(
+            &state,
+            Request::ConnectionsSetPassword {
+                id: "c1".into(),
+                password: Some("s3cret".into()),
+            },
+        )
+        .await;
+        assert!(matches!(
+            handle(&state, Request::ConnectionsRemove { id: "c1".into() }).await,
+            Response::Ok
+        ));
+        // after ConnectionsRemove, PasswordGet for that id is not_found
+        match handle(&state, Request::PasswordGet { id: "c1".into() }).await {
+            Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
         state.shutdown.cancel();
