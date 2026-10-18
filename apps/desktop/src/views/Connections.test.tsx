@@ -418,6 +418,58 @@ describe("Connections", () => {
     expect(within(row("nopw")).queryByText("Password saved")).toBeNull();
   });
 
+  it("clears a saved password when the remove checkbox is ticked", async () => {
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web", has_password: true }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    fireEvent.click(within(dialog).getByLabelText(/remove the saved password/i));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.setConnectionPassword).toHaveBeenCalledWith("c1", null));
+    expect(api.setConnectionPassword).toHaveBeenCalledTimes(1);
+    expect(api.updateConnection).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
+  });
+
+  it("shows the remove checkbox only when a password is saved", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    const add = await screen.findByRole("dialog", { name: "Add connection" });
+    expect(within(add).queryByLabelText(/remove the saved password/i)).toBeNull();
+    fireEvent.click(within(add).getByRole("button", { name: /cancel/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    const edit = await screen.findByRole("dialog", { name: "Edit connection" });
+    // has_password is false on this row.
+    expect(within(edit).queryByLabelText(/remove the saved password/i)).toBeNull();
+  });
+
+  it("lets a typed password win over the remove checkbox", async () => {
+    vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web", has_password: true }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    let dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    fireEvent.change(within(dialog).getByLabelText("Password"), { target: { value: "pw" } });
+    fireEvent.click(within(dialog).getByLabelText(/remove the saved password/i));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.setConnectionPassword).toHaveBeenCalledWith("c1", "pw"));
+
+    vi.mocked(api.setConnectionPassword).mockClear();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    fireEvent.click(within(dialog).getByLabelText(/remove the saved password/i));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.setConnectionPassword).toHaveBeenCalledWith("c1", null));
+    expect(api.setConnectionPassword).toHaveBeenCalledTimes(1);
+  });
+
   it("routes a locked vault during the password save to onVaultLocked", async () => {
     vi.mocked(api.addConnection).mockClear().mockResolvedValue(undefined);
     vi.mocked(api.setConnectionPassword).mockClear().mockRejectedValueOnce({ code: "vault_locked", message: "vault is locked" });
