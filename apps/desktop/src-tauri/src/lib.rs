@@ -68,6 +68,8 @@ pub fn run() {
                 let st = state.clone();
                 tauri::async_runtime::spawn(async move {
                     let mut last_unlocked = None;
+                    // `active_ids` is sorted, so `!=` is a correct change test.
+                    let mut last_active = st.active_ids();
                     loop {
                         if st.shutdown.is_cancelled() {
                             return;
@@ -86,6 +88,13 @@ pub fn run() {
                                 Ok(()) => last_unlocked = Some(unlocked),
                                 Err(e) => eprintln!("sigrun: could not update the tray: {e}"),
                             }
+                        }
+                        // Tell the UI when a connection gained or lost its live
+                        // terminal (a vault lock clears the set too).
+                        let active = st.active_ids();
+                        if last_active != active {
+                            let _ = handle.emit("connections-changed", ());
+                            last_active = active;
                         }
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     }
