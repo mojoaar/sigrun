@@ -163,11 +163,33 @@ describe("Connections", () => {
   });
 
   it("opens the unreachable dialog from a tray error", async () => {
+    vi.mocked(api.connectForce).mockClear().mockResolvedValueOnce(undefined);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "unreachable", message: "connection refused on h:22", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("connection refused on h:22");
     fireEvent.click(within(dialog).getByRole("button", { name: /connect anyway/i }));
     await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("c1"));
+    // A successful retry closes the dialog instead of leaving it on screen.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("shows the error alert when the tray unreachable retry fails", async () => {
+    vi.mocked(api.connectForce).mockClear().mockRejectedValueOnce({ code: "internal", message: "boom" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "unreachable", message: "connection refused on h:22", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /connect anyway/i }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/something went wrong/i);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("fails closed on a tray host-key mismatch", async () => {
+    vi.mocked(api.trustHost).mockClear();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "host_key_mismatch", message: "SHA256:x ssh-ed25519 AAAA", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
+    const banner = await screen.findByRole("alert");
+    expect(banner.textContent).toMatch(/fingerprint has changed/i);
+    // No accept affordance: the changed key is never recorded.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.trustHost).not.toHaveBeenCalled();
   });
 
   it("warns before disabling password auth", async () => {

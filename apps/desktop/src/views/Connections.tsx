@@ -296,17 +296,30 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
 
   // A tray connect that failed (untrusted or unreachable host) opens the same
   // dialog the in-window Connect would, then the host clears the carried error.
+  // A changed host key fails closed: it shows the mismatch banner, never an
+  // accept, so the changed key is not recorded.
   useEffect(() => {
     if (!connectionError) return;
     const { id, code, message, host, port } = connectionError;
-    if (code.startsWith("host_key_")) {
+    // A stale in-window banner must not sit behind a tray dialog.
+    setError(false);
+    setMismatch(false);
+    if (code === "host_key_unknown") {
       const [fp, algo, key] = message.split(" ");
       setTrust({ host, port, fp, algo, key, run: () => connectGuarded(id) });
+    } else if (code === "host_key_mismatch") {
+      setMismatch(true);
     } else if (code === "unreachable") {
-      setUnreachable({ message, retry: () => connectForce(id) });
+      setUnreachable({
+        message,
+        retry: () => {
+          setUnreachable(null);
+          return connectForce(id).catch(handle);
+        },
+      });
     }
     onConnectionErrorHandled?.();
-  }, [connectionError, onConnectionErrorHandled]);
+  }, [connectionError, onConnectionErrorHandled, handle]);
 
   const handleTrustError = useCallback((err: unknown, retry: TrustRetry) => {
     const e = err as CommandError;
