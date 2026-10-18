@@ -78,3 +78,5 @@ export const importKey = (path: string, name: string, passphrase?: string | null
 export const removeKey = (id: string) => call<void>("remove_key", { id });
 export const getSettings = async () => JSON.parse(await call<string>("get_settings")) as Settings;
 export const saveSettings = (settings: Settings) => call<void>("save_settings", { settings });
+// The host allowlists the URL, so the UI can only open Sigrun's own links.
+export const openExternal = (url: string) => call<void>("open_external", { url });

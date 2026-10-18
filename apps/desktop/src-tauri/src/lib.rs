@@ -32,6 +32,7 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::list_terminals,
+            commands::open_external,
         ])
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;

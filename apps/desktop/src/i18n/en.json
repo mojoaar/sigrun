@@ -1,6 +1,6 @@
 {
   "app": { "title": "Sigrun", "tagline": "Your SSH keys and connections, in one place." },
-  "nav": { "connections": "Connections", "keys": "Keys", "settings": "Settings" },
+  "nav": { "connections": "Connections", "keys": "Keys", "settings": "Settings", "help": "Help" },
   "vault": {
     "uninitialized": {
       "title": "Create your vault",
@@ -99,6 +99,53 @@
     "quit": "Quit",
     "unlock": "Unlock Sigrun…",
     "discovered": "Discovered"
+  },
+  "help": {
+    "title": "Help",
+    "intro": "Sigrun keeps your SSH keys and connections in one place. The name comes from Sigrún: sigr means victory and rún means secret — victory over key chaos.",
+    "quickStart": {
+      "title": "Quick start",
+      "vault": "Create or unlock the vault with your passphrase.",
+      "key": "Import a key from disk, or generate a new one.",
+      "connection": "Add a connection: label, host, user, and port.",
+      "connect": "Connect — Sigrun opens your terminal running ssh.",
+      "provision": "On a server that only accepts passwords, use “Install SSH key…” to install a key from your vault using the server's password."
+    },
+    "groups": {
+      "title": "Connections and groups",
+      "nesting": "Groups nest with “/”. A connection in PVE/Folder 1 shows under Folder 1 inside PVE.",
+      "tray": "Left-click the tray icon: with the vault locked it opens the window so you can unlock; with the vault unlocked it opens the connection menu, grouped the same way."
+    },
+    "keys": {
+      "title": "Keys",
+      "vault": "Vault-backed keys live encrypted in Sigrun and are served by its SSH agent — no key file on disk.",
+      "disk": "Disk-backed keys stay where they are. Sigrun passes -i <path> to ssh and leaves your ~/.ssh untouched."
+    },
+    "settings": {
+      "title": "Settings",
+      "summary": "Theme and appearance, language, the terminal to launch, auto-lock after idle, and start minimized to the tray."
+    },
+    "cli": {
+      "title": "Command line",
+      "host": { "cmd": "sigrun host", "desc": "Run the host in the foreground." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Unlock the vault." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Add a connection." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Open a connection in the terminal." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Store a connection's password." }
+    },
+    "data": {
+      "title": "Where data lives",
+      "dir": "Your data lives in the per-user data directory: ~/Library/Application Support/Sigrun on macOS, ~/.local/share/sigrun on Linux, and %APPDATA%\\Sigrun on Windows.",
+      "ssh": "Sigrun never modifies ~/.ssh."
+    },
+    "about": {
+      "title": "About",
+      "version": "Version {{version}}",
+      "author": "Made by mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Licensed under the MIT licence."
+    }
   },
   "common": {
     "save": "Save",
