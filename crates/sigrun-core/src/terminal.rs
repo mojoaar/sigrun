@@ -456,6 +456,18 @@ pub struct TerminalInfo {
     pub id: String,
     /// Human-readable name for the UI.
     pub name: String,
+    /// Whether *this build* can ask this terminal for a tab, not whether the
+    /// terminal has tabs: Terminal.app has tabs and cannot be asked for one.
+    pub tabs: bool,
+}
+
+/// Whether the launch arm for `(platform, id)` honours `open_in == "tab"`.
+/// A pure function of the pair — never a check of what is installed.
+fn supports_tabs(platform: Platform, id: &str) -> bool {
+    matches!(
+        (platform, id),
+        (Platform::MacOs, "iterm") | (Platform::MacOs, "ghostty")
+    )
 }
 
 /// Terminals we can launch, filtered to the ones actually installed.
@@ -467,6 +479,7 @@ pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
             let mut out = vec![TerminalInfo {
                 id: "terminal".into(),
                 name: "Terminal".into(),
+                tabs: supports_tabs(Platform::MacOs, "terminal"),
             }];
             for (id, name, present) in [
                 (
@@ -499,6 +512,7 @@ pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
                     out.push(TerminalInfo {
                         id: id.into(),
                         name: name.into(),
+                        tabs: supports_tabs(Platform::MacOs, id),
                     });
                 }
             }
@@ -510,6 +524,7 @@ pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
             .map(|p| TerminalInfo {
                 id: (*p).into(),
                 name: (*p).into(),
+                tabs: supports_tabs(Platform::Linux, p),
             })
             .collect(),
         Platform::Windows => {
@@ -518,11 +533,13 @@ pub fn detect_terminals(platform: Platform) -> Vec<TerminalInfo> {
                 out.push(TerminalInfo {
                     id: "wt.exe".into(),
                     name: "Windows Terminal".into(),
+                    tabs: supports_tabs(Platform::Windows, "wt.exe"),
                 });
             }
             out.push(TerminalInfo {
                 id: "cmd.exe".into(),
                 name: "Command Prompt".into(),
+                tabs: supports_tabs(Platform::Windows, "cmd.exe"),
             });
             out
         }
@@ -1138,6 +1155,34 @@ mod tests {
                 "xterm"
             ]
             .contains(&t.id.as_str()))),
+        }
+    }
+
+    #[test]
+    fn only_the_scriptable_mac_terminals_can_open_a_tab() {
+        assert!(supports_tabs(Platform::MacOs, "iterm"));
+        assert!(supports_tabs(Platform::MacOs, "ghostty"));
+        for id in ["terminal", "kitty", "alacritty", "wezterm", ""] {
+            assert!(!supports_tabs(Platform::MacOs, id), "{id}");
+        }
+        for platform in [Platform::Linux, Platform::Windows] {
+            for id in ["gnome-terminal", "konsole", "wt.exe", "cmd.exe", "ghostty"] {
+                assert!(!supports_tabs(platform, id), "{id}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_detected_terminal_reports_its_tab_capability() {
+        for platform in [Platform::MacOs, Platform::Linux, Platform::Windows] {
+            for terminal in detect_terminals(platform) {
+                assert_eq!(
+                    terminal.tabs,
+                    supports_tabs(platform, &terminal.id),
+                    "{}",
+                    terminal.id
+                );
+            }
         }
     }
 

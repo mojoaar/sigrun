@@ -36,7 +36,7 @@ export type Hardening = "not_requested" | "applied" | { skipped: string };
 export type ProvisionOutcome = { installed: string[]; verified: string[]; hardening: Hardening };
 export type KeyAlgorithm = "ed25519" | "rsa" | "ecdsa";
 export type Settings = { version: number; theme: string; language: string; terminal: string | null; open_in: string; agent_enabled: boolean; start_minimized: boolean; auto_lock_minutes: number };
-export type TerminalInfo = { id: string; name: string };
+export type TerminalInfo = { id: string; name: string; tabs: boolean };
 
 // Unwraps the adjacently tagged Response envelope: `error` rejects, `ok` has
 // no payload (void success), everything else resolves with `value`.
