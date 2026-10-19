@@ -45,3 +45,4 @@ tauri-plugin-single-instance = "2"
 toml = "0.8"
 uuid = { version = "1", features = ["v4"] }
 zeroize = { version = "1", features = ["derive"] }
+zip = { version = "~7.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }

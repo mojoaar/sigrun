@@ -2,6 +2,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod agent;
 pub mod askpass;
+pub mod bundle;
 pub mod connection_ended;
 pub mod error;
 pub mod host;

@@ -36,7 +36,7 @@ pub struct LaunchSpec {
 }
 
 /// `[A-Za-z0-9._-]`, non-empty — the only bytes allowed in a host or user.
-fn safe_host_bytes(value: &str) -> bool {
+pub(crate) fn safe_host_bytes(value: &str) -> bool {
     !value.is_empty()
         && value
             .bytes()

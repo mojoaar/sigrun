@@ -32,6 +32,7 @@ tokio-util = { workspace = true }
 toml = { workspace = true }
 uuid = { workspace = true }
 zeroize = { workspace = true }
+zip = { workspace = true }
 
 # Only the Unix liveness check needs `kill(2)`; Windows never sees the crate.
 [target.'cfg(unix)'.dependencies]
