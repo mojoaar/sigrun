@@ -85,6 +85,7 @@
     "openIn": "Åbn i",
     "openInWindow": "Nyt vindue",
     "openInTab": "Ny fane",
+    "openInUnavailable": "Denne terminal kan ikke åbne en fane.",
     "startMinimized": "Start minimeret i systembakken",
     "autoLock": "Lås pengeskabet automatisk",
     "autoLockNever": "Aldrig",

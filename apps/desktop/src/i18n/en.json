@@ -85,6 +85,7 @@
     "openIn": "Open in",
     "openInWindow": "New window",
     "openInTab": "New tab",
+    "openInUnavailable": "This terminal cannot open a tab.",
     "startMinimized": "Start minimized to tray",
     "autoLock": "Auto-lock the vault",
     "autoLockNever": "Never",

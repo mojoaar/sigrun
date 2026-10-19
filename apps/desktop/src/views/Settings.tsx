@@ -5,14 +5,31 @@ import { setLanguage, type Language } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
 const field = "h-9 rounded border border-border bg-bg px-2 text-text";
+// The empty id is "System default": no platform's default terminal can be asked
+// for a tab, so a missing entry means false.
+const canOpenTabs = (list: TerminalInfo[], id: string | null) =>
+  list.find((t) => t.id === (id ?? ""))?.tabs ?? false;
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const [s, setS] = useState<S | null>(null);
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [mode, setMode] = useState<Mode | "system">(readModeOverride() ?? "system");
 
-  useEffect(() => { getSettings().then(setS).catch(() => {}); }, []);
-  useEffect(() => { listTerminals().then(setTerminals).catch(() => {}); }, []);
+  useEffect(() => {
+    // Both must land together: the stored open_in is only valid once we know
+    // which terminals can open a tab. A failed terminal list must not block
+    // the pane, so it degrades to none.
+    Promise.all([getSettings(), listTerminals().catch(() => [] as TerminalInfo[])])
+      .then(([next, list]) => {
+        setTerminals(list);
+        if (next.open_in === "tab" && !canOpenTabs(list, next.terminal)) {
+          const fixed = { ...next, open_in: "window" };
+          setS(fixed);
+          saveSettings(fixed).catch((err) => console.warn("sigrun: could not save settings", err));
+        } else setS(next);
+      })
+      .catch(() => {});
+  }, []);
   if (!s) return <p className="text-muted">{t("common.loading")}</p>;
 
   const update = (patch: Partial<S>) => {
@@ -55,7 +72,10 @@ export default function Settings() {
         <select
           className={field}
           value={terminals.some((x) => x.id === s.terminal) ? (s.terminal ?? "") : ""}
-          onChange={(e) => update({ terminal: e.target.value || null })}
+          onChange={(e) => {
+            const id = e.target.value || null;
+            update({ terminal: id, ...(canOpenTabs(terminals, id) ? {} : { open_in: "window" }) });
+          }}
         >
           <option value="">{t("settings.terminalDefault")}</option>
           {terminals.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
@@ -64,9 +84,10 @@ export default function Settings() {
       <label className="flex flex-col gap-1">{t("settings.openIn")}
         <select className={field} value={s.open_in === "tab" ? "tab" : "window"} onChange={(e) => update({ open_in: e.target.value })}>
           <option value="window">{t("settings.openInWindow")}</option>
-          <option value="tab">{t("settings.openInTab")}</option>
+          <option value="tab" disabled={!canOpenTabs(terminals, s.terminal)}>{t("settings.openInTab")}</option>
         </select>
       </label>
+      {!canOpenTabs(terminals, s.terminal) && <p className="text-xs text-muted">{t("settings.openInUnavailable")}</p>}
       <label className="flex flex-col gap-1">{t("settings.autoLock")}
         <select
           className={field}
