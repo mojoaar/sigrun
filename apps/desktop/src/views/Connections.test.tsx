@@ -2,7 +2,7 @@ import { act, render, screen, fireEvent, waitFor, within } from "@testing-librar
 import { describe, it, expect, vi } from "vitest";
 import { listen } from "@tauri-apps/api/event";
 import "../i18n";
-import Connections, { groupPaths, groupTree } from "./Connections";
+import Connections, { filterConnections, groupPaths, groupTree } from "./Connections";
 import * as api from "../api";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
@@ -673,5 +673,48 @@ describe("Connections", () => {
     expect(call).toBeTruthy();
     await act(async () => { (call![1] as () => void)(); });
     await waitFor(() => expect(api.listConnections).toHaveBeenCalledTimes(2));
+  });
+
+  it("filters connections by label, user, host, port and group, case-insensitively", () => {
+    const rows: api.Connection[] = [
+      { ...conn, id: "1", label: "Prod", user: "deploy", host: "web.example.com", port: 22, group: "PVE/Cloud" },
+      { ...conn, id: "2", label: "Staging", user: "root", host: "10.0.0.5", port: 2222, group: null },
+    ];
+    expect(filterConnections(rows, "").map((c) => c.id)).toEqual(["1", "2"]);
+    expect(filterConnections(rows, "   ").map((c) => c.id)).toEqual(["1", "2"]);
+    expect(filterConnections(rows, "prod").map((c) => c.id)).toEqual(["1"]);
+    expect(filterConnections(rows, "ROOT").map((c) => c.id)).toEqual(["2"]);
+    expect(filterConnections(rows, "example").map((c) => c.id)).toEqual(["1"]);
+    expect(filterConnections(rows, "22").map((c) => c.id)).toEqual(["1", "2"]);
+    expect(filterConnections(rows, "pve").map((c) => c.id)).toEqual(["1"]);
+    expect(filterConnections(rows, "nothing-here")).toEqual([]);
+  });
+
+  it("filters the list from the search field and restores it when cleared", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "1", label: "Prod", group: null },
+      { ...conn, id: "2", label: "Staging", group: null },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await screen.findByText("Prod");
+
+    fireEvent.change(screen.getByLabelText("Search connections"), { target: { value: "prod" } });
+    expect(screen.getByText("Prod")).toBeTruthy();
+    expect(screen.queryByText("Staging")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Search connections"), { target: { value: "" } });
+    expect(screen.getByText("Prod")).toBeTruthy();
+    expect(screen.getByText("Staging")).toBeTruthy();
+  });
+
+  it("says when nothing matches the search", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "1", label: "Prod", group: null },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await screen.findByText("Prod");
+
+    fireEvent.change(screen.getByLabelText("Search connections"), { target: { value: "zzz" } });
+    expect(screen.getByText("No connections match.")).toBeTruthy();
   });
 });

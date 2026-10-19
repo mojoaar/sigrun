@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A search field over the connection list, matching label, user, host, port and group.
 - The connection form suggests the group paths already in use and warns when a label duplicates another connection.
 - A macOS About dialog naming the project, its version, its copyright and website, and the app icon, plus complete installer metadata.
 - An `open_in` setting (`"window"` or `"tab"`) for where a connect opens.

@@ -42,6 +42,7 @@
     "removeSavedPassword": "Remove the saved password",
     "hasPassword": "Password saved",
     "search": "Search connections",
+    "noMatches": "No connections match.",
     "discovered": "Discovered in ~/.ssh/config",
     "removeConfirm": "Remove this connection? This cannot be undone."
   },

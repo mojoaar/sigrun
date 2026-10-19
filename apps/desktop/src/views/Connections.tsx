@@ -50,6 +50,16 @@ export function groupTree(conns: Connection[]): TreeNode[] {
   ];
 }
 
+// In-memory over the loaded list: an empty query returns the same array, so a
+// cleared field does not rebuild the tree.
+export function filterConnections(conns: Connection[], query: string): Connection[] {
+  const q = query.trim().toLowerCase();
+  if (q === "") return conns;
+  return conns.filter((c) =>
+    [c.label, c.user, c.host, c.group ?? "", String(c.port)].some((v) => v.toLowerCase().includes(q)),
+  );
+}
+
 // Every `/`-prefix of every group, so a half-typed path matches its parent too.
 export function groupPaths(conns: Connection[]): string[] {
   const paths = new Set<string>();
@@ -291,6 +301,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
 }) {
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
+  const [query, setQuery] = useState("");
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
   const [provision, setProvision] = useState<Connection | null>(null);
@@ -393,6 +404,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   };
 
   const hasUsableKey = keys.some((k) => k.available);
+  const filtered = filterConnections(conns, query);
 
   const renderNode = (node: TreeNode) => (
     <section key={node.path} className="flex flex-col gap-2">
@@ -419,9 +431,19 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{t("connections.title")}</h2>
-        <button className="rounded bg-accent px-3 py-1 text-bg" onClick={() => setForm({ edit: null })}>{t("connections.add")}</button>
+        <div className="flex w-full max-w-sm items-center gap-2">
+          <input
+            type="search"
+            className={field}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("connections.search")}
+            aria-label={t("connections.search")}
+          />
+          <button className="shrink-0 rounded bg-accent px-3 py-1 text-bg" onClick={() => setForm({ edit: null })}>{t("connections.add")}</button>
+        </div>
       </div>
       {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
       {mismatch && <p role="alert" className="text-danger">{t("trust.mismatch")}</p>}
@@ -457,7 +479,10 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
         </div>
       )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
-      {groupTree(conns).map(renderNode)}
+      {conns.length > 0 && query.trim() !== "" && filtered.length === 0 && (
+        <p className="text-sm text-muted">{t("connections.noMatches")}</p>
+      )}
+      {groupTree(filtered).map(renderNode)}
       {confirmRemove && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
           <div role="dialog" aria-label={t("common.delete")} className="rounded border border-border bg-surface p-3">

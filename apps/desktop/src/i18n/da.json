@@ -42,6 +42,7 @@
     "removeSavedPassword": "Fjern den gemte adgangskode",
     "hasPassword": "Adgangskode gemt",
     "search": "Søg i forbindelser",
+    "noMatches": "Ingen forbindelser matcher.",
     "discovered": "Fundet i ~/.ssh/config",
     "removeConfirm": "Vil du fjerne denne forbindelse? Det kan ikke fortrydes."
   },
