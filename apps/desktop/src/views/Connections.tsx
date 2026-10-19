@@ -50,9 +50,24 @@ export function groupTree(conns: Connection[]): TreeNode[] {
   ];
 }
 
-function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
+// Every `/`-prefix of every group, so a half-typed path matches its parent too.
+export function groupPaths(conns: Connection[]): string[] {
+  const paths = new Set<string>();
+  for (const c of conns) {
+    let path = "";
+    for (const segment of (c.group ?? "").split("/").map((s) => s.trim()).filter(Boolean)) {
+      path = path ? `${path}/${segment}` : segment;
+      paths.add(path);
+    }
+  }
+  return [...paths].sort();
+}
+
+function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
   initial: Connection | null;
   keys: KeyView[];
+  groups: string[];
+  labels: string[];
   onClose: () => void;
   onSaved: () => void;
   onProvision: (c: Connection) => void;
@@ -71,6 +86,9 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
   const [removePassword, setRemovePassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canProvision = keys.some((k) => k.available);
+  // Non-blocking: two connections sharing a label make `connections connect
+  // <label>` resolve to whichever the host lists first.
+  const duplicateLabel = c.label.trim() !== "" && labels.includes(c.label.trim());
   useEffect(() => {
     bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
     return () => bindProvisioned(null);
@@ -101,10 +119,13 @@ function Form({ initial, keys, onClose, onSaved, onProvision, bindProvisioned, o
     <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} className="fixed inset-0 flex items-center justify-center bg-black/50">
       <form onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
         <label>{t("connections.label")}<input required className={field} value={c.label} onChange={(e) => setC({ ...c, label: e.target.value })} /></label>
+        {duplicateLabel && <p role="alert" className="text-xs text-danger">{t("connections.duplicateLabel")}</p>}
         <label>{t("connections.host")}<input required className={field} value={c.host} onChange={(e) => setC({ ...c, host: e.target.value })} /></label>
         <label>{t("connections.user")}<input required className={field} value={c.user} onChange={(e) => setC({ ...c, user: e.target.value })} /></label>
         <label>{t("connections.port")}<input required type="number" min={1} max={65535} className={field} value={c.port} onChange={(e) => setC({ ...c, port: Number(e.target.value) })} /></label>
-        <label>{t("connections.group")}<input className={field} value={c.group ?? ""} onChange={(e) => setC({ ...c, group: e.target.value || null })} /></label>
+        <label>{t("connections.group")}<input className={field} list="sigrun-groups" value={c.group ?? ""} onChange={(e) => setC({ ...c, group: e.target.value || null })} />
+          <datalist id="sigrun-groups">{groups.map((path) => <option value={path} key={path} />)}</datalist>
+        </label>
         <label>{t("connections.key")}
           <select className={field} value={c.key_id ?? ""} onChange={(e) => setC({ ...c, key_id: e.target.value || null })}>
             <option value=""></option>
@@ -457,7 +478,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           </div>
         </div>
       )}
-      {form && <Form initial={form.edit} keys={keys} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
+      {form && <Form initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label)} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

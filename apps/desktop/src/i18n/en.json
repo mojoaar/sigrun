@@ -31,6 +31,7 @@
     "connectAnyway": "Connect anyway",
     "active": "Connected",
     "label": "Label",
+    "duplicateLabel": "Another connection already uses this label.",
     "host": "Host",
     "user": "User",
     "port": "Port",

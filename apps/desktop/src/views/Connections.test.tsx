@@ -2,7 +2,7 @@ import { act, render, screen, fireEvent, waitFor, within } from "@testing-librar
 import { describe, it, expect, vi } from "vitest";
 import { listen } from "@tauri-apps/api/event";
 import "../i18n";
-import Connections, { groupTree } from "./Connections";
+import Connections, { groupPaths, groupTree } from "./Connections";
 import * as api from "../api";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
@@ -612,6 +612,51 @@ describe("Connections", () => {
     const row = (label: string) => screen.getByText(label).closest("li") as HTMLElement;
     expect(within(row("live")).getByRole("img", { name: "Connected" })).toBeTruthy();
     expect(within(row("idle")).queryByRole("img", { name: "Connected" })).toBeNull();
+  });
+
+  it("suggests every prefix of the group paths already in use", () => {
+    expect(groupPaths([
+      { ...conn, id: "a", group: "PVE/Folder 1" },
+      { ...conn, id: "b", group: "PVE" },
+      { ...conn, id: "c", group: "/Cloud//EU/" },
+      { ...conn, id: "d", group: null },
+      { ...conn, id: "e", group: "   " },
+    ])).toEqual(["Cloud", "Cloud/EU", "PVE", "PVE/Folder 1"]);
+  });
+
+  it("offers the known group paths on the group field", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([{ ...conn, id: "a", group: "PVE/Folder 1" }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    const group = screen.getByLabelText("Group") as HTMLInputElement;
+    expect(group.getAttribute("list")).toBe("sigrun-groups");
+    const options = Array.from(document.querySelectorAll("#sigrun-groups option")).map((o) => o.getAttribute("value"));
+    expect(options).toEqual(["PVE", "PVE/Folder 1"]);
+  });
+
+  it("warns when the label duplicates another connection, but not about itself", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { id: "1", label: "Prod", host: "prod.example.com", user: "deploy", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
+      { ...conn, id: "2", label: "other" },
+    ]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    // Add mode: typing another connection's label warns.
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "other" } });
+    expect(screen.getByText("Another connection already uses this label.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    // Edit mode: a connection never warns about its own label...
+    const row = screen.getByText("Prod").closest("li") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit connection" }));
+    const edit = await screen.findByRole("dialog", { name: "Edit connection" });
+    const own = within(edit).getByLabelText("Label") as HTMLInputElement;
+    expect(own.value).toBe("Prod");
+    expect(screen.queryByText("Another connection already uses this label.")).toBeNull();
+    // ...but the list is live, so another connection's label still warns.
+    fireEvent.change(own, { target: { value: "other" } });
+    expect(screen.getByText("Another connection already uses this label.")).toBeTruthy();
   });
 
   it("refetches when the host reports a changed active set", async () => {

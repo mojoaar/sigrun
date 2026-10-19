@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The connection form suggests the group paths already in use and warns when a label duplicates another connection.
 - A macOS About dialog that names the author and links the website and the MIT licence, plus complete installer metadata.
 - An `open_in` setting (`"window"` or `"tab"`) for where a connect opens.
 - The open-in setting is editable in Settings, next to the terminal picker.
