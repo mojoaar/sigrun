@@ -79,6 +79,17 @@ pub enum Request {
         id: String,
     },
     TerminalsList,
+    /// Write every connection and public key metadata to `path`, as a folder or
+    /// a `.zip`. Reads only `data.toml`: no vault, no secret.
+    ExportBundle {
+        path: String,
+        zipped: bool,
+    },
+    /// Merge the bundle at `path` (a folder or a `.zip`) into the store,
+    /// skipping the ids already there. Never touches the vault.
+    ImportBundle {
+        path: String,
+    },
     Shutdown,
 }
 
@@ -95,6 +106,8 @@ pub enum Response {
     Terminals(Vec<crate::terminal::TerminalInfo>),
     Command(String),
     Provisioned(crate::provision::ProvisionOutcome),
+    Export(crate::bundle::ExportSummary),
+    Import(crate::bundle::ImportSummary),
     Unlocked { warnings: Vec<String> },
     Password(String),
     Error { code: String, message: String },
@@ -113,6 +126,8 @@ impl std::fmt::Debug for Response {
             Response::Terminals(v) => f.debug_tuple("Terminals").field(v).finish(),
             Response::Command(v) => f.debug_tuple("Command").field(v).finish(),
             Response::Provisioned(v) => f.debug_tuple("Provisioned").field(v).finish(),
+            Response::Export(v) => f.debug_tuple("Export").field(v).finish(),
+            Response::Import(v) => f.debug_tuple("Import").field(v).finish(),
             Response::Unlocked { warnings } => f
                 .debug_struct("Unlocked")
                 .field("warnings", warnings)

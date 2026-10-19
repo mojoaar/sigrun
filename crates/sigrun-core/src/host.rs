@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::agent::{vault_keys, AgentState};
+use crate::bundle::{self, ExportSummary, ImportSummary};
 use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
@@ -186,6 +187,63 @@ impl HostState {
             }
         }
     }
+
+    /// Write every connection and every key's public metadata to `path`, as a
+    /// folder or a `.zip`. Reads only `data.toml`, so the vault stays as it is.
+    async fn export_bundle(&self, path: &str, zipped: bool) -> Result<ExportSummary> {
+        let dest = Path::new(path);
+        if !bundle::destination_is_allowed(dest, &self.paths.ssh_dir) {
+            return Err(Error::InvalidInput(
+                "cannot export inside the SSH directory".into(),
+            ));
+        }
+        // Never half-overwrite: a folder that already holds an export, or an
+        // existing zip file, is refused rather than clobbered.
+        let taken = if zipped {
+            dest.exists()
+        } else {
+            dest.join(bundle::EXPORT_FILE).exists()
+        };
+        if taken {
+            return Err(Error::AlreadyExists(path.to_string()));
+        }
+
+        let data = self.store.load_data()?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let built = bundle::build_bundle(&data, now);
+        if zipped {
+            bundle::write_zip(&built, dest)?;
+        } else {
+            bundle::write_folder(&built, dest)?;
+        }
+        Ok(ExportSummary {
+            path: path.to_string(),
+            connections: built.connections.len(),
+            keys: built.keys.len(),
+        })
+    }
+
+    /// Merge the connections of the bundle at `path` into the store. Nothing is
+    /// overwritten or deleted, and the vault is never read or written.
+    async fn import_bundle(&self, path: &str) -> Result<ImportSummary> {
+        let src = Path::new(path);
+        if !src.exists() {
+            return Err(Error::NotFound(path.to_string()));
+        }
+        let incoming = bundle::read_bundle(src)?;
+        // Always through `merge`: what lands in the store is rebuilt from
+        // connections the launcher accepts, so a hostile `export.json` never
+        // survives into a later export verbatim.
+        let mut summary = ImportSummary::default();
+        self.store.update_data(|data| {
+            summary = bundle::merge(data, &incoming);
+            Ok(())
+        })?;
+        Ok(summary)
+    }
 }
 
 /// Whether `pid` names a live process. `kill(pid, 0)` sends no signal; it only
@@ -346,6 +404,13 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             key_ids,
             disable_password_auth,
         } => connections_provision(state, id, password, key_ids, disable_password_auth).await,
+        // Not vault-touching: an export or an import reads only `data.toml`, so
+        // neither may defer the idle auto-lock.
+        Request::ExportBundle { path, zipped } => state
+            .export_bundle(&path, zipped)
+            .await
+            .map(Response::Export),
+        Request::ImportBundle { path } => state.import_bundle(&path).await.map(Response::Import),
         // Not vault-touching: a session can end long after the launch that
         // bumped the clock, and that must not defer the idle auto-lock.
         Request::ConnectionEnded { id } => {
@@ -884,6 +949,31 @@ mod tests {
         *state.vault.lock().await = Some(Vault::new(path).unlock("pw").unwrap());
     }
 
+    /// A connection the launcher would accept: a real host and port.
+    fn usable(id: &str, host: &str) -> Connection {
+        let mut conn = Connection::managed(id, id);
+        conn.host = host.into();
+        conn.user = "me".into();
+        conn
+    }
+
+    /// A host in its own tempdir with one connection already stored through the
+    /// IPC, the way the app seeds one.
+    async fn host_with_one_connection(dir: &Path) -> HostState {
+        let state = state_in(dir).await;
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsAdd {
+                    connection: usable("c1", "one.example"),
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        state
+    }
+
     #[tokio::test]
     async fn provisioning_without_any_key_is_invalid_input() {
         let dir = tempfile::tempdir().unwrap();
@@ -1417,6 +1507,289 @@ mod tests {
         }
         match provision(&state, "web", &["k1"]).await {
             Err(Error::InvalidInput(m)) => assert!(m.contains("c1") && m.contains("c2")),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn exporting_writes_a_folder_the_import_can_read_back() {
+        let from = tempfile::tempdir().unwrap();
+        let to = tempfile::tempdir().unwrap();
+        let source = host_with_one_connection(from.path()).await;
+        let target = to.path().join("sigrun-export");
+
+        let Response::Export(summary) = handle(
+            &source,
+            Request::ExportBundle {
+                path: target.display().to_string(),
+                zipped: false,
+            },
+        )
+        .await
+        else {
+            panic!("the export should have succeeded");
+        };
+        assert_eq!(summary.connections, 1);
+        assert_eq!(summary.keys, 0);
+        assert_eq!(summary.path, target.display().to_string());
+
+        // A second host whose data dir has nothing in it.
+        let dest = state_in(to.path()).await;
+        let Response::Import(summary) = handle(
+            &dest,
+            Request::ImportBundle {
+                path: target.display().to_string(),
+            },
+        )
+        .await
+        else {
+            panic!("the import should have succeeded");
+        };
+        assert_eq!(summary.added, 1);
+        match handle(&dest, Request::ConnectionsList).await {
+            Response::Connections(cs) => {
+                assert_eq!(cs.len(), 1);
+                assert_eq!(cs[0].id, "c1");
+                assert_eq!(cs[0].host, "one.example");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        source.shutdown.cancel();
+        dest.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn importing_twice_adds_nothing_the_second_time() {
+        let from = tempfile::tempdir().unwrap();
+        let to = tempfile::tempdir().unwrap();
+        let source = host_with_one_connection(from.path()).await;
+        let target = to.path().join("sigrun-export");
+        handle(
+            &source,
+            Request::ExportBundle {
+                path: target.display().to_string(),
+                zipped: false,
+            },
+        )
+        .await;
+
+        let dest = state_in(to.path()).await;
+        let import = || Request::ImportBundle {
+            path: target.display().to_string(),
+        };
+        match handle(&dest, import()).await {
+            Response::Import(s) => {
+                assert_eq!(s.added, 1);
+                assert_eq!(s.skipped, 0);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        match handle(&dest, import()).await {
+            Response::Import(s) => {
+                assert_eq!(s.added, 0);
+                assert_eq!(s.skipped, 1);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        // Skipped means not stored again either: one connection, not two.
+        assert_eq!(dest.store.load_data().unwrap().connections.len(), 1);
+        source.shutdown.cancel();
+        dest.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn importing_sets_no_password_and_no_active_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        // `build_bundle` clears these, so a file that sets them is the only way
+        // to pin that import clears them again.
+        let mut conn = usable("c1", "one.example");
+        conn.has_password = true;
+        conn.active = true;
+        let hostile = bundle::Bundle {
+            format: bundle::FORMAT_VERSION,
+            exported_at: 0,
+            connections: vec![conn],
+            keys: Vec::new(),
+        };
+        let folder = dir.path().join("export");
+        bundle::write_folder(&hostile, &folder).unwrap();
+
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ImportBundle {
+                    path: folder.display().to_string()
+                }
+            )
+            .await,
+            Response::Import(_)
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored.len(), 1);
+        assert!(!stored[0].has_password && !stored[0].active);
+        // The list is what the UI reads, so it must report the same.
+        match handle(&state, Request::ConnectionsList).await {
+            Response::Connections(cs) => assert!(!cs[0].has_password && !cs[0].active),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn importing_does_not_copy_an_invalid_connection_into_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        // A crafted export whose host the launcher would refuse. Storing the
+        // parsed file verbatim would keep it; import merges instead.
+        let mut conn = usable("c1", "placeholder");
+        conn.host = String::new();
+        let hostile = bundle::Bundle {
+            format: bundle::FORMAT_VERSION,
+            exported_at: 0,
+            connections: vec![conn],
+            keys: Vec::new(),
+        };
+        let folder = dir.path().join("export");
+        bundle::write_folder(&hostile, &folder).unwrap();
+
+        match handle(
+            &state,
+            Request::ImportBundle {
+                path: folder.display().to_string(),
+            },
+        )
+        .await
+        {
+            Response::Import(s) => {
+                assert_eq!(s.added, 0);
+                assert_eq!(s.invalid, 1);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(state.store.load_data().unwrap().connections.is_empty());
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn exporting_into_the_ssh_directory_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = host_with_one_connection(dir.path()).await;
+        std::fs::create_dir_all(&state.paths.ssh_dir).unwrap();
+        let target = state.paths.ssh_dir.join("sigrun-export");
+        match handle(
+            &state,
+            Request::ExportBundle {
+                path: target.display().to_string(),
+                zipped: false,
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(!target.exists(), "nothing may be written into ~/.ssh");
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn exporting_over_an_existing_export_file_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = host_with_one_connection(dir.path()).await;
+        let target = dir.path().join("sigrun-export");
+        let request = || Request::ExportBundle {
+            path: target.display().to_string(),
+            zipped: false,
+        };
+        assert!(matches!(
+            handle(&state, request()).await,
+            Response::Export(_)
+        ));
+
+        // A marker the second export would rub out if it were allowed to run.
+        let export_file = target.join(bundle::EXPORT_FILE);
+        std::fs::write(&export_file, b"SENTINEL").unwrap();
+        match handle(&state, request()).await {
+            Response::Error { code, .. } => assert_eq!(code, "already_exists"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(std::fs::read(&export_file).unwrap(), b"SENTINEL");
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn exporting_over_an_existing_zip_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = host_with_one_connection(dir.path()).await;
+        let target = dir.path().join("backup.zip");
+        std::fs::write(&target, b"SENTINEL").unwrap();
+        match handle(
+            &state,
+            Request::ExportBundle {
+                path: target.display().to_string(),
+                zipped: true,
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "already_exists"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(std::fs::read(&target).unwrap(), b"SENTINEL");
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn export_and_import_do_not_defer_the_idle_auto_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = host_with_one_connection(dir.path()).await;
+        let target = dir.path().join("sigrun-export");
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ExportBundle {
+                    path: target.display().to_string(),
+                    zipped: false
+                }
+            )
+            .await,
+            Response::Export(_)
+        ));
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ImportBundle {
+                    path: target.display().to_string()
+                }
+            )
+            .await,
+            Response::Import(_)
+        ));
+        // Neither reads the vault, so neither may bump the idle clock.
+        assert_eq!(
+            state
+                .last_vault_activity
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_missing_bundle_is_an_error_not_a_panic() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        match handle(
+            &state,
+            Request::ImportBundle {
+                path: dir.path().join("nope").display().to_string(),
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
         state.shutdown.cancel();

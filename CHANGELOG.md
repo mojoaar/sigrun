@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A pulsing dot on a connection row while its session is live (macOS and Linux): the host keeps the live sessions in memory, the launched command reports its own end, and the dot clears when the session closes.
 - The launched line reports its own shell's pid before `ssh` runs, so the host notices a session whose terminal is killed outright (macOS and Linux).
 - The export/import bundle format: connections and public key metadata written as a folder or a `.zip`, read back with zip limits and entry-name checks, and merged by id without overwriting.
+- Export and import over the host IPC: writing a bundle refuses a destination inside `~/.ssh` or one already taken, and importing merges connections by id without ever touching the vault.
 
 ### Changed
 
