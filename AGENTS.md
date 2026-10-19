@@ -85,7 +85,10 @@ newtype variants holding a sequence.
 - Terminal launch is per platform: AppleScript for Terminal.app, iTerm and
   Ghostty tabs; otherwise argv on macOS (Ghostty window and Alacritty via `-e`,
   `kitty /bin/sh -c`, `wezterm start --`); `sh -c` on Linux, `cmd.exe /k` on
-  Windows.
+  Windows. The `open_in` setting is honoured only by Ghostty and iTerm on macOS
+  — the two arms with a tab path — and every other terminal must keep ignoring
+  it: Terminal.app cannot create a tab and kitty/WezTerm need the user's own
+  config or a running mux. `TerminalInfo.tabs` mirrors that pair.
 - On macOS and Linux the launched command reports its own shell pid before `ssh`
   runs and its own end when `ssh` exits (`connection-ended`), and then keeps the
   window open on failure with the same `|| exec ${SHELL:-/bin/sh}` chain, so the

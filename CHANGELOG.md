@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Open in setting no longer offers a new tab for terminals that cannot open one.
 - Documented which terminals honour the new window-or-tab setting.
 - iTerm connects honour the "Open in" setting, so the default opens a new window instead of reusing a tab.
 - "Start minimized to tray" now sits at the end of Settings, after the other options.

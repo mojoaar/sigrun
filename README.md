@@ -89,8 +89,14 @@ only hands it the argv and `SSH_AUTH_SOCK`.
 ### Where the terminal opens
 
 The **Open in** setting, next to the terminal picker in Settings, chooses a
-**new window** or a **new tab** for each connect. Ghostty and iTerm honour it on
-macOS.
+**new window** or a **new tab** for each connect. Only the terminals Sigrun can
+ask for a tab are offered one — Ghostty and iTerm on macOS; every other choice
+shows **New window** as the only selectable entry, with a note that the terminal
+cannot open a tab. Terminal.app's scripting dictionary exposes tabs as
+read-only, so no new tab can be created there, and kitty and WezTerm need the
+user's own config (`allow_remote_control yes`) or a running mux before their tab
+commands work. On Linux and Windows no terminal can be asked, so the setting has
+no effect there.
 
 - **Ghostty** opens a **tab in the front window** when asked, or a **new window**
   when none is open, so the first connect is not a no-op. `open -na Ghostty.app
@@ -103,7 +109,7 @@ macOS.
   Support is retained, not a fallback we intend to drop.
 
 kitty and WezTerm are supported but were not tested on this machine; both open a
-window per connect, as they expose no reliable tab API.
+window per connect.
 
 A failed connection keeps its window or tab open, with the error.
 
