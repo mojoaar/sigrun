@@ -210,3 +210,28 @@ four buttons, a one-line hint and a result line.
 4. A crafted zip — a `../` entry name, an oversized entry, thousands of entries
    — must not write outside the destination, exhaust memory, or panic.
 5. The folder and the zip must round-trip to the same state, entry for entry.
+
+---
+
+## Revision 2026-10-19 (after the first implementation review)
+
+1. **Import is connections-only.** The earlier idea of importing key *records*
+   too is dropped. `keys_list` lists only vault-source keys, so an imported
+   disk-source record would be invisible rather than "unavailable"; and a
+   record upserted by id would overwrite. The keys half of a bundle is
+   reference material — public key text, name, fingerprint and algorithm — and
+   import ignores it. Disk-key ids are fingerprints, so a reinstall
+   re-discovers the same ids and an imported connection still resolves; a vault
+   key can only come back from the vault file.
+2. **A key's `disk_path` is stripped on export.** It is an absolute path on the
+   exporting machine: meaningless elsewhere, and a leak of the exporter's
+   filesystem layout.
+3. **The dependency pins use a `~` range.** `zip` 7.4 needs Rust 1.88 and
+   `tauri-plugin-dialog` 2.8 needs 1.90; both are above the project's declared
+   1.85, so a caret range would silently raise the floor. Pinned to 7.3.x and
+   2.7.x.
+4. **The `~/.ssh` refusal must not canonicalise a destination that does not
+   exist yet**, which is the normal case for a picker result. Compare against
+   the destination's longest existing ancestor plus the remainder, and refuse
+   an existing zip target the way the folder case refuses an existing
+   `export.json`.

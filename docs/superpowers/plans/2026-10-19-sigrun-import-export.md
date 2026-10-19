@@ -13,9 +13,9 @@
 ## Global Constraints
 
 - `~/.ssh` is read-only. The single exception (appending to a remote `authorized_keys` during an explicit provision) is untouched by this work. An export destination inside `~/.ssh` is refused.
-- Secrets never appear in argv, an environment *value*, a log line, an error message or the persisted model. The bundle carries no secret: no private key material, no stored password, no vault file.
+- Secrets never appear in argv, an environment *value*, a log line, an error message or the persisted model. The bundle carries no secret and no machine-local path: no private key material, no stored password, no vault file, and a key's `disk_path` (an absolute path on the exporting machine) is stripped on export.
 - Every user-facing string goes through `t(...)` with its key in **both** `apps/desktop/src/i18n/en.json` and `da.json`; a recursive completeness guard test enforces parity.
-- Dependencies only via `[workspace.dependencies]`, and no new dependency without a strong reason. Exactly two are added here, pinned to the MSRV floor: `zip = { version = "7.3.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }` and `tauri-plugin-dialog = "2.7.3"`.
+- Dependencies only via `[workspace.dependencies]`, and no new dependency without a strong reason. Exactly two are added here, each pinned with a `~` range to the MSRV floor: `zip = { version = "~7.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }` and `tauri-plugin-dialog = "~2.7"`. A caret range is deliberately avoided: `zip` 7.4 needs Rust 1.88 and `tauri-plugin-dialog` 2.8 needs 1.90, both above this project's declared 1.85, so an unconstrained range would silently raise the floor.
 - The gate: `cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --all-targets`. When anything under `apps/desktop/src` changes, also from `apps/desktop`: `npm test -- --run && npm run typecheck && npm run lint && npm run build`.
 - Every change gets a `## [Unreleased]` Keep-a-Changelog entry. One commit per task, conventional message.
 - A Tauri plugin API the webview calls needs a grant in `apps/desktop/src-tauri/capabilities/default.json`, or the call is rejected and a swallowed promise hides it.
@@ -58,8 +58,9 @@
 
 In the root `Cargo.toml` under `[workspace.dependencies]`:
 ```toml
-zip = { version = "7.3.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "~7.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 ```
+Then confirm with `cargo tree -p sigrun-core | grep zip` that cargo resolved a **7.3.x** release, not 7.4: 7.4 needs Rust 1.88.
 and in `crates/sigrun-core/Cargo.toml` under `[dependencies]`:
 ```toml
 zip = { workspace = true }
@@ -212,6 +213,11 @@ Expected: FAIL — unresolved variants and methods.
 
 Add the two variants to `Request` and the two to `Response`. Add the two arms to `handle_inner`'s match. Add both to the `last_vault_activity` `matches!` list — unlike `ConnectionEnded`/`SessionStarted`, these read or write `data.toml` under the store lock and their result is stale if the vault changes, so they *should* defer the idle auto-lock only if that matches the list's existing intent; read the list's comment and follow it, and say in the report which way you went and why. Implement `export_bundle`: refuse a destination that `destination_is_allowed` rejects, refuse when the destination already holds `export.json`, load the data, build the bundle, then write the folder or the zip. Implement `import_bundle`: refuse a path that does not exist, read the bundle, then apply `merge` inside `store.update_data`.
 
+Two details about the destination check, both of which the obvious implementation gets wrong:
+
+- The picker's destination normally **does not exist yet** when the export starts, so canonicalising it fails. Compare a canonicalised `ssh_dir` against the destination's longest existing ancestor plus the remaining components instead.
+- The zip case needs the same overwrite refusal the folder case has for `export.json`: refuse when the target file already exists.
+
 - [ ] **Step 4: Run the tests and the gate**
 
 Run: `cargo test --all-targets`, then the full gate.
@@ -245,7 +251,7 @@ git commit -m "feat(core): export and import a bundle over the IPC"
 
 - [ ] **Step 1: Add the plugin**
 
-Root `[workspace.dependencies]`: `tauri-plugin-dialog = "2.7.3"`. In `apps/desktop/src-tauri/Cargo.toml`, `tauri-plugin-dialog = { workspace = true }`. In `lib.rs`'s builder chain, `.plugin(tauri_plugin_dialog::init())` before `.invoke(...)`. In `capabilities/default.json`, add `"dialog:default"` to the permissions array. In `apps/desktop/package.json`, add `"@tauri-apps/plugin-dialog": "^2"`. Run `cargo build -p sigrun-desktop` and quote it; report any version conflict with Tauri 2.12.4.
+Root `[workspace.dependencies]`: `tauri-plugin-dialog = "~2.7"` (a caret range would resolve 2.8.x, which needs Rust 1.90). In `apps/desktop/src-tauri/Cargo.toml`, `tauri-plugin-dialog = { workspace = true }`. In `lib.rs`'s builder chain, `.plugin(tauri_plugin_dialog::init())` before `.invoke(...)`. In `capabilities/default.json`, add `"dialog:default"` to the permissions array. In `apps/desktop/package.json`, add `"@tauri-apps/plugin-dialog": "^2"`. Run `cargo build -p sigrun-desktop` and quote it; report any version conflict with Tauri 2.12.4.
 
 - [ ] **Step 2: Implement the two commands**
 
@@ -364,7 +370,8 @@ git commit -m "docs: document import and export"
 
 ## Self-Review
 
-- **Spec coverage:** the four buttons, the format, the two pinned dependencies, the `dialog:default` grant, the `~/.ssh` refusal, the overwrite refusal, skip-on-conflict, the forced flags, the zip limits and the summary counts each map to a step above. The key-metadata import (the one deviation flagged in the spec) is Task 1's `merge` and Task 2's import arm.
+- **Spec coverage:** the four buttons, the format, the two pinned dependencies, the `dialog:default` grant, the `~/.ssh` refusal, the overwrite refusal, skip-on-conflict, the forced flags, the zip limits and the summary counts each map to a step above.
+- **Import is connections-only — a deliberate correction to the spec.** The spec floated importing key *records* as well; the design check found that only vault-source keys are listed, so an imported disk-source record would be invisible rather than unavailable, and that upserting by id would overwrite. The keys half of the bundle is therefore reference material: it carries the public key text, name, fingerprint and algorithm for a reader, and import ignores it. Disk-key ids are fingerprints, so a reinstall re-discovers the same ids and an imported connection still resolves; a vault key can only come back from the vault file. The spec carries a revision note saying so.
 - **Review Focus:** 1 → Task 1 Step 2's escaping test and the limits; 2 → Task 2's flags test; 3 → Task 1's round-trip test with an empty `user`; 4 → Task 5's README paragraph plus Task 1's no-secret test; 5 → Task 2's overwrite test.
 - **Type consistency:** `ExportSummary`/`ImportSummary` are defined once in Task 1, serialized through `Response::Export`/`Response::Import` in Task 2, re-exported as TypeScript types in Task 3 and read in Task 4 — the field names are `path`/`connections`/`keys` and `added`/`skipped`/`invalid`/`unresolved_keys` in all four places.
 - **Risk:** the file-name sanitisation for `keys/<name>.pub` is the one place a key's `name` (arbitrary user text) meets the filesystem; Task 1 must refuse or rewrite a name containing a path separator, and its test should cover it.
