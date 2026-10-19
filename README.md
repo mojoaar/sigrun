@@ -10,7 +10,9 @@ cryptography and keys. Pronounced SIG-roon.
 Sigrun is a cross-platform SSH connection manager. Add a host, group it — a
 `/`-separated path like `PVE/Folder 1` nests — and click Connect to open `ssh`
 in your terminal, from the app, the tray, or the CLI. It works the same on
-macOS, Linux, and Windows.
+macOS, Linux, and Windows. It is for anyone who moves between servers and wants
+their keys and connections in one local, encrypted place instead of scattered
+`~/.ssh` bookkeeping.
 
 Keys are what make those connections work. Sigrun keeps your private keys in an
 encrypted local vault, generates new ones, discovers the ones already in
@@ -21,6 +23,45 @@ replacing scattered `~/.ssh` bookkeeping with one tool.
 It has three faces that share one vault: a **desktop app** (window + system
 tray), a **CLI** (`sigrun`), and a long-lived host that owns the vault, the
 agent, and the local IPC they both talk to.
+
+## Install
+
+**0.1.0 is an unsigned pre-release.** Grab the installer for your platform from
+the [releases page](https://github.com/mojoaar/sigrun/releases/latest).
+
+- **macOS** reports "unidentified developer" because the build is not notarized:
+  right-click the app and choose **Open**, or allow it under **System Settings →
+  Privacy & Security**.
+- **Windows** shows SmartScreen: choose **More info**, then **Run anyway**.
+
+Installers for macOS (Apple silicon and Intel), Linux, and Windows are built and
+attached to the release by pushing a `v*` tag. To build from source instead:
+
+```bash
+cargo build --release
+```
+
+The `sigrun` binary lands at `target/release/sigrun`.
+
+## The first five minutes
+
+1. **Create vault.** On first run the app asks for a master passphrase, which
+   encrypts your keys and connections; it cannot be recovered if you forget it.
+2. **Generate key** for a new Ed25519, RSA, or ECDSA key, or **Import key** one
+   that already lives in `~/.ssh`.
+3. **Add connection.** Give it a label, host, user, and port, and group it if you
+   like — a `/`-separated path like `PVE/Folder 1` nests in the list.
+4. **Connect.** Sigrun opens your terminal running `ssh`, and a live session
+   shows a pulsing dot on its row.
+
+A connection assumes a key is already installed on the server. If there is none,
+use **Install SSH key…** — see
+[First time connecting to a server](#first-time-connecting-to-a-server).
+
+## Requirements
+
+- Rust 1.85 or newer (plus Node 22+ to build the desktop app)
+- macOS, Linux, or Windows
 
 ## What it does
 
@@ -43,11 +84,6 @@ agent, and the local IPC they both talk to.
   halves of your keys to a folder or a `.zip` from Settings, and merge them back
   on another machine — a transfer, not a backup.
 
-## Requirements
-
-- Rust 1.85 or newer (plus Node 22+ to build the desktop app)
-- macOS, Linux, or Windows
-
 ## The desktop app
 
 The app is the long-lived host: it owns the vault, agent, and IPC, runs as a
@@ -58,9 +94,8 @@ explicit, from the tray menu.
 cd apps/desktop && npm run tauri dev
 ```
 
-On first run it asks you to create the vault (choose a master passphrase). From
-there you can manage connections and keys, and connect — which opens your
-terminal with `ssh` running.
+On first run the app walks you through the vault, a key, and your first
+connection — see [The first five minutes](#the-first-five-minutes).
 
 - **Tray:** a connection menu to connect directly, plus Open and Quit.
   Left-clicking the tray icon opens the connection menu when the vault is
@@ -172,17 +207,6 @@ sigrun connections password web --clear
 With the vault locked, `sigrun connections connect` cannot tell that a
 password is stored and falls back to `ssh`'s own prompt; the app and the tray
 refuse through the vault gate instead.
-
-## Install
-
-Build from source:
-
-```bash
-cargo build --release
-```
-
-The `sigrun` binary lands at `target/release/sigrun`. Installers (macOS, Linux,
-Windows) are produced by pushing a `v*` tag.
 
 ## Quick start (CLI)
 
