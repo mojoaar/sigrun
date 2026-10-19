@@ -19,6 +19,10 @@ pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
         name: Some("Sigrun".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         copyright: Some("Copyright © 2026 mojoaar · https://johansen.foo".into()),
+        // `tauri dev` runs a bare binary, not an app bundle, so AppKit has no
+        // app icon to fall back on and paints the generic executable one.
+        // Handing it the app icon explicitly makes the panel match everywhere.
+        icon: tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png")).ok(),
         ..Default::default()
     }
 }
@@ -220,6 +224,10 @@ mod tests {
         assert_eq!(meta.authors, None);
         assert_eq!(meta.website, None);
         assert_eq!(meta.license, None);
+        let icon = meta
+            .icon
+            .expect("the about panel should carry the app icon");
+        assert_eq!((icon.width(), icon.height()), (256, 256));
     }
 
     #[test]
