@@ -60,7 +60,11 @@ terminal with `ssh` running.
   Left-clicking the tray icon opens the connection menu when the vault is
   unlocked, and shows the window when it is locked.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
-  and dark, following the OS by default with an override.
+  and dark, following the OS by default with an override. On macOS the window
+  uses an overlay title bar, so the bar is the header's own colour with the
+  traffic lights floating over it, and the header — outside its buttons — drags
+  the window; the window's appearance follows the Light/Dark setting so the
+  lights stay legible. Windows and Linux keep their own decorations and title.
 - **i18n:** English and Danish.
 - **Settings:** appearance, language, terminal, whether a connect opens in a new
   window or a new tab, an idle **auto-lock** for the vault (default 30 minutes;

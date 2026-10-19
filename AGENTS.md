@@ -99,6 +99,11 @@ newtype variants holding a sequence.
   force-quit or a crash that kills the shell outright clears the dot on the next
   tick too. A pid recycled inside the poll window holds the dot until that
   process exits, and a vault lock clears it while a session is still running.
+- The macOS window uses an overlay title bar: the header carries
+  `data-tauri-drag-region` (with `core:window:allow-start-dragging` granted for
+  it, or the drag silently does nothing), and the window's native appearance
+  follows the app's Light/Dark choice so the traffic lights stay legible. Windows
+  and Linux keep their own decorations and title.
 
 ## Process rules
 
