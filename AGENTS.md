@@ -100,10 +100,18 @@ newtype variants holding a sequence.
   tick too. A pid recycled inside the poll window holds the dot until that
   process exits, and a vault lock clears it while a session is still running.
 - The macOS window uses an overlay title bar: the header carries
-  `data-tauri-drag-region` (with `core:window:allow-start-dragging` granted for
-  it, or the drag silently does nothing), and the window's native appearance
-  follows the app's Light/Dark choice so the traffic lights stay legible. Windows
-  and Linux keep their own decorations and title.
+  `data-tauri-drag-region="deep"` (with `core:window:allow-start-dragging`
+  granted for it, or the drag silently does nothing), and the window's native
+  appearance follows the app's Appearance choice so the traffic lights stay
+  legible — `set_theme` is app-wide on macOS, so choosing Light or Dark also
+  repaints the app's own menus and the About panel. Windows and Linux keep their
+  own decorations and title.
+- The drag region is deliberate on every platform, not a macOS detail: the
+  attribute, the capability grant and the window's `backgroundColor` are
+  unconditional, so off macOS the header also drags the window. A double-click
+  does not maximise: `internal_toggle_maximize` lives in `core:window:default`,
+  which this capability does not grant (only `core:event:default` and
+  `core:window:allow-start-dragging` are).
 
 ## Process rules
 

@@ -62,10 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The README and AGENTS.md now describe Sigrun as an SSH connection manager with key-based authentication; the README leads with connections and presents keys as what makes them work.
 - Documented that live sessions show a dot on macOS and Linux only; the Windows launch path cannot report a session end.
 - Documented how the live-session dot clears: the host watches the launched shell's own process, so closing a window or tab, a force-quit, and a crash all clear it within a tick.
-- The macOS window uses an overlay title bar, so the bar takes the header's own colour and the header drags the window; the window's appearance follows the Light/Dark setting so the traffic lights stay legible against the themed header.
+- The macOS window uses an overlay title bar, so the bar takes the header's own colour; the header drags the window (the drag region is unconditional, so it drags off macOS too), and the window's native appearance follows the **Appearance** setting so the traffic lights stay legible against the themed header — on macOS that also repaints the app's own menus and About panel.
 
 ### Fixed
 
+- Dragging the window by the header's title text now works: the drag region is `deep`, so it covers the header's descendants, not only the header element's own padding (the header's buttons still do not drag).
 - The launched line's session-start report is now bounded to two seconds, so a host that accepts the socket but never answers no longer delays every connect by up to 30 seconds.
 - A malformed `session-started` invocation (a missing or unparsable pid) now exits quietly instead of starting a second copy of the app.
 - The host re-checks every watched shell pid on each poll tick, so a killed session clears the connected dot on the tick it is noticed rather than after the next report.

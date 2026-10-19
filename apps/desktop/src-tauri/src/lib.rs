@@ -264,5 +264,9 @@ mod tests {
         assert_eq!(v["identifier"], "com.sigrun.app");
         assert_eq!(v["app"]["windows"][0]["title"], "Sigrun");
         assert_eq!(v["app"]["windows"][0]["minWidth"], 900);
+        // The overlay title bar is what makes the header the visible bar; pin it
+        // so a config edit cannot silently drop the feature.
+        assert_eq!(v["app"]["windows"][0]["titleBarStyle"], "Overlay");
+        assert_eq!(v["app"]["windows"][0]["hiddenTitle"], true);
     }
 }

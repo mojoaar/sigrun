@@ -59,7 +59,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg text-text">
       <header
-        data-tauri-drag-region
+        data-tauri-drag-region="deep"
         className={`flex items-center justify-between border-b border-border p-3${isMacTitlebar() ? " pl-20" : ""}`}
       >
         <h1 className="text-xl font-semibold">{t("app.title")}</h1>

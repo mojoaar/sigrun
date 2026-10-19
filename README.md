@@ -62,9 +62,11 @@ terminal with `ssh` running.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
   and dark, following the OS by default with an override. On macOS the window
   uses an overlay title bar, so the bar is the header's own colour with the
-  traffic lights floating over it, and the header — outside its buttons — drags
-  the window; the window's appearance follows the Light/Dark setting so the
-  lights stay legible. Windows and Linux keep their own decorations and title.
+  traffic lights floating over it; Windows and Linux keep their own decorations
+  and title. The header drags the window on every platform, and the header's
+  buttons do not. The window's native appearance follows the **Appearance**
+  setting so the traffic lights stay legible against the themed header; on macOS
+  that also repaints the app's own menus and About panel.
 - **i18n:** English and Danish.
 - **Settings:** appearance, language, terminal, whether a connect opens in a new
   window or a new tab, an idle **auto-lock** for the vault (default 30 minutes;
