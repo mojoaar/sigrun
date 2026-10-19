@@ -18,11 +18,17 @@ vi.mock("./api", () => ({
   vaultLock: vi.fn(),
 }));
 
+// jsdom reports "(darwin)" in its user agent, which is not what the app checks for the macOS title bar.
+const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const LINUX_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const setUserAgent = (ua: string) => Object.defineProperty(window.navigator, "userAgent", { value: ua, configurable: true });
+
 beforeEach(() => {
   window.matchMedia = ((q: string) => ({ matches: true, media: q })) as unknown as typeof window.matchMedia;
 });
 
 afterEach(async () => {
+  Reflect.deleteProperty(window.navigator, "userAgent");
   await i18n.changeLanguage("en");
 });
 
@@ -65,4 +71,20 @@ test("a tray connection error brings the connections tab forward with its trust 
   const dialog = screen.getByRole("dialog", { name: "Trust this host?" });
   expect(within(dialog).getByText("SHA256:abc")).toBeTruthy();
   expect(within(dialog).getByRole("button", { name: "Trust and connect" })).toBeTruthy();
+});
+
+it("gives the header a drag region and a macOS inset", () => {
+  setUserAgent(MAC_UA);
+  render(<App />);
+  const header = document.querySelector("header") as HTMLElement;
+  expect(header.getAttribute("data-tauri-drag-region")).not.toBeNull();
+  expect(header.className).toContain("pl-20");
+});
+
+it("keeps the header inset off Windows and Linux", () => {
+  setUserAgent(LINUX_UA);
+  render(<App />);
+  const header = document.querySelector("header") as HTMLElement;
+  expect(header.className).toContain("p-3");
+  expect(header.className).not.toContain("pl-20");
 });

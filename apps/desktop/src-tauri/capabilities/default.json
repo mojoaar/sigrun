@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window listens for host events: the idle auto-lock and the live-session changes that drive the connected dot.",
+  "description": "The main window listens for host events (the idle auto-lock and the live-session changes that drive the connected dot) and starts its own drag when the header is dragged.",
   "windows": ["main"],
-  "permissions": ["core:event:default"]
+  "permissions": ["core:event:default", "core:window:allow-start-dragging"]
 }

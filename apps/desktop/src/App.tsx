@@ -14,6 +14,11 @@ import ErrorBoundary from "./components/ErrorBoundary";
 type Tab = "connections" | "keys" | "settings" | "help";
 const TABS: Tab[] = ["connections", "keys", "settings", "help"];
 
+/** The overlay title bar is macOS-only, so only macOS gets the traffic-light inset. */
+export function isMacTitlebar(): boolean {
+  return navigator.userAgent.includes("Mac");
+}
+
 export default function App() {
   const { t } = useTranslation();
   const [vault, setVault] = useState<VaultState | null>(null);
@@ -53,7 +58,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <header className="flex items-center justify-between border-b border-border p-3">
+      <header
+        data-tauri-drag-region
+        className={`flex items-center justify-between border-b border-border p-3${isMacTitlebar() ? " pl-20" : ""}`}
+      >
         <h1 className="text-xl font-semibold">{t("app.title")}</h1>
         {vault === "Unlocked" && (
           <nav className="flex items-center gap-3">
