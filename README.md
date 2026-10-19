@@ -26,7 +26,10 @@ agent, and the local IPC they both talk to.
 
 - **Manage connections.** Add a host and group it; a `/`-separated path like
   `PVE/Folder 1` nests in the Connections list and the tray menu, and
-  `~/.ssh/config` hosts are listed alongside the ones you manage.
+  `~/.ssh/config` hosts are listed alongside the ones you manage. A search box
+  filters the list as you type — matching the label, user, host, port and
+  group, case-insensitively — and clearing it shows every connection again; a
+  query that matches nothing says so rather than showing the empty-list message.
 - **Connect anywhere.** Click Connect and `ssh` opens in your terminal — from
   the app, the system tray, or `sigrun connections connect` on the CLI. A live
   session shows a pulsing dot on its row in the app; on Windows sessions are not
