@@ -114,9 +114,10 @@ newtype variants holding a sequence.
   `core:window:allow-start-dragging` and the two dialog calls the pickers need,
   but not `core:window:default`).
 - Export/import writes a folder or `.zip` (`README.txt`, `export.json`,
-  `keys/<name>.pub`) holding connections and public key metadata only — never a
-  private key — and refuses a destination inside `~/.ssh` or an existing
-  `export.json`/`.zip`. `zip` (~7.3) and `tauri-plugin-dialog` (~2.7) are pinned
+  `keys/<safe-name>-<fingerprint>.pub`) holding connections and public key
+  metadata only — never a private key — and refuses a destination inside
+  `~/.ssh` or one already holding `export.json`/`README.txt` (or an existing
+  `.zip`). `zip` (~7.3) and `tauri-plugin-dialog` (~2.7) are pinned
   to the MSRV floor (a caret range pulls releases needing Rust 1.88/1.90), and the
   capability grants only `dialog:allow-open`/`dialog:allow-save`, not the wider
   `dialog:default`.

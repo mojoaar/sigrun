@@ -182,15 +182,48 @@ pub fn merge(data: &mut DataFile, bundle: &Bundle) -> ImportSummary {
 }
 
 /// Whether a connection from an untrusted export is worth storing: a non-empty
-/// id and label, a host the launcher accepts, and a usable port.
+/// id and label, a host the launcher accepts, a user it accepts or none, and a
+/// usable port.
 pub fn valid_connection(conn: &Connection) -> bool {
-    !conn.id.is_empty() && !conn.label.is_empty() && safe_host_bytes(&conn.host) && conn.port != 0
+    !conn.id.is_empty()
+        && !conn.label.is_empty()
+        && safe_host_bytes(&conn.host)
+        && (conn.user.is_empty() || safe_host_bytes(&conn.user))
+        && conn.port != 0
 }
 
 /// Whether an export may be written to `dest`. `~/.ssh` is read-only by rule,
-/// so any path equal to or inside `ssh_dir` is refused.
+/// so a path inside `ssh_dir` by *either* reading is refused. The two readings
+/// catch different shapes: `..` behind a component that does not exist yet is
+/// only visible lexically, while `..` after a symlink is only visible to the
+/// filesystem walk — POSIX resolves `..` after the symlink, so the path lands
+/// somewhere the lexical pass never sees. `create_dir_all` follows the walk, so
+/// refusing on either keeps the guarantee.
 pub fn destination_is_allowed(dest: &Path, ssh_dir: &Path) -> bool {
-    !canonical_or_nearest(dest).starts_with(canonical_or_nearest(ssh_dir))
+    let ssh = canonical_or_nearest(ssh_dir);
+    !canonical_or_nearest(dest).starts_with(&ssh)
+        && !canonical_or_nearest(&lexical_normalise(dest)).starts_with(&ssh)
+}
+
+/// Drops `.`, collapses `..` against the preceding component, and never walks
+/// above a root, so `/a/../../b` reads as `/b` however little of it exists.
+fn lexical_normalise(path: &Path) -> PathBuf {
+    let mut parts: Vec<std::path::Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => match parts.last() {
+                Some(std::path::Component::Normal(_)) => {
+                    parts.pop();
+                }
+                Some(std::path::Component::ParentDir) | None => parts.push(component),
+                // A root cannot be popped, so `..` there is a no-op.
+                _ => {}
+            },
+            other => parts.push(other),
+        }
+    }
+    parts.iter().collect()
 }
 
 /// Serialises the bundle the way `export.json` stores it.
@@ -350,11 +383,16 @@ mod tests {
     #[test]
     fn a_folder_round_trips_every_connection_and_public_key() {
         let dir = tempfile::tempdir().unwrap();
-        let bundle = build_bundle(&data_with_two_connections_and_one_key(), 1_700_000_000);
+        let mut data = data_with_two_connections_and_one_key();
+        // An empty user is a real state — ssh then uses the local user — so the
+        // round trip must carry it rather than substitute a name.
+        data.connections[0].user = String::new();
+        let bundle = build_bundle(&data, 1_700_000_000);
         write_folder(&bundle, dir.path()).unwrap();
         assert!(dir.path().join(EXPORT_FILE).is_file());
         assert!(dir.path().join(README_FILE).is_file());
         let back = read_bundle(dir.path()).unwrap();
+        assert!(back.connections[0].user.is_empty());
         assert_eq!(back.connections, bundle.connections);
         assert_eq!(back.keys, bundle.keys);
         assert_eq!(back.format, FORMAT_VERSION);
@@ -421,7 +459,41 @@ mod tests {
         std::fs::create_dir_all(&ssh).unwrap();
         assert!(!destination_is_allowed(&ssh.join("x"), &ssh));
         assert!(!destination_is_allowed(&ssh.join("..").join(".ssh"), &ssh));
+        // A `..` behind a component that does not exist yet still lands back
+        // inside: `create_dir_all` would walk the `..` even though the walk
+        // here cannot canonicalise the leading component.
+        assert!(!destination_is_allowed(
+            &root.path().join("nonexistent").join("..").join(".ssh"),
+            &ssh
+        ));
         assert!(destination_is_allowed(&root.path().join("backup"), &ssh));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_parent_into_the_ssh_directory_is_refused() {
+        // Review Focus 1 names a symlink: it must not be a way in either.
+        let root = tempfile::tempdir().unwrap();
+        let ssh = root.path().join(".ssh");
+        std::fs::create_dir_all(&ssh).unwrap();
+        let link = root.path().join("link-to-ssh");
+        std::os::unix::fs::symlink(&ssh, &link).unwrap();
+        assert!(!destination_is_allowed(&link.join("x"), &ssh));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_into_the_ssh_directory_followed_by_dotdot_is_refused() {
+        // POSIX resolves `..` after the symlink, so this lands in `.ssh/evil`
+        // and `create_dir_all` would write there, while a lexical reading alone
+        // calls it `<root>/evil`.
+        let root = tempfile::tempdir().unwrap();
+        let ssh = root.path().join(".ssh");
+        let sub = ssh.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(&sub, &link).unwrap();
+        assert!(!destination_is_allowed(&link.join("..").join("evil"), &ssh));
     }
 
     #[test]
@@ -447,8 +519,12 @@ mod tests {
         bundle.connections.push(no_host);
         // An empty id is invalid too.
         bundle.connections.push(connection("", "no-id.example"));
+        // A user the launcher would refuse, exactly as it refuses the host.
+        let mut bad_user = connection("c4", "user.example");
+        bad_user.user = "root$(id)".into();
+        bundle.connections.push(bad_user);
         let summary = merge(&mut data, &bundle);
-        assert_eq!(summary.invalid, 2);
+        assert_eq!(summary.invalid, 3);
         assert_eq!(summary.added, 2);
         assert_eq!(summary.skipped, 0);
         assert_eq!(data.connections.len(), 2);

@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Exporting refuses a chosen folder whose path reaches into `~/.ssh` through a `..` and one that already holds a `README.txt`, and the zip save dialog suggests a `.zip` name.
 - Dragging the window by the header's title text now works: the drag region is `deep`, so it covers the header's descendants, not only the header element's own padding (the header's buttons still do not drag).
 - The launched line's session-start report is now bounded to two seconds, so a host that accepts the socket but never answers no longer delays every connect by up to 30 seconds.
 - A malformed `session-started` invocation (a missing or unparsable pid) now exits quietly instead of starting a second copy of the app.

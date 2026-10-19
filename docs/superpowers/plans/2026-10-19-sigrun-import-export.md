@@ -238,7 +238,7 @@ git commit -m "feat(core): export and import a bundle over the IPC"
 - Modify: `Cargo.toml` (workspace dependency), `apps/desktop/src-tauri/Cargo.toml`
 - Modify: `apps/desktop/src-tauri/src/lib.rs` (register the plugin, add the two commands to `invoke_handler`)
 - Modify: `apps/desktop/src-tauri/src/commands.rs` (two thin commands)
-- Modify: `apps/desktop/src-tauri/capabilities/default.json` (`dialog:default`)
+- Modify: `apps/desktop/src-tauri/capabilities/default.json` (`dialog:allow-open`, `dialog:allow-save`)
 - Modify: `apps/desktop/package.json` (`@tauri-apps/plugin-dialog`)
 - Modify: `apps/desktop/src/api.ts` (two wrappers)
 - Test: the existing `npm run typecheck` and `npm run build`, plus the Rust gate
@@ -251,7 +251,7 @@ git commit -m "feat(core): export and import a bundle over the IPC"
 
 - [ ] **Step 1: Add the plugin**
 
-Root `[workspace.dependencies]`: `tauri-plugin-dialog = "~2.7"` (a caret range would resolve 2.8.x, which needs Rust 1.90). In `apps/desktop/src-tauri/Cargo.toml`, `tauri-plugin-dialog = { workspace = true }`. In `lib.rs`'s builder chain, `.plugin(tauri_plugin_dialog::init())` before `.invoke(...)`. In `capabilities/default.json`, add `"dialog:default"` to the permissions array. In `apps/desktop/package.json`, add `"@tauri-apps/plugin-dialog": "^2"`. Run `cargo build -p sigrun-desktop` and quote it; report any version conflict with Tauri 2.12.4.
+Root `[workspace.dependencies]`: `tauri-plugin-dialog = "~2.7"` (a caret range would resolve 2.8.x, which needs Rust 1.90). In `apps/desktop/src-tauri/Cargo.toml`, `tauri-plugin-dialog = { workspace = true }`. In `lib.rs`'s builder chain, `.plugin(tauri_plugin_dialog::init())` before `.invoke(...)`. In `capabilities/default.json`, add `"dialog:allow-open"` and `"dialog:allow-save"` — the two calls the webview actually makes, not the wider `dialog:default` — to the permissions array. In `apps/desktop/package.json`, add `"@tauri-apps/plugin-dialog": "^2"`. Run `cargo build -p sigrun-desktop` and quote it; report any version conflict with Tauri 2.12.4.
 
 - [ ] **Step 2: Implement the two commands**
 
@@ -352,7 +352,7 @@ Add an "Import and export" entry to the feature list and, in the Settings sectio
 
 - [ ] **Step 2: AGENTS.md**
 
-One Platform-rules bullet: the bundle format, the two dependencies pinned to the MSRV floor, the `dialog:default` grant, and that the destination must never be inside `~/.ssh`.
+One Platform-rules bullet: the bundle format, the two dependencies pinned to the MSRV floor, the `dialog:allow-open`/`dialog:allow-save` grants, and that the destination must never be inside `~/.ssh`.
 
 - [ ] **Step 3: CHANGELOG**
 
@@ -370,7 +370,7 @@ git commit -m "docs: document import and export"
 
 ## Self-Review
 
-- **Spec coverage:** the four buttons, the format, the two pinned dependencies, the `dialog:default` grant, the `~/.ssh` refusal, the overwrite refusal, skip-on-conflict, the forced flags, the zip limits and the summary counts each map to a step above.
+- **Spec coverage:** the four buttons, the format, the two pinned dependencies, the `dialog:allow-open`/`dialog:allow-save` grants, the `~/.ssh` refusal, the overwrite refusal, skip-on-conflict, the forced flags, the zip limits and the summary counts each map to a step above.
 - **Import is connections-only — a deliberate correction to the spec.** The spec floated importing key *records* as well; the design check found that only vault-source keys are listed, so an imported disk-source record would be invisible rather than unavailable, and that upserting by id would overwrite. The keys half of the bundle is therefore reference material: it carries the public key text, name, fingerprint and algorithm for a reader, and import ignores it. Disk-key ids are fingerprints, so a reinstall re-discovers the same ids and an imported connection still resolves; a vault key can only come back from the vault file. The spec carries a revision note saying so.
 - **Review Focus:** 1 → Task 1 Step 2's escaping test and the limits; 2 → Task 2's flags test; 3 → Task 1's round-trip test with an empty `user`; 4 → Task 5's README paragraph plus Task 1's no-secret test; 5 → Task 2's overwrite test.
 - **Type consistency:** `ExportSummary`/`ImportSummary` are defined once in Task 1, serialized through `Response::Export`/`Response::Import` in Task 2, re-exported as TypeScript types in Task 3 and read in Task 4 — the field names are `path`/`connections`/`keys` and `added`/`skipped`/`invalid`/`unresolved_keys` in all four places.

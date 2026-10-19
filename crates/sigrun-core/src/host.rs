@@ -197,12 +197,14 @@ impl HostState {
                 "cannot export inside the SSH directory".into(),
             ));
         }
-        // Never half-overwrite: a folder that already holds an export, or an
-        // existing zip file, is refused rather than clobbered.
+        // Never half-overwrite: a destination that already holds either root
+        // entry, or an existing zip file, is refused rather than clobbered.
         let taken = if zipped {
             dest.exists()
         } else {
-            dest.join(bundle::EXPORT_FILE).exists()
+            [bundle::EXPORT_FILE, bundle::README_FILE]
+                .iter()
+                .any(|name| dest.join(name).exists())
         };
         if taken {
             return Err(Error::AlreadyExists(path.to_string()));
@@ -1716,6 +1718,14 @@ mod tests {
             other => panic!("unexpected {other:?}"),
         }
         assert_eq!(std::fs::read(&export_file).unwrap(), b"SENTINEL");
+
+        // The README is a root entry too: with `export.json` gone, its presence
+        // alone must still refuse the write.
+        std::fs::remove_file(&export_file).unwrap();
+        match handle(&state, request()).await {
+            Response::Error { code, .. } => assert_eq!(code, "already_exists"),
+            other => panic!("unexpected {other:?}"),
+        }
         state.shutdown.cancel();
     }
 

@@ -49,8 +49,9 @@ exported material says so itself.
   `default-features = false` and only its deflate backend, because the default
   set drags in bzip2, zstd, lzma, ppmd and AES for no reason here.
 - The frontend needs `@tauri-apps/plugin-dialog`, and the webview's calls need
-  `dialog:default` (which is `allow-open` + `allow-save`) in
-  `apps/desktop/src-tauri/capabilities/default.json` — without it the pickers
+  `dialog:allow-open` and `dialog:allow-save` in
+  `apps/desktop/src-tauri/capabilities/default.json` — the narrower pair, not the
+  wider `dialog:default` — without them the pickers
   are rejected and a swallowed promise hides it. The Rust plugin is registered
   with `tauri_plugin_dialog::init()`.
 - Every user-facing string goes through `t(...)` with the key in both
@@ -67,7 +68,7 @@ Folder and zip hold exactly the same entries:
 sigrun-export-2026-10-19/
   README.txt            what this is, and what it is not
   export.json           the machine-readable part
-  keys/<name>.pub       one OpenSSH public key per key, human-readable
+  keys/<safe-name>-<fingerprint>.pub   one OpenSSH public key per key, human-readable
 ```
 
 `export.json`:
@@ -235,3 +236,10 @@ four buttons, a one-line hint and a result line.
    the destination's longest existing ancestor plus the remainder, and refuse
    an existing zip target the way the folder case refuses an existing
    `export.json`.
+5. **The `## Interfaces` block above is stale; the shipped code is the
+   reference.** There are four summary fields (`added`, `skipped`, `invalid`,
+   `unresolved_keys`) rather than six, the IPC ships `Request::ExportBundle {
+   path, zipped }` and `Request::ImportBundle { path }`, and the pure helpers are
+   named `build_bundle`, `read_bundle`, `merge` and `destination_is_allowed` — no
+   `export_document`/`parse_document`/`ExportDocument` survives. Read
+   `crates/sigrun-core/src/bundle.rs` for the signatures that ship.

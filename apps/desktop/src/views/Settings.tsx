@@ -62,7 +62,7 @@ export default function Settings() {
   };
   const exportTo = (zipped: boolean) => transfer(async () => {
     const path = zipped
-      ? await save({ defaultPath: "sigrun-export", title: t("settings.transferExportZip"), filters: [zipFilter] })
+      ? await save({ defaultPath: "sigrun-export.zip", title: t("settings.transferExportZip"), filters: [zipFilter] })
       : await open({ directory: true, title: t("settings.transferExportFolder") });
     if (path === null) return null;
     const done = await exportBundle(path, zipped);
