@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The dialog plugin's JavaScript package now matches the Rust crate (2.7.x), so `tauri dev` no longer warns about a version mismatch.
+
 ## [0.1.0] - 2026-10-19
 
 ### Added
