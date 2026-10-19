@@ -7,24 +7,18 @@ use tauri::Manager;
 /// The native About panel's metadata. Pure, so its fields are unit-testable
 /// without a Tauri runtime.
 ///
-/// macOS renders only `name`, `version`, `short_version`, `copyright` and
+/// macOS paints only `name`, `version`, `short_version`, `copyright` and
 /// `credits` (tauri 2.12.4 / muda 0.20, `platform_impl/macos`); `authors`,
-/// `comments`, `license` and `website` are documented there as unsupported, and
-/// Tauri passes them through without folding them into `credits`. The `credits`
-/// line is therefore what puts the author, the website and the licence in front
-/// of a macOS user; the other fields go unread, and are kept so the struct says
-/// what the project is rather than what this one platform happens to paint.
+/// `comments`, `license` and `website` are documented there as unsupported, so
+/// they go unread. The site rides the copyright line, which AppKit paints
+/// centred: the `credits` field is handed to AppKit as a plain attributed
+/// string with no paragraph style, so a credits line comes out left-aligned
+/// with no way to centre it from here.
 pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
     tauri::menu::AboutMetadata {
         name: Some("Sigrun".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
-        authors: Some(vec!["mojoaar".into()]),
-        // Mirrors `shortDescription` in tauri.conf.json, which macOS ignores.
-        comments: Some("SSH key and connection manager".into()),
-        copyright: Some("Copyright © 2026 mojoaar".into()),
-        license: Some(env!("CARGO_PKG_LICENSE").into()),
-        website: Some("https://johansen.foo".into()),
-        credits: Some(concat!("mojoaar\nhttps://johansen.foo\n", env!("CARGO_PKG_LICENSE")).into()),
+        copyright: Some("Copyright © 2026 mojoaar · https://johansen.foo".into()),
         ..Default::default()
     }
 }
@@ -211,24 +205,21 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn the_about_metadata_names_the_project_its_author_and_its_licence() {
+    fn the_about_metadata_names_the_project_and_its_copyright() {
         let meta = super::about_metadata();
         assert_eq!(meta.name.as_deref(), Some("Sigrun"));
         assert_eq!(meta.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
         assert_eq!(
-            meta.authors.as_deref(),
-            Some(["mojoaar".to_string()].as_slice())
+            meta.copyright.as_deref(),
+            Some("Copyright © 2026 mojoaar · https://johansen.foo")
         );
-        assert_eq!(meta.website.as_deref(), Some("https://johansen.foo"));
-        assert_eq!(meta.license.as_deref(), Some("MIT"));
-        assert_eq!(
-            meta.credits.as_deref(),
-            Some(concat!(
-                "mojoaar\nhttps://johansen.foo\n",
-                env!("CARGO_PKG_LICENSE")
-            ))
-        );
-        assert_eq!(meta.copyright.as_deref(), Some("Copyright © 2026 mojoaar"));
+        // macOS paints no other field: a separate `credits` line repeating the
+        // author, the website and the licence was removed, and no field AppKit
+        // ignores is set.
+        assert_eq!(meta.credits, None);
+        assert_eq!(meta.authors, None);
+        assert_eq!(meta.website, None);
+        assert_eq!(meta.license, None);
     }
 
     #[test]
