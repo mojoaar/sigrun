@@ -11,6 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 const NORMAL_TITLE: &str = "Sigrun";
 const ATTENTION_TITLE: &str = "Sigrun — connection needs attention";
 const TRAY_ID: &str = "sigrun-tray";
+/// The id of the Quit item, on the tray menu and on the macOS app menu alike.
+/// Both find it through the one global menu listener below, so the two must
+/// agree: this constant is the only place the string lives.
+pub(crate) const MENU_QUIT_ID: &str = "quit";
 
 /// The tray strings Sigrun writes itself. Connection labels and group names are
 /// user data and are never translated.
@@ -270,6 +274,16 @@ pub async fn sync_tray_now(app: &AppHandle, state: &Arc<HostState>) -> tauri::Re
     Ok(())
 }
 
+/// Shut the host down the way the tray's Quit always has: cancel the shutdown
+/// token so the vault, the agent and IPC stop, then exit. Shared with the macOS
+/// menu's Quit item, which is custom only so it lands here.
+pub(crate) fn quit(app: &AppHandle) {
+    if let Some(state) = app.try_state::<Arc<HostState>>() {
+        state.shutdown.cancel();
+    }
+    app.exit(0);
+}
+
 pub(crate) fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -365,10 +379,7 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
         })
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "open" | "unlock" => show_main(app),
-            "quit" => {
-                st.shutdown.cancel();
-                app.exit(0);
-            }
+            MENU_QUIT_ID => quit(app),
             id => {
                 if let Some(cid) = id.strip_prefix("conn:") {
                     let (app, st, cid) = (app.clone(), st.clone(), cid.to_string());

@@ -4,6 +4,81 @@ mod tray;
 
 use tauri::Manager;
 
+/// The native About panel's metadata. Pure, so its fields are unit-testable
+/// without a Tauri runtime.
+///
+/// macOS renders only `name`, `version`, `short_version`, `copyright` and
+/// `credits` (tauri 2.12.4 / muda 0.20, `platform_impl/macos`); `authors`,
+/// `comments`, `license` and `website` are documented there as unsupported, and
+/// Tauri passes them through without folding them into `credits`. The `credits`
+/// line is therefore what puts the author, the website and the licence in front
+/// of a macOS user; the other fields go unread, and are kept so the struct says
+/// what the project is rather than what this one platform happens to paint.
+pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
+    tauri::menu::AboutMetadata {
+        name: Some("Sigrun".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        authors: Some(vec!["mojoaar".into()]),
+        comments: Some("SSH key and connection manager".into()),
+        copyright: Some("Copyright © 2026 mojoaar".into()),
+        license: Some(env!("CARGO_PKG_LICENSE").into()),
+        website: Some("https://johansen.foo".into()),
+        credits: Some("mojoaar\nhttps://johansen.foo\nMIT".into()),
+        ..Default::default()
+    }
+}
+
+/// Build and install the macOS app menu. Setting a menu replaces Tauri's
+/// default one, so the Edit submenu (copy/paste in the app's forms) and the
+/// Window submenu have to come with it, and the Quit item has to be a custom
+/// one so it runs the tray's shutdown rather than a bare exit.
+///
+/// That custom item needs no handler of its own: Tauri dispatches every menu
+/// event to every global menu listener (app.rs, `MenuEvent` arm), and the tray
+/// registers one for [`tray::MENU_QUIT_ID`].
+#[cfg(target_os = "macos")]
+fn setup_macos_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+    let handle = app.handle();
+    let quit = MenuItemBuilder::with_id(tray::MENU_QUIT_ID, "Quit Sigrun")
+        // The predefined Quit would have carried ⌘Q; a custom one must ask.
+        .accelerator("CmdOrCtrl+Q")
+        .build(handle)?;
+    let app_menu = SubmenuBuilder::new(handle, "Sigrun")
+        .about(Some(about_metadata()))
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .item(&quit)
+        .build()?;
+    let edit_menu = SubmenuBuilder::new(handle, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window_menu = SubmenuBuilder::with_id(handle, tauri::menu::WINDOW_SUBMENU_ID, "Window")
+        .minimize()
+        .maximize()
+        .separator()
+        .close_window()
+        .build()?;
+    let view_menu = SubmenuBuilder::new(handle, "View").fullscreen().build()?;
+    let menu = MenuBuilder::new(handle)
+        .items(&[&app_menu, &edit_menu, &view_menu, &window_menu])
+        .build()?;
+    app.set_menu(menu)?;
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -38,6 +113,10 @@ pub fn run() {
             let paths = sigrun_core::paths::Paths::resolve()?;
             let state = tauri::async_runtime::block_on(host::start_host(paths))?;
             app.manage(state.clone());
+            // macOS gets an About that carries the author and the links. Windows
+            // and Linux keep Tauri's default menu.
+            #[cfg(target_os = "macos")]
+            setup_macos_menu(app)?;
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
                 window.on_window_event(move |event| {
@@ -130,6 +209,20 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_about_metadata_names_the_project_its_author_and_its_licence() {
+        let meta = super::about_metadata();
+        assert_eq!(meta.name.as_deref(), Some("Sigrun"));
+        assert_eq!(meta.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+        assert_eq!(
+            meta.authors.as_deref(),
+            Some(["mojoaar".to_string()].as_slice())
+        );
+        assert_eq!(meta.website.as_deref(), Some("https://johansen.foo"));
+        assert_eq!(meta.license.as_deref(), Some("MIT"));
+        assert_eq!(meta.copyright.as_deref(), Some("Copyright © 2026 mojoaar"));
+    }
+
     #[test]
     fn window_config() {
         let v: serde_json::Value =

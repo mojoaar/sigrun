@@ -24,6 +24,9 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
+    "publisher": "mojoaar",
+    "homepage": "https://johansen.foo",
+    "copyright": "Copyright © 2026 mojoaar",
     "shortDescription": "SSH key and connection manager",
     "longDescription": "Sigrun manages SSH keys, connections and agent auth locally.",
     "icon": [
