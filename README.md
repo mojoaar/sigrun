@@ -95,8 +95,8 @@ shows **New window** as the only selectable entry, with a note that the terminal
 cannot open a tab. Terminal.app's scripting dictionary exposes tabs as
 read-only, so no new tab can be created there, and kitty and WezTerm need the
 user's own config (`allow_remote_control yes`) or a running mux before their tab
-commands work. On Linux and Windows no terminal can be asked, so the setting has
-no effect there.
+commands work. On Linux and Windows no terminal there can be asked for a tab, so
+the setting has no effect there.
 
 - **Ghostty** opens a **tab in the front window** when asked, or a **new window**
   when none is open, so the first connect is not a no-op. `open -na Ghostty.app

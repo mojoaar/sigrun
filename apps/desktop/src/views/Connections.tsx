@@ -478,7 +478,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           </div>
         </div>
       )}
-      {form && <Form initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label)} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
+      {form && <Form initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label.trim())} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

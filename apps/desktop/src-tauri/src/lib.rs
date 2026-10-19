@@ -19,11 +19,12 @@ pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
         name: Some("Sigrun".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         authors: Some(vec!["mojoaar".into()]),
+        // Mirrors `shortDescription` in tauri.conf.json, which macOS ignores.
         comments: Some("SSH key and connection manager".into()),
         copyright: Some("Copyright © 2026 mojoaar".into()),
         license: Some(env!("CARGO_PKG_LICENSE").into()),
         website: Some("https://johansen.foo".into()),
-        credits: Some("mojoaar\nhttps://johansen.foo\nMIT".into()),
+        credits: Some(concat!("mojoaar\nhttps://johansen.foo\n", env!("CARGO_PKG_LICENSE")).into()),
         ..Default::default()
     }
 }
@@ -220,6 +221,13 @@ mod tests {
         );
         assert_eq!(meta.website.as_deref(), Some("https://johansen.foo"));
         assert_eq!(meta.license.as_deref(), Some("MIT"));
+        assert_eq!(
+            meta.credits.as_deref(),
+            Some(concat!(
+                "mojoaar\nhttps://johansen.foo\n",
+                env!("CARGO_PKG_LICENSE")
+            ))
+        );
         assert_eq!(meta.copyright.as_deref(), Some("Copyright © 2026 mojoaar"));
     }
 

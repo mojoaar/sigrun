@@ -171,7 +171,7 @@ pub fn tray_menu_model(
         });
     }
     out.push(TrayEntry::Item {
-        id: "quit".into(),
+        id: MENU_QUIT_ID.into(),
         label: labels.quit.clone(),
     });
     out
@@ -504,7 +504,7 @@ mod tests {
                 submenu("Discovered", &[("conn:3", "github.com")]),
                 TrayEntry::Separator,
                 item("open", "Open Sigrun"),
-                item("quit", "Quit"),
+                item(MENU_QUIT_ID, "Quit"),
             ]
         );
     }
@@ -530,7 +530,7 @@ mod tests {
                 },
                 TrayEntry::Separator,
                 item("open", "Open Sigrun"),
-                item("quit", "Quit"),
+                item(MENU_QUIT_ID, "Quit"),
             ]
         );
     }
@@ -546,12 +546,12 @@ mod tests {
         )];
         assert_eq!(
             tray_menu_model(&conns, false, &en, false),
-            vec![item("open", "Open Sigrun"), item("quit", "Quit")]
+            vec![item("open", "Open Sigrun"), item(MENU_QUIT_ID, "Quit")]
         );
         // Linux cannot deliver left clicks, so the locked menu offers the unlock.
         assert_eq!(
             tray_menu_model(&conns, false, &en, true),
-            vec![item("unlock", "Unlock Sigrun…"), item("quit", "Quit")]
+            vec![item("unlock", "Unlock Sigrun…"), item(MENU_QUIT_ID, "Quit")]
         );
     }
 
@@ -560,7 +560,7 @@ mod tests {
         let en = labels("en");
         assert_eq!(
             tray_menu_model(&[], true, &en, false),
-            vec![item("open", "Open Sigrun"), item("quit", "Quit")]
+            vec![item("open", "Open Sigrun"), item(MENU_QUIT_ID, "Quit")]
         );
     }
 
@@ -574,7 +574,7 @@ mod tests {
                 item("conn:1", "web"),
                 TrayEntry::Separator,
                 item("open", "Open Sigrun"),
-                item("quit", "Quit"),
+                item(MENU_QUIT_ID, "Quit"),
             ]
         );
     }

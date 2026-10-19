@@ -638,6 +638,7 @@ describe("Connections", () => {
     vi.mocked(api.listConnections).mockResolvedValueOnce([
       { id: "1", label: "Prod", host: "prod.example.com", user: "deploy", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
       { ...conn, id: "2", label: "other" },
+      { ...conn, id: "3", label: "  padded  " },
     ]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
 
@@ -656,6 +657,11 @@ describe("Connections", () => {
     expect(screen.queryByText("Another connection already uses this label.")).toBeNull();
     // ...but the list is live, so another connection's label still warns.
     fireEvent.change(own, { target: { value: "other" } });
+    expect(screen.getByText("Another connection already uses this label.")).toBeTruthy();
+
+    // Stray whitespace on a stored label does not hide the match: both sides
+    // are compared trimmed.
+    fireEvent.change(own, { target: { value: "padded" } });
     expect(screen.getByText("Another connection already uses this label.")).toBeTruthy();
   });
 

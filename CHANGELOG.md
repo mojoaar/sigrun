@@ -13,8 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A macOS About dialog that names the author and links the website and the MIT licence, plus complete installer metadata.
 - An `open_in` setting (`"window"` or `"tab"`) for where a connect opens.
 - The open-in setting is editable in Settings, next to the terminal picker.
-- Terminal detection reports which terminals Sigrun can ask for a tab.
-- Settings greys out "New tab" and says so when the chosen terminal cannot open one.
 - Rust workspace with the `sigrun-core` domain library and the `sigrun` CLI, plus CI for build, lint, and test.
 - Encrypted vault: Argon2id key derivation, XChaCha20-Poly1305 sealed envelope, `0600` atomic writes, and a lockable in-memory lifecycle.
 - Key generation for Ed25519, RSA, and ECDSA.
@@ -52,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The Open in setting no longer offers a new tab for terminals that cannot open one.
+- The **Open in** setting no longer offers a new tab for terminals that cannot open one: the terminal picker reports which terminals can be asked, and Settings greys out **New tab** and says so.
 - Documented which terminals honour the new window-or-tab setting.
 - iTerm connects honour the "Open in" setting, so the default opens a new window instead of reusing a tab.
 - "Start minimized to tray" now sits at the end of Settings, after the other options.
