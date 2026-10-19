@@ -39,6 +39,9 @@ agent, and the local IPC they both talk to.
   OpenSSH agent serve vault keys to `ssh`.
 - **Reach password-only servers.** Store a per-connection password in the vault,
   or install a key on a server with **Install SSH key…** using the password once.
+- **Export and import connections.** Write every connection and the public
+  halves of your keys to a folder or a `.zip` from Settings, and merge them back
+  on another machine — a transfer, not a backup.
 
 ## Requirements
 
@@ -79,6 +82,27 @@ The **terminal** for connect is auto-detected: Settings lists the launchable
 terminals actually installed (Terminal, iTerm, Ghostty, kitty, Alacritty,
 WezTerm on macOS; the known terminals on Linux and Windows), or "System
 default" to use the OS fallback order.
+
+### Import and export
+
+Settings has an **Import and export** section with four buttons: **Export to a
+folder…** and **Export to a .zip file…** write a bundle, and **Import from a
+folder…** and **Import from a .zip file…** read one back. A bundle holds
+`README.txt`, `export.json` and a `keys/` folder with one public key per key;
+`export.json` is `{format, exported_at, connections, keys}`. An export refuses a
+destination inside `~/.ssh`, and refuses to overwrite an existing `export.json`
+(folder) or an existing `.zip`. After an import, the section reports how many
+connections were added, how many were skipped because the id already existed,
+how many entries were rejected as invalid, and how many connections reference a
+key that is not present on this machine.
+
+**Not a backup.** An import brings back **connections only**. The `keys/` folder
+carries each key's public half, name, fingerprint and algorithm as reference
+material; import ignores it, because a private key exists nowhere but the vault
+and a stored password never leaves it. The vault file plus its passphrase is
+therefore the only thing that restores private keys and saved passwords. And an
+exported folder or `.zip` is **not encrypted**: it holds host names, user names,
+ports and public keys, so anyone who has the file can read it.
 
 ## First time connecting to a server
 

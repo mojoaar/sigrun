@@ -110,8 +110,16 @@ newtype variants holding a sequence.
   attribute, the capability grant and the window's `backgroundColor` are
   unconditional, so off macOS the header also drags the window. A double-click
   does not maximise: `internal_toggle_maximize` lives in `core:window:default`,
-  which this capability does not grant (only `core:event:default` and
-  `core:window:allow-start-dragging` are).
+  which this capability does not grant (it carries `core:event:default`,
+  `core:window:allow-start-dragging` and the two dialog calls the pickers need,
+  but not `core:window:default`).
+- Export/import writes a folder or `.zip` (`README.txt`, `export.json`,
+  `keys/<name>.pub`) holding connections and public key metadata only — never a
+  private key — and refuses a destination inside `~/.ssh` or an existing
+  `export.json`/`.zip`. `zip` (~7.3) and `tauri-plugin-dialog` (~2.7) are pinned
+  to the MSRV floor (a caret range pulls releases needing Rust 1.88/1.90), and the
+  capability grants only `dialog:allow-open`/`dialog:allow-save`, not the wider
+  `dialog:default`.
 
 ## Process rules
 
