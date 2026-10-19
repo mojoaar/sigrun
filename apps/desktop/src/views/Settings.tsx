@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSettings, saveSettings, listTerminals, type Settings as S, type TerminalInfo } from "../api";
+import { getSettings, saveSettings, setWindowTheme, listTerminals, type Settings as S, type TerminalInfo } from "../api";
 import { setLanguage, type Language } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
@@ -41,6 +41,7 @@ export default function Settings() {
     setMode(m);
     writeModeOverride(m === "system" ? null : m);
     applyTheme(s.theme as ThemeName, resolveMode(m === "system" ? null : m));
+    setWindowTheme(m).catch((err) => console.warn("sigrun: could not set the window theme", err));
   };
   const da = i18n.language === "da";
 

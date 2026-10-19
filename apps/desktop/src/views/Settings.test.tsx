@@ -22,6 +22,7 @@ vi.mock("../api", () => ({
     { id: "ghostty", name: "Ghostty", tabs: true },
   ]),
   saveSettings: vi.fn().mockResolvedValue(undefined),
+  setWindowTheme: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("Settings", () => {
@@ -80,5 +81,12 @@ describe("Settings", () => {
     await screen.findByRole("option", { name: "New tab" });
     expect((screen.getByLabelText("Open in") as HTMLSelectElement).value).toBe("window");
     expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ open_in: "window" }));
+  });
+
+  it("repaints the native window when the appearance changes", async () => {
+    vi.mocked(api.setWindowTheme).mockClear();
+    render(<Settings />);
+    fireEvent.change(await screen.findByLabelText("Appearance"), { target: { value: "light" } });
+    await waitFor(() => expect(api.setWindowTheme).toHaveBeenCalledWith("light"));
   });
 });

@@ -5,6 +5,8 @@ use sigrun_core::host::{handle, HostState};
 use sigrun_core::ipc::protocol::{Request, Response};
 use sigrun_core::model::{Connection, KeyAlgorithm, Settings};
 use sigrun_core::trust::{self, TrustStatus};
+#[cfg(target_os = "macos")]
+use tauri::Manager;
 use tauri::State;
 
 #[derive(Debug, Serialize)]
@@ -392,6 +394,26 @@ pub async fn save_settings(state: St<'_>, app: tauri::AppHandle, settings: Setti
     // The tray labels follow Settings.language.
     crate::tray::sync_tray(&app, &st);
     out
+}
+
+/// Repaint the main window's native appearance so the overlay title bar's
+/// traffic lights match the app's Light/Dark setting. `setting` carries the raw
+/// `"system" | "light" | "dark"` value; the mapping lives in `window_theme`.
+/// Failures are ignored: the window just keeps its current appearance.
+///
+/// Only macOS draws the overlay traffic lights over our header. Elsewhere
+/// `set_theme` still changes native appearance — Linux's tao maps it onto the
+/// GTK prefer-dark flag, Windows repaints its (non-overlay) title bar — so the
+/// call is macOS-only and the signature stays the same on every platform.
+#[tauri::command]
+pub fn set_window_theme(app: tauri::AppHandle, setting: String) -> CmdResult {
+    #[cfg(target_os = "macos")]
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_theme(crate::window_theme(&setting));
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (&app, &setting);
+    Ok(Response::Ok)
 }
 
 /// External links the UI may open. The allowlist is fixed: the host is the

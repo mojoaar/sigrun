@@ -27,6 +27,21 @@ pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
     }
 }
 
+/// The window's native appearance for a Light/Dark/System setting. `None`
+/// means "follow the OS", which is what `"system"` — and any unknown value —
+/// asks for.
+///
+/// macOS paints the overlay title bar's traffic lights from the window's own
+/// appearance rather than the webview's CSS, so the glyphs only stay legible
+/// against the themed header if this tracks the app's mode.
+pub fn window_theme(setting: &str) -> Option<tauri::Theme> {
+    match setting {
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        _ => None,
+    }
+}
+
 /// Build and install the macOS app menu. Setting a menu replaces Tauri's
 /// default one, so the Edit submenu (copy/paste in the app's forms) and the
 /// Window submenu have to come with it, and the Quit item has to be a custom
@@ -105,6 +120,7 @@ pub fn run() {
             commands::remove_key,
             commands::get_settings,
             commands::save_settings,
+            commands::set_window_theme,
             commands::list_terminals,
             commands::open_external,
         ])
@@ -208,6 +224,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn the_about_metadata_names_the_project_and_its_copyright() {
         let meta = super::about_metadata();
@@ -228,6 +246,14 @@ mod tests {
             .icon
             .expect("the about panel should carry the app icon");
         assert_eq!((icon.width(), icon.height()), (256, 256));
+    }
+
+    #[test]
+    fn the_window_theme_follows_the_setting() {
+        assert_eq!(window_theme("dark"), Some(tauri::Theme::Dark));
+        assert_eq!(window_theme("light"), Some(tauri::Theme::Light));
+        assert_eq!(window_theme("system"), None);
+        assert_eq!(window_theme("nordlys"), None);
     }
 
     #[test]

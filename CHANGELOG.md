@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented that live sessions show a dot on macOS and Linux only; the Windows launch path cannot report a session end.
 - Documented how the live-session dot clears: the host watches the launched shell's own process, so closing a window or tab, a force-quit, and a crash all clear it within a tick.
 - The macOS window uses an overlay title bar, so the app's own colour shows in it and the app header drags the window.
+- The window's appearance follows the Light/Dark setting, so the macOS traffic lights stay legible against the themed header.
 
 ### Fixed
 
