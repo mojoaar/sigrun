@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getSettings, saveSettings, setWindowTheme, listTerminals, type Settings as S, type TerminalInfo } from "../api";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { exportBundle, getSettings, importBundle, saveSettings, setWindowTheme, listTerminals, type CommandError, type Settings as S, type TerminalInfo } from "../api";
 import { setLanguage, type Language } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
 const field = "h-9 rounded border border-border bg-bg px-2 text-text";
+const btn = "h-9 shrink-0 rounded bg-accent px-3 text-bg";
 // The empty id is "System default": no platform's default terminal can be asked
 // for a tab, so a missing entry means false.
 const canOpenTabs = (list: TerminalInfo[], id: string | null) =>
@@ -14,6 +16,8 @@ export default function Settings() {
   const [s, setS] = useState<S | null>(null);
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [mode, setMode] = useState<Mode | "system">(readModeOverride() ?? "system");
+  const [result, setResult] = useState("");
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   useEffect(() => {
     // Both must land together: the stored open_in is only valid once we know
@@ -44,6 +48,36 @@ export default function Settings() {
     setWindowTheme(m).catch((err) => console.warn("sigrun: could not set the window theme", err));
   };
   const da = i18n.language === "da";
+  const zipFilter = { name: t("settings.transferZipFilter"), extensions: ["zip"] };
+  // A cancelled picker resolves to null and must do nothing at all.
+  const transfer = (op: () => Promise<string | null>) => {
+    setResult("");
+    setTransferError(null);
+    op()
+      .then((message) => { if (message !== null) setResult(message); })
+      .catch((err) => {
+        console.warn("sigrun: the transfer failed", err);
+        setTransferError((err as CommandError)?.message ?? "");
+      });
+  };
+  const exportTo = (zipped: boolean) => transfer(async () => {
+    const path = zipped
+      ? await save({ defaultPath: "sigrun-export", title: t("settings.transferExportZip"), filters: [zipFilter] })
+      : await open({ directory: true, title: t("settings.transferExportFolder") });
+    if (path === null) return null;
+    const done = await exportBundle(path, zipped);
+    return t("settings.transferExported", { connections: done.connections, keys: done.keys });
+  });
+  const importFrom = (zipped: boolean) => transfer(async () => {
+    const path = zipped
+      ? await open({ filters: [zipFilter], title: t("settings.transferImportZip") })
+      : await open({ directory: true, title: t("settings.transferImportFolder") });
+    if (path === null) return null;
+    const done = await importBundle(path);
+    return t("settings.transferImported", {
+      added: done.added, skipped: done.skipped, invalid: done.invalid, unresolved: done.unresolved_keys,
+    });
+  });
 
   return (
     <section className="flex max-w-sm flex-col gap-3">
@@ -104,6 +138,18 @@ export default function Settings() {
         <input type="checkbox" checked={s.start_minimized} onChange={(e) => update({ start_minimized: e.target.checked })} />
         {t("settings.startMinimized")}
       </label>
+      <div className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="font-semibold">{t("settings.transferTitle")}</h3>
+        <p className="text-xs text-muted">{t("settings.transferBody")}</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btn} onClick={() => exportTo(false)}>{t("settings.transferExportFolder")}</button>
+          <button type="button" className={btn} onClick={() => exportTo(true)}>{t("settings.transferExportZip")}</button>
+          <button type="button" className={btn} onClick={() => importFrom(false)}>{t("settings.transferImportFolder")}</button>
+          <button type="button" className={btn} onClick={() => importFrom(true)}>{t("settings.transferImportZip")}</button>
+        </div>
+        <p role="status" className="text-xs text-muted">{result}</p>
+        {transferError !== null && <p role="alert" className="text-xs text-danger">{transferError || t("common.error")}</p>}
+      </div>
     </section>
   );
 }

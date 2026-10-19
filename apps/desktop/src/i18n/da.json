@@ -91,7 +91,16 @@
     "startMinimized": "Start minimeret i systembakken",
     "autoLock": "Lås pengeskabet automatisk",
     "autoLockNever": "Aldrig",
-    "autoLockMinutes": "Efter {{count}} min. inaktivitet"
+    "autoLockMinutes": "Efter {{count}} min. inaktivitet",
+    "transferTitle": "Import og eksport",
+    "transferBody": "Eksportér alle forbindelser og offentlige nøgler til en mappe eller en .zip-fil, og importér dem igen. Dette er en overførsel, ikke en sikkerhedskopi: private nøgler og gemte adgangskoder følger aldrig med.",
+    "transferExportFolder": "Eksportér til en mappe…",
+    "transferExportZip": "Eksportér til en .zip-fil…",
+    "transferImportFolder": "Importér fra en mappe…",
+    "transferImportZip": "Importér fra en .zip-fil…",
+    "transferZipFilter": "Zip-arkiv",
+    "transferExported": "Eksporteret {{connections}} forbindelser og {{keys}} nøgler.",
+    "transferImported": "Importeret: {{added}} tilføjede, {{skipped}} sprunget over, {{invalid}} ugyldige, {{unresolved}} uopløste nøgler."
   },
   "trust": {
     "title": "Stoler du på denne vært?",

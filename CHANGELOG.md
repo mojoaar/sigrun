@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The export/import bundle format: connections and public key metadata written as a folder or a `.zip`, read back with zip limits and entry-name checks, and merged by id without overwriting.
 - Export and import over the host IPC: writing a bundle refuses a destination inside `~/.ssh` or one already taken, and importing merges connections by id without ever touching the vault.
 - The desktop side of export and import: the two native pickers (`tauri-plugin-dialog` 2.7.3, pinned to the MSRV floor, with only the `dialog:allow-open` and `dialog:allow-save` grants), the two commands, and their TypeScript wrappers.
+- An Import and export section in Settings: four buttons that write a bundle to a folder or a `.zip` and read one back through the native pickers, either way reporting what was added, skipped, invalid or left unresolved, and showing the host's refusal in the section rather than an alert.
 
 ### Changed
 

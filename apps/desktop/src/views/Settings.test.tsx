@@ -1,8 +1,11 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import "../i18n";
 import Settings from "./Settings";
 import * as api from "../api";
+
+const { openMock, saveMock } = vi.hoisted(() => ({ openMock: vi.fn(), saveMock: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock, save: saveMock }));
 
 const settings = vi.hoisted((): api.Settings => ({
   version: 1,
@@ -23,6 +26,8 @@ vi.mock("../api", () => ({
   ]),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   setWindowTheme: vi.fn().mockResolvedValue(undefined),
+  exportBundle: vi.fn(),
+  importBundle: vi.fn(),
 }));
 
 describe("Settings", () => {
@@ -88,5 +93,96 @@ describe("Settings", () => {
     render(<Settings />);
     fireEvent.change(await screen.findByLabelText("Appearance"), { target: { value: "light" } });
     await waitFor(() => expect(api.setWindowTheme).toHaveBeenCalledWith("light"));
+  });
+});
+
+describe("Settings import and export", () => {
+  beforeEach(() => {
+    openMock.mockReset();
+    saveMock.mockReset();
+    vi.mocked(api.exportBundle).mockReset();
+    vi.mocked(api.importBundle).mockReset();
+  });
+
+  it("exports to the folder the picker returned", async () => {
+    openMock.mockResolvedValue("/tmp/backup");
+    vi.mocked(api.exportBundle).mockResolvedValue({ path: "/tmp/backup", connections: 2, keys: 1 });
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Export to a folder…" }));
+    // A folder export must ask for a directory: anything else hands the host a file path.
+    await waitFor(() => expect(openMock).toHaveBeenCalledWith(expect.objectContaining({ directory: true })));
+    expect(saveMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.exportBundle).toHaveBeenCalledWith("/tmp/backup", false));
+    expect(screen.getByRole("status").textContent).toContain("2 connections");
+  });
+
+  it("exports to a zip when that button is used", async () => {
+    saveMock.mockResolvedValue("/tmp/backup.zip");
+    vi.mocked(api.exportBundle).mockResolvedValue({ path: "/tmp/backup.zip", connections: 2, keys: 1 });
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Export to a .zip file…" }));
+    // A zip export must go through save (a new file), filtered to .zip.
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ filters: [expect.objectContaining({ extensions: ["zip"] })] }),
+      ),
+    );
+    expect(openMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.exportBundle).toHaveBeenCalledWith("/tmp/backup.zip", true));
+  });
+
+  it("reports what an import did", async () => {
+    openMock.mockResolvedValue("/tmp/backup");
+    vi.mocked(api.importBundle).mockResolvedValue({ added: 3, skipped: 1, invalid: 0, unresolved_keys: 2 });
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import from a folder…" }));
+    // A folder import must ask for a directory too.
+    await waitFor(() => expect(openMock).toHaveBeenCalledWith(expect.objectContaining({ directory: true })));
+    expect(saveMock).not.toHaveBeenCalled();
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status.textContent).toContain("3 added, 1 skipped"));
+    expect(status.textContent).toContain("2 unresolved keys");
+  });
+
+  it("imports a zip the picker returned", async () => {
+    openMock.mockResolvedValue("/tmp/backup.zip");
+    vi.mocked(api.importBundle).mockResolvedValue({ added: 4, skipped: 0, invalid: 1, unresolved_keys: 0 });
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import from a .zip file…" }));
+    // A zip import must open a .zip-filtered file, not a directory.
+    await waitFor(() =>
+      expect(openMock).toHaveBeenCalledWith(
+        expect.objectContaining({ filters: [expect.objectContaining({ extensions: ["zip"] })] }),
+      ),
+    );
+    expect(openMock).not.toHaveBeenCalledWith(expect.objectContaining({ directory: true }));
+    expect(saveMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.importBundle).toHaveBeenCalledWith("/tmp/backup.zip"));
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status.textContent).toContain("4 added, 0 skipped"));
+    expect(status.textContent).toContain("1 invalid");
+  });
+
+  it("says nothing when the picker is cancelled", async () => {
+    openMock.mockResolvedValue(null);
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import from a .zip file…" }));
+    await waitFor(() =>
+      expect(openMock).toHaveBeenCalledWith(
+        expect.objectContaining({ filters: [expect.objectContaining({ extensions: ["zip"] })] }),
+      ),
+    );
+    expect(api.importBundle).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toBe("");
+  });
+
+  it("shows an error when the command refuses", async () => {
+    openMock.mockResolvedValue("/root/.ssh");
+    vi.mocked(api.exportBundle).mockRejectedValue({ code: "invalid_input", message: "cannot export inside the SSH directory" });
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Export to a folder…" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("cannot export inside the SSH directory");
+    expect(screen.getByRole("status").textContent).toBe("");
   });
 });

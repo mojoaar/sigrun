@@ -91,7 +91,16 @@
     "startMinimized": "Start minimized to tray",
     "autoLock": "Auto-lock the vault",
     "autoLockNever": "Never",
-    "autoLockMinutes": "After {{count}} min idle"
+    "autoLockMinutes": "After {{count}} min idle",
+    "transferTitle": "Import and export",
+    "transferBody": "Export every connection and public key to a folder or a .zip file, and import them again. This is a transfer, not a backup: private keys and saved passwords are never included.",
+    "transferExportFolder": "Export to a folder…",
+    "transferExportZip": "Export to a .zip file…",
+    "transferImportFolder": "Import from a folder…",
+    "transferImportZip": "Import from a .zip file…",
+    "transferZipFilter": "Zip archive",
+    "transferExported": "Exported {{connections}} connections and {{keys}} keys.",
+    "transferImported": "Imported {{added}} added, {{skipped}} skipped, {{invalid}} invalid, {{unresolved}} unresolved keys."
   },
   "trust": {
     "title": "Trust this host?",
