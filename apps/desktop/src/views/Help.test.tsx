@@ -16,4 +16,13 @@ describe("Help", () => {
     fireEvent.click(screen.getByRole("button", { name: /johansen\.foo/ }));
     expect(api.openExternal).toHaveBeenCalledWith("https://johansen.foo");
   });
+
+  it("states the approved tagline in the About section", () => {
+    render(<Help />);
+    expect(
+      screen.getByText(
+        "SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent.",
+      ),
+    ).toBeTruthy();
+  });
 });

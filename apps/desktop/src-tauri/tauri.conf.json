@@ -30,8 +30,8 @@
     "publisher": "mojoaar",
     "homepage": "https://johansen.foo",
     "copyright": "Copyright © 2026 mojoaar",
-    "shortDescription": "SSH key and connection manager",
-    "longDescription": "Sigrun manages SSH keys, connections and agent auth locally.",
+    "shortDescription": "SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent.",
+    "longDescription": "Sigrun keeps your SSH connections and private keys in a local encrypted vault. A built-in agent serves them to ssh, so no private key file has to sit on disk. Everything stays on your machine.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

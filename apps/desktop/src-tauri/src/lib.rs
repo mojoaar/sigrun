@@ -267,6 +267,12 @@ mod tests {
         assert_eq!(v["identifier"], "com.sigrun.app");
         assert_eq!(v["app"]["windows"][0]["title"], "Sigrun");
         assert_eq!(v["app"]["windows"][0]["minWidth"], 900);
+        // The installer metadata and the in-app tagline are the same approved
+        // sentence, pinned here so the three copy surfaces cannot drift.
+        assert_eq!(
+            v["bundle"]["shortDescription"],
+            "SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent."
+        );
         // The overlay title bar is what makes the header the visible bar; pin it
         // so a config edit cannot silently drop the feature.
         assert_eq!(v["app"]["windows"][0]["titleBarStyle"], "Overlay");

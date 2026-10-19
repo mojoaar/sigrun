@@ -156,6 +156,7 @@
     },
     "about": {
       "title": "About",
+      "tagline": "SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent.",
       "version": "Version {{version}}",
       "author": "Made by mojoaar.",
       "website": "https://johansen.foo",

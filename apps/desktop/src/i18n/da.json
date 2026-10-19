@@ -156,6 +156,7 @@
     },
     "about": {
       "title": "Om",
+      "tagline": "SSH-forbindelser og nøgler i et lokalt krypteret pengeskab, leveret til ssh via en indbygget agent.",
       "version": "Version {{version}}",
       "author": "Lavet af mojoaar.",
       "website": "https://johansen.foo",

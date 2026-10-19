@@ -68,6 +68,7 @@ export default function Help() {
 
       <section className="flex flex-col gap-1">
         <h3 className="font-semibold">{t("help.about.title")}</h3>
+        <p className="text-muted">{t("help.about.tagline")}</p>
         {version && <p className="text-muted">{t("help.about.version", { version })}</p>}
         <p className="text-muted">{t("help.about.author")}</p>
         <div className="flex gap-3">
