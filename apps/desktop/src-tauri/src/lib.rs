@@ -101,6 +101,7 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::get_status,
             commands::vault_init,
@@ -123,6 +124,8 @@ pub fn run() {
             commands::set_window_theme,
             commands::list_terminals,
             commands::open_external,
+            commands::export_bundle,
+            commands::import_bundle,
         ])
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;

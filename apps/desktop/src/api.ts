@@ -85,3 +85,8 @@ export const setWindowTheme = (setting: "system" | "light" | "dark") =>
   call<void>("set_window_theme", { setting });
 // The host allowlists the URL, so the UI can only open Sigrun's own links.
 export const openExternal = (url: string) => call<void>("open_external", { url });
+export type ExportSummary = { path: string; connections: number; keys: number };
+export type ImportSummary = { added: number; skipped: number; invalid: number; unresolved_keys: number };
+// The path comes from the native picker in the view, which cancels silently.
+export const exportBundle = (path: string, zipped: boolean) => call<ExportSummary>("export_bundle", { path, zipped });
+export const importBundle = (path: string) => call<ImportSummary>("import_bundle", { path });

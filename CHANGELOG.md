@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The launched line reports its own shell's pid before `ssh` runs, so the host notices a session whose terminal is killed outright (macOS and Linux).
 - The export/import bundle format: connections and public key metadata written as a folder or a `.zip`, read back with zip limits and entry-name checks, and merged by id without overwriting.
 - Export and import over the host IPC: writing a bundle refuses a destination inside `~/.ssh` or one already taken, and importing merges connections by id without ever touching the vault.
+- The desktop side of export and import: the two native pickers (`tauri-plugin-dialog` 2.7.3, pinned to the MSRV floor, with only the `dialog:allow-open` and `dialog:allow-save` grants), the two commands, and their TypeScript wrappers.
 
 ### Changed
 

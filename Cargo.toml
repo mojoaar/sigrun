@@ -41,6 +41,7 @@ russh = { version = "0.64", default-features = false, features = ["ring", "rsa"]
 tokio-util = { version = "0.7", features = ["rt"] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-build = "2"
+tauri-plugin-dialog = "~2.7"
 tauri-plugin-single-instance = "2"
 toml = "0.8"
 uuid = { version = "1", features = ["v4"] }

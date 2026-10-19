@@ -145,6 +145,12 @@ pub async fn import_key_inner(
 pub async fn remove_key_inner(state: Arc<HostState>, id: String) -> CmdResult {
     call(state, Request::KeysRemove { id }).await
 }
+pub async fn export_bundle_inner(state: Arc<HostState>, path: String, zipped: bool) -> CmdResult {
+    call(state, Request::ExportBundle { path, zipped }).await
+}
+pub async fn import_bundle_inner(state: Arc<HostState>, path: String) -> CmdResult {
+    call(state, Request::ImportBundle { path }).await
+}
 pub async fn get_settings_inner(state: Arc<HostState>) -> CmdResult {
     let s = state.store.load_settings().map_err(config_err)?;
     Ok(Response::Command(
@@ -384,6 +390,14 @@ pub async fn remove_key(state: St<'_>, id: String) -> CmdResult {
     remove_key_inner(state.inner().clone(), id).await
 }
 #[tauri::command]
+pub async fn export_bundle(state: St<'_>, path: String, zipped: bool) -> CmdResult {
+    export_bundle_inner(state.inner().clone(), path, zipped).await
+}
+#[tauri::command]
+pub async fn import_bundle(state: St<'_>, path: String) -> CmdResult {
+    import_bundle_inner(state.inner().clone(), path).await
+}
+#[tauri::command]
 pub async fn get_settings(state: St<'_>) -> CmdResult {
     get_settings_inner(state.inner().clone()).await
 }
@@ -498,6 +512,76 @@ mod tests {
         assert!(super::allowed_url("https://github.com/mojoaar/sigrun").is_ok());
         let err = super::allowed_url("https://example.com/evil").unwrap_err();
         assert!(matches!(err, sigrun_core::error::Error::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn export_and_import_round_trip_through_commands() {
+        let from = tempfile::tempdir().unwrap();
+        let source = crate::host::start_host(sigrun_core::paths::Paths::with_roots(
+            from.path().into(),
+            from.path().into(),
+            from.path().join("ssh"),
+        ))
+        .await
+        .unwrap();
+        source
+            .store
+            .upsert_connection(sigrun_core::model::Connection::managed("c1", "web"))
+            .unwrap();
+        let dest = from.path().join("sigrun-export");
+        match crate::commands::export_bundle_inner(
+            source.clone(),
+            dest.display().to_string(),
+            false,
+        )
+        .await
+        .unwrap()
+        {
+            sigrun_core::ipc::protocol::Response::Export(s) => {
+                assert_eq!((s.connections, s.keys), (1, 0));
+                assert_eq!(s.path, dest.display().to_string());
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        source.shutdown.cancel();
+
+        let to = tempfile::tempdir().unwrap();
+        let target = crate::host::start_host(sigrun_core::paths::Paths::with_roots(
+            to.path().into(),
+            to.path().into(),
+            to.path().join("ssh"),
+        ))
+        .await
+        .unwrap();
+        match crate::commands::import_bundle_inner(target.clone(), dest.display().to_string())
+            .await
+            .unwrap()
+        {
+            sigrun_core::ipc::protocol::Response::Import(s) => {
+                assert_eq!((s.added, s.skipped, s.invalid), (1, 0, 0));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        target.shutdown.cancel();
+    }
+
+    #[test]
+    fn the_capability_pins_the_two_dialog_grants_and_nothing_wider() {
+        let v: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let perms: Vec<&str> = v["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap())
+            .collect();
+        assert!(perms.contains(&"dialog:allow-open"));
+        assert!(perms.contains(&"dialog:allow-save"));
+        // The pickers are the only dialog API the webview uses, so the wider
+        // `dialog:default` set stays out.
+        assert!(!perms.iter().any(|p| p.starts_with("dialog:")
+            && *p != "dialog:allow-open"
+            && *p != "dialog:allow-save"));
     }
 
     #[tokio::test]

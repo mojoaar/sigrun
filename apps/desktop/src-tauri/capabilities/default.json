@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window listens for host events (the idle auto-lock and the live-session changes that drive the connected dot) and starts its own drag when the header is dragged.",
+  "description": "The main window listens for host events (the idle auto-lock and the live-session changes that drive the connected dot), starts its own drag when the header is dragged, and opens the two native pickers an import or an export needs. The pickers grant the two dialog calls the webview actually makes, not the wider dialog:default set: an ungranted plugin call is rejected, and a swallowed rejection would make the button do nothing.",
   "windows": ["main"],
-  "permissions": ["core:event:default", "core:window:allow-start-dragging"]
+  "permissions": ["core:event:default", "core:window:allow-start-dragging", "dialog:allow-open", "dialog:allow-save"]
 }
