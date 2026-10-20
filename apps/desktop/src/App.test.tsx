@@ -1,18 +1,24 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 import { listen } from "@tauri-apps/api/event";
 import { act } from "@testing-library/react";
 import i18n from "./i18n";
 import App from "./App";
-import { getSettings, getStatus } from "./api";
+import { exportBundle, getSettings, getStatus } from "./api";
+
+const { openMock, saveMock } = vi.hoisted(() => ({ openMock: vi.fn(), saveMock: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock, save: saveMock }));
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 
 vi.mock("./api", () => ({
   getStatus: vi.fn().mockResolvedValue({ vault: "Locked", agent_socket: null, host_addr: "x", version: "0.1.0" }),
-  getSettings: vi.fn().mockResolvedValue({ theme: "ravn", language: "da", terminal: null, agent_enabled: true, version: 1 }),
+  getSettings: vi.fn().mockResolvedValue({ theme: "ravn", language: "da", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 }),
   listConnections: vi.fn().mockResolvedValue([]),
   listKeys: vi.fn().mockResolvedValue([]),
+  listTerminals: vi.fn().mockResolvedValue([]),
+  exportBundle: vi.fn(),
+  saveSettings: vi.fn().mockResolvedValue(undefined),
   vaultUnlock: vi.fn(),
   vaultInit: vi.fn(),
   vaultLock: vi.fn(),
@@ -26,6 +32,8 @@ const setUserAgent = (ua: string) => Object.defineProperty(window.navigator, "us
 
 beforeEach(() => {
   window.matchMedia = ((q: string) => ({ matches: true, media: q })) as unknown as typeof window.matchMedia;
+  openMock.mockReset();
+  saveMock.mockReset();
 });
 
 afterEach(async () => {
@@ -78,10 +86,36 @@ const menuHandler = () =>
 test("a menu action does nothing while the vault is locked", async () => {
   render(<App />);
   await screen.findByRole("button", { name: /lås op|unlock/i });
+  // If either action were remembered, unlocking would land on Settings and run
+  // the export picker; only the gate guard keeps that from happening.
   act(() => menuHandler()({ payload: "new-connection" }));
   act(() => menuHandler()({ payload: "export" }));
-  expect(screen.queryByRole("dialog")).toBeNull();
+
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  fireEvent.change(screen.getByLabelText(/passphrase|adgangssætning/i), { target: { value: "pw" } });
+  fireEvent.click(screen.getByRole("button", { name: /lås op|unlock/i }));
+
+  const nav = await screen.findByRole("navigation");
+  expect(within(nav).getByRole("button", { name: /connections|forbindelser/i }).getAttribute("aria-current")).toBe("page");
   expect(screen.queryByRole("heading", { name: /settings|indstillinger/i })).toBeNull();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(saveMock).not.toHaveBeenCalled();
+  expect(openMock).not.toHaveBeenCalled();
+});
+
+test("an export menu action opens Settings and runs the picker once", async () => {
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  saveMock.mockResolvedValueOnce("/tmp/out.zip");
+  vi.mocked(exportBundle).mockResolvedValueOnce({ path: "/tmp/out.zip", connections: 1, keys: 0 });
+  render(<App />);
+  await screen.findByRole("navigation");
+
+  act(() => menuHandler()({ payload: "export" }));
+
+  expect(await screen.findByRole("heading", { name: /settings|indstillinger/i })).toBeTruthy();
+  await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
+  expect(exportBundle).toHaveBeenCalledWith("/tmp/out.zip", true);
+  expect(exportBundle).toHaveBeenCalledTimes(1);
 });
 
 test("the menu opens the add form when unlocked", async () => {
