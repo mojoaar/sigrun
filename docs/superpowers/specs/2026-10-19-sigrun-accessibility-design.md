@@ -9,13 +9,15 @@ built the same way — an inline `fixed inset-0` overlay plus a `role="dialog"`
 element with an `aria-label` — and none of them moves focus inside when it
 opens, closes on Escape, or returns focus to the control that opened it.
 `VaultGate` already focuses its passphrase field and is the page itself rather
-than a dialog, so it is not part of this pass. Of the messages that appear
-without a page change, only "No connections match" lacks a live role: the
+than a dialog, so it is not part of this pass. Before this pass, of the result
+and notice messages only "No connections match" lacked a live role: the
 import/export result, the provisioning result and the vault-locked notice
-already carry `role="status"`. The nav marks the active tab with
-`aria-current={active}`, which React renders as the string `"false"` rather
-than omitting the attribute. And the macOS menu labels are English literals
-while the rest of the app follows the Language setting.
+already carried `role="status"`. (The empty-list and loading strings also change
+on their own, but they are list states rather than results, and this pass leaves
+them alone.) The nav passed a boolean to `aria-current`, which React rendered as
+the string `"false"` rather than omitting the attribute. And the macOS menu
+labels were English literals while the rest of the app followed the Language
+setting.
 
 ## Goal
 
@@ -44,7 +46,7 @@ confirmation, and the key remove confirmation (`Connections.tsx:163, 285, 496,
   confirming a destructive action;
 - focus returning to the control that opened it when it closes.
 
-Because the shape is identical in all six places, this is one small shared hook
+Because the wiring is the same at all six sites, this is one small shared hook
 rather than six copies. It also keeps a stack: the trust prompt renders above
 the provision panel, and one Escape must close only the top one. A full focus
 trap is a non-goal for now: Escape plus initial and returned focus covers the
@@ -105,8 +107,8 @@ it is a non-goal.
 
 ## Review focus
 
-1. Every interactive control is Tab-reachable and shows a visible focus
-   indicator against all four themes, in light and dark.
+1. Every interactive control is Tab-reachable, and the one `:focus-visible`
+   rule is visible on both `bg` and `surface`, in light and dark.
 2. A keyboard user can open, operate and dismiss every dialog without a mouse,
    and lands back on the control they came from.
 3. Escape never confirms a destructive action (the two remove confirmations

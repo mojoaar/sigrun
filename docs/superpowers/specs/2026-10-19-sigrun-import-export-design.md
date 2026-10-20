@@ -123,7 +123,7 @@ Two buttons: **Export to a folder…** and **Export to a `.zip` file…**.
 1. The native save dialog opens, defaulting to `sigrun-export-<date>` (folder)
    or `sigrun-export-<date>.zip`.
 2. The host writes the three entries above via
-   `Request::ExportBundle { target, zipped }`.
+   `Request::ExportBundle { path, zipped }`.
 3. The destination is **refused if it is inside `~/.ssh`**, compared after
    canonicalising both paths.
 4. If `export.json` already exists at the destination, the export is refused
@@ -137,7 +137,7 @@ from `data.toml`.
 
 Two buttons: **Import from a folder…** and **Import from a `.zip` file…**.
 
-`Request::ImportBundle { source, zipped }` then:
+`Request::ImportBundle { path }` then:
 
 1. Reads `export.json`. A missing or unparsable file is an error, not a panic;
    an unknown `format` is refused with a "newer Sigrun" message.
@@ -153,6 +153,18 @@ Two buttons: **Import from a folder…** and **Import from a `.zip` file…**.
 
 Importing the same export twice adds nothing the second time.
 
+### Format changes
+
+`export.json` carries one integer, `format`, and `FORMAT_VERSION` is `1`.
+`read_bundle` refuses any other value with "this export was written by a newer
+Sigrun (format N); update Sigrun to import it", so an older build fails closed
+instead of misreading a newer file. When the format changes, bump
+`FORMAT_VERSION` and teach `read_bundle` the old shape in the same commit —
+never reinterpret an old file silently. A second version does not justify a
+migration framework before it exists. `bundle.rs`'s
+`an_unknown_format_is_refused_with_a_newer_sigrun_message` test pins the
+refusal.
+
 ### Reading a zip safely
 
 A zip is untrusted input. We read only the entry named `export.json`; other
@@ -166,31 +178,34 @@ used as a path.
 `sigrun-core`:
 
 ```rust
-pub struct ExportSummary { pub connections: usize, pub keys: usize }
+pub struct ExportSummary { pub path: String, pub connections: usize, pub keys: usize }
 pub struct ImportSummary {
-    pub connections_added: usize, pub connections_skipped: usize,
-    pub connections_invalid: usize, pub keys_added: usize, pub keys_skipped: usize,
+    pub added: usize, pub skipped: usize, pub invalid: usize,
     pub unresolved_keys: usize,
 }
-pub fn export_bundle(store: &Store, ssh_dir: &Path, target: &Path, zipped: bool) -> Result<ExportSummary>;
-pub fn import_bundle(store: &Store, source: &Path, zipped: bool) -> Result<ImportSummary>;
+impl HostState {
+    async fn export_bundle(&self, path: &str, zipped: bool) -> Result<ExportSummary>;
+    async fn import_bundle(&self, path: &str) -> Result<ImportSummary>;
+}
 ```
 
 Both summaries derive `Serialize`/`Deserialize` so they ride the IPC wire.
-Pure helpers carry the decisions a test can pin without touching a disk:
-`export_document(&DataFile) -> String`, `parse_document(&str) -> Result<ExportDocument>`,
-`valid_connection(&Connection) -> bool`, and the entry-name list for the zip.
+The public helpers carry the decisions a test can pin without a disk:
+`build_bundle(&DataFile, now_unix: u64) -> Bundle`, `read_bundle(&Path) ->
+Result<Bundle>`, `merge(&mut DataFile, &Bundle) -> ImportSummary`,
+`valid_connection(&Connection) -> bool` and `destination_is_allowed(&Path,
+&Path) -> bool`.
 
-IPC: `Request::ExportBundle { target: String, zipped: bool }` →
-`Response::Export(ExportSummary)`, and `Request::ImportBundle { source: String,
-zipped: bool }` → `Response::Import(ImportSummary)`. Neither touches the vault,
-so neither belongs in the idle-auto-lock `last_vault_activity` list.
+IPC: `Request::ExportBundle { path: String, zipped: bool }` →
+`Response::Export(ExportSummary)`, and `Request::ImportBundle { path: String }` →
+`Response::Import(ImportSummary)`. Neither touches the vault, so neither belongs
+in the idle-auto-lock `last_vault_activity` list.
 
-Desktop: `export_bundle(state, target, zipped)` and `import_bundle(state,
-source, zipped)` app commands, thin wrappers over `handle`, registered in the
-`invoke_handler` list. Frontend: `exportBundle(target, zipped)` and
-`importBundle(source, zipped)` in `api.ts`, and a Settings section holding the
-four buttons, a one-line hint and a result line.
+Desktop: `export_bundle(state, path, zipped)` and `import_bundle(state, path)`
+app commands, thin wrappers over `handle`, registered in the `invoke_handler`
+list. Frontend: `exportBundle(path, zipped)` and `importBundle(path)` in
+`api.ts`, and a Settings section holding the four buttons, a one-line hint and
+a result line.
 
 ## What is left to the builder
 
@@ -236,10 +251,5 @@ four buttons, a one-line hint and a result line.
    the destination's longest existing ancestor plus the remainder, and refuse
    an existing zip target the way the folder case refuses an existing
    `export.json`.
-5. **The `## Interfaces` block above is stale; the shipped code is the
-   reference.** There are four summary fields (`added`, `skipped`, `invalid`,
-   `unresolved_keys`) rather than six, the IPC ships `Request::ExportBundle {
-   path, zipped }` and `Request::ImportBundle { path }`, and the pure helpers are
-   named `build_bundle`, `read_bundle`, `merge` and `destination_is_allowed` — no
-   `export_document`/`parse_document`/`ExportDocument` survives. Read
-   `crates/sigrun-core/src/bundle.rs` for the signatures that ship.
+5. Revised during implementation: this block now carries the shipped
+   signatures and summary fields. `bundle.rs` remains the reference.

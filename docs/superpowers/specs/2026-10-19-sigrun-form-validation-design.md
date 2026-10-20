@@ -9,8 +9,8 @@ currently delegates its rules to the browser. Those rules are real — constrain
 validation runs before the submit event, so `required`/`min`/`max` do block a
 `preventDefault` handler — but they are the wrong shape for this app: the
 tooltip is the platform's language and wording, jsdom does not implement
-constraint validation so the test suite cannot see them, and the rules cover
-only three fields.
+constraint validation so the test suite cannot see them, and their rules stop
+at presence and range: nothing checks the host or user charset.
 
 Three fields are genuinely unprotected today:
 
@@ -66,8 +66,8 @@ one names `terminal.rs` in a comment.
   focus to the first one.
 - Messages are one line each, next to the field, in the existing
   `text-xs text-danger` style.
-- The port input reads back as an empty string when it holds something that is
-  not a number, so "empty" and "not a number" produce the same message.
+- The port input holds the raw string, so an empty value and a non-number both
+  produce the same message under the field instead of being coerced silently.
 - Values are trimmed before saving, matching what the validation checked.
 - The browser's `required`, `min` and `max` attributes come off the four
   fields. One rule set, one message style, and jsdom sees the same behaviour
