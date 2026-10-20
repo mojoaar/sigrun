@@ -69,7 +69,7 @@ one names `terminal.rs` in a comment.
 - The port input reads back as an empty string when it holds something that is
   not a number, so "empty" and "not a number" produce the same message.
 - Values are trimmed before saving, matching what the validation checked.
-- The browser's `required`, `min` and `max` attributes come off the three
+- The browser's `required`, `min` and `max` attributes come off the four
   fields. One rule set, one message style, and jsdom sees the same behaviour
   the browser does.
 - The port input is `type="text"` with `inputMode="numeric"`, because the draft
@@ -92,13 +92,10 @@ one names `terminal.rs` in a comment.
 
 ## What is left to the builder
 
-- The exact wording of the three messages.
+- The exact wording of the four messages.
 - Whether the invalid state also tints the field's border (my default: yes,
   `border-danger`, since colour is not the only signal — the message and
   `aria-invalid` carry it too).
-- Whether to keep the browser's `required` attributes as well (my default:
-  keep them off, so the user sees one consistent message rather than the
-  browser's tooltip in one case and ours in another).
 
 ## Review focus
 
