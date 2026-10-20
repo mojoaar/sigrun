@@ -472,28 +472,35 @@ fn check_identity(data: &DataFile, conn: &Connection) -> Result<()> {
 
 /// Refuse adopting a credential while the connection still holds its own
 /// password: the spec allows one source only, and removing a secret is the
-/// user's call, never a side effect of a save. A locked vault cannot answer, so
-/// the refusal waits until it is unlocked, as `with_password_flag` does.
+/// user's call, never a side effect of a save.
+///
+/// A locked vault cannot see the secret, so a first switch to a credential is
+/// refused rather than guessed: the alternative would store a row whose
+/// password nobody can reach any more.
 async fn refuse_saved_password(
     state: &HostState,
     data: &DataFile,
     conn: &Connection,
 ) -> Result<()> {
-    if conn.credential_id.is_none() {
+    if conn.credential_id.as_deref().is_none_or(str::is_empty) {
         return Ok(());
     }
-    let stored_flag = data
-        .connections
-        .iter()
-        .find(|c| c.id == conn.id)
-        .is_some_and(|c| c.has_password);
-    let held = stored_flag || {
-        let guard = state.vault.lock().await;
-        let mut probe = conn.clone();
-        with_password_flag((*guard).as_ref(), &mut probe);
-        probe.has_password
-    };
-    if !held {
+    let stored = data.connections.iter().find(|c| c.id == conn.id);
+    let already_shared = stored
+        .and_then(|c| c.credential_id.as_deref())
+        .is_some_and(|id| !id.is_empty());
+    let stored_flag = stored.is_some_and(|c| c.has_password);
+
+    let guard = state.vault.lock().await;
+    let vault = (*guard).as_ref();
+    if !already_shared && vault.is_none() {
+        return Err(Error::VaultLockedFor(
+            "unlock the vault to switch this connection to a credential".into(),
+        ));
+    }
+    let mut probe = conn.clone();
+    with_password_flag(vault, &mut probe);
+    if !stored_flag && !probe.has_password {
         return Ok(());
     }
     Err(Error::InvalidInput(format!(
@@ -1028,6 +1035,14 @@ mod tests {
         *state.vault.lock().await = Some(Vault::new(path).unlock("pw").unwrap());
     }
 
+    /// Unlock a vault created where `VaultUnlock` looks, so the tests below can
+    /// lock and unlock it over the IPC.
+    async fn unlock_at_the_host_path(state: &HostState) {
+        let path = state.paths.vault_file().clone();
+        Vault::new(path.clone()).create("pw").unwrap();
+        *state.vault.lock().await = Some(Vault::new(path).unlock("pw").unwrap());
+    }
+
     /// A connection the launcher would accept: a real host and port.
     fn usable(id: &str, host: &str) -> Connection {
         let mut conn = Connection::managed(id, id);
@@ -1416,6 +1431,135 @@ mod tests {
         let stored = state.store.load_data().unwrap().connections;
         assert_eq!(stored[0].credential_id, None);
         assert!(stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_locked_vault_refuses_to_guess_whether_a_switch_orphans_a_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        unlock_at_the_host_path(&state).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        connections_set_password(&state, "c1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+        assert!(matches!(
+            handle(&state, Request::VaultLock).await,
+            Response::Ok
+        ));
+
+        let adopting = || {
+            let mut c = Connection::managed("c1", "web");
+            c.credential_id = Some("cred1".into());
+            c
+        };
+        // Locked, the host cannot see the secret, so it must not let the switch
+        // through and leave an unreachable password behind.
+        match handle(
+            &state,
+            Request::ConnectionsUpdate {
+                connection: adopting(),
+            },
+        )
+        .await
+        {
+            Response::Error { code, message } => {
+                assert_eq!(code, "vault_locked");
+                assert!(
+                    message.contains("unlock the vault"),
+                    "message was: {message}"
+                );
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored[0].credential_id, None);
+
+        // Unlocked, the refusal names the real obstacle.
+        assert!(matches!(
+            handle(
+                &state,
+                Request::VaultUnlock {
+                    passphrase: "pw".into()
+                }
+            )
+            .await,
+            Response::Unlocked { .. }
+        ));
+        match handle(
+            &state,
+            Request::ConnectionsUpdate {
+                connection: adopting(),
+            },
+        )
+        .await
+        {
+            Response::Error { code, message } => {
+                assert_eq!(code, "invalid_input");
+                assert!(message.contains("saved password"), "message was: {message}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn once_unlocked_a_switch_succeeds_when_no_password_is_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        unlock_at_the_host_path(&state).await;
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+        assert!(matches!(
+            handle(&state, Request::VaultLock).await,
+            Response::Ok
+        ));
+
+        let adopting = || {
+            let mut c = Connection::managed("c1", "web");
+            c.credential_id = Some("cred1".into());
+            c
+        };
+        // No secret exists, but the locked host cannot know that either.
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsUpdate {
+                    connection: adopting()
+                }
+            )
+            .await,
+            Response::Error { code, .. } if code == "vault_locked"
+        ));
+        assert!(matches!(
+            handle(
+                &state,
+                Request::VaultUnlock {
+                    passphrase: "pw".into()
+                }
+            )
+            .await,
+            Response::Unlocked { .. }
+        ));
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsUpdate {
+                    connection: adopting()
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored[0].credential_id.as_deref(), Some("cred1"));
         state.shutdown.cancel();
     }
 

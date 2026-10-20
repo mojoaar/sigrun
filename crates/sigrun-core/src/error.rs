@@ -16,6 +16,10 @@ pub enum Error {
     VaultUninitialized,
     #[error("vault is locked")]
     VaultLocked,
+    /// The vault must be unlocked for this request; the message says why. The
+    /// IPC code stays `vault_locked`, so a client re-gates the UI as usual.
+    #[error("{0}")]
+    VaultLockedFor(String),
     #[error("invalid passphrase")]
     InvalidPassphrase,
     #[error("vault is corrupt: {0}")]

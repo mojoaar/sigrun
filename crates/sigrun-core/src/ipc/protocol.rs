@@ -174,7 +174,7 @@ pub fn decode<T: serde::de::DeserializeOwned>(line: &[u8]) -> Result<T> {
 pub fn error_code(err: &Error) -> &'static str {
     match err {
         Error::VaultUninitialized => "vault_uninitialized",
-        Error::VaultLocked => "vault_locked",
+        Error::VaultLocked | Error::VaultLockedFor(_) => "vault_locked",
         Error::InvalidPassphrase => "invalid_passphrase",
         Error::VaultCorrupt(_) => "vault_corrupt",
         Error::NotFound(_) => "not_found",
