@@ -116,8 +116,12 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
   const [password, setPassword] = useState("");
   const [removePassword, setRemovePassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether this save already deleted the stored secret, so a later failure can
+  // say so instead of leaving the user to find out at connect time.
+  const [passwordRemoved, setPasswordRemoved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const formRef = useRef<HTMLFormElement>(null);
+  const credentialRef = useRef<HTMLSelectElement>(null);
   const canProvision = keys.some((k) => k.available);
   // A reference the host no longer holds: shown by id, never silently repointed.
   const missingCredential = source === "credential" && draft.credential_id !== null && !credentials.some((c) => c.id === draft.credential_id);
@@ -154,6 +158,20 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
     setFieldErrors(found);
     if (Object.keys(found).length > 0) return;
     const own = source === "own";
+    const credentialId = own ? null : draft.credential_id;
+    // A reference is a non-empty id or null; the own side is always null.
+    if (!own && credentialId === null) {
+      setError(t("connections.missingCredential", { id: "" }));
+      credentialRef.current?.focus();
+      return;
+    }
+    const chosen = credentials.find((c) => c.id === credentialId);
+    // Refused by the host after the password was already deleted; predict it.
+    if (chosen && chosen.key_id === null && draft.disable_password_auth) {
+      setError(t("connections.keylessCredential"));
+      credentialRef.current?.focus();
+      return;
+    }
     // The launcher takes a number; validation already proved the string parses.
     const connection: Connection = {
       ...draft,
@@ -161,12 +179,17 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
       host: draft.host.trim(),
       user: own ? draft.user.trim() : "",
       port: Number(draft.port),
-      credential_id: own ? null : draft.credential_id,
+      key_id: own ? draft.key_id : null,
+      credential_id: credentialId,
+      has_password: own ? draft.has_password : false,
     };
     try {
       // The host refuses a credential while the connection still holds its own
       // password, and clearing it is this explicit switch, not a silent repair.
-      if (!own && initial?.has_password) await setConnectionPassword(connection.id, null);
+      if (!own && initial?.has_password) {
+        await setConnectionPassword(connection.id, null);
+        setPasswordRemoved(true);
+      }
       // The connection must exist before its password: the id is generated here
       // (`ConnectionsAdd` never returns one).
       await (initial ? updateConnection(connection) : addConnection(connection));
@@ -210,7 +233,7 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
         ) : (
           <>
             <label>{t("connections.credential")}
-              <select className={field} value={draft.credential_id ?? ""} onChange={(e) => setDraft({ ...draft, credential_id: e.target.value || null, user: "", key_id: null, has_password: false })}>
+              <select ref={credentialRef} className={field} value={draft.credential_id ?? ""} onChange={(e) => setDraft({ ...draft, credential_id: e.target.value || null, user: "", key_id: null, has_password: false })}>
                 {missingCredential && draft.credential_id && <option value={draft.credential_id} disabled>{draft.credential_id} — {t("credentials.missing")}</option>}
                 {credentials.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.user})</option>)}
               </select>
@@ -241,6 +264,7 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
             )}
           </>
         )}
+        {passwordRemoved && <p role="alert" className="text-danger">{t("connections.passwordRemoved")}</p>}
         {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
           {initial && (canProvision

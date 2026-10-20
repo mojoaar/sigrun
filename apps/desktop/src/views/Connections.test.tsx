@@ -1020,4 +1020,67 @@ describe("Connections", () => {
       .toBeLessThan(vi.mocked(api.updateConnection).mock.invocationCallOrder[0]);
     expect(api.updateConnection).toHaveBeenCalledWith(expect.objectContaining({ credential_id: "cred1", has_password: false }));
   });
+
+  it("refuses a keyless credential without deleting the saved password first", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "c1", label: "web", has_password: true, disable_password_auth: true },
+    ]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential({ key_id: null })]);
+    vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    const useCredential = within(dialog).getByLabelText("Use a credential") as HTMLInputElement;
+    await waitFor(() => expect(useCredential.disabled).toBe(false));
+
+    fireEvent.click(useCredential);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect((await within(dialog).findByRole("alert")).textContent).toMatch(/has no key/i);
+    // The password and the row are untouched: the host would refuse this anyway.
+    expect(api.setConnectionPassword).not.toHaveBeenCalled();
+    expect(api.updateConnection).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(within(dialog).getByLabelText("Credential"));
+  });
+
+  it("says the saved password was removed when the save fails afterwards", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web", has_password: true }]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential({ key_id: "k1" })]);
+    vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.updateConnection).mockClear().mockRejectedValueOnce({ code: "internal", message: "boom" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    const useCredential = within(dialog).getByLabelText("Use a credential") as HTMLInputElement;
+    await waitFor(() => expect(useCredential.disabled).toBe(false));
+
+    fireEvent.click(useCredential);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.setConnectionPassword).toHaveBeenCalledWith("c1", null));
+    expect(await within(dialog).findByText(/saved password for this connection was removed/i)).toBeTruthy();
+    expect(within(dialog).getByText("boom")).toBeTruthy();
+  });
+
+  it("saves an imported credential-mode row with its own key as having no key", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "c1", label: "web", user: "", key_id: "k1", credential_id: "cred1" },
+    ]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential({ key_id: "k1" })]);
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    expect(within(dialog).queryByLabelText("Key")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.updateConnection).toHaveBeenCalledTimes(1));
+    expect(api.updateConnection).toHaveBeenCalledWith(expect.objectContaining({
+      credential_id: "cred1", key_id: null, has_password: false,
+    }));
+  });
 });

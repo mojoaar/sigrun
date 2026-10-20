@@ -45,6 +45,8 @@
     "sourceOwn": "Enter my own",
     "sourceCredential": "Use a credential",
     "missingCredential": "This connection uses a credential that is not here: {{id}}. Choose another, or enter your own details.",
+    "keylessCredential": "This credential has no key, and this connection does not allow password sign-in. Add a key to the credential or allow passwords on the connection.",
+    "passwordRemoved": "The saved password for this connection was removed. Type it again to restore it.",
     "group": "Group",
     "password": "Password",
     "passwordHint": "The server's password, stored encrypted in Sigrun's vault. This is not your vault passphrase.",
