@@ -73,6 +73,25 @@ export function groupPaths(conns: Connection[]): string[] {
   return [...paths].sort();
 }
 
+export type ConnectionDraft = Omit<Connection, "port"> & { port: string };
+export type FieldErrors = Partial<Record<"label" | "host" | "user" | "port", string>>;
+
+// The launcher's set, not a stricter one: terminal::safe_host_bytes
+// (crates/sigrun-core/src/terminal.rs:39) accepts exactly this and applies it
+// to host and to a non-empty user alike.
+const SSH_TOKEN = /^[A-Za-z0-9._-]+$/;
+const PORT = /^\d+$/;
+
+export function validateConnection(draft: ConnectionDraft): FieldErrors {
+  const errors: FieldErrors = {};
+  if (draft.label.trim() === "") errors.label = "connections.invalidLabel";
+  if (!SSH_TOKEN.test(draft.host.trim())) errors.host = "connections.invalidHost";
+  if (draft.user.trim() !== "" && !SSH_TOKEN.test(draft.user.trim())) errors.user = "connections.invalidUser";
+  const port = draft.port.trim();
+  if (!PORT.test(port) || Number(port) < 1 || Number(port) > 65535) errors.port = "connections.invalidPort";
+  return errors;
+}
+
 function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
   initial: Connection | null;
   keys: KeyView[];
@@ -88,21 +107,25 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   onVaultLocked: () => void;
 }) {
   const { t } = useTranslation();
-  const [c, setC] = useState<Connection>(
-    initial ?? { id: crypto.randomUUID(), label: "", host: "", user: "", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
-  );
+  const [draft, setDraft] = useState<ConnectionDraft>(() => initial ? { ...initial, port: String(initial.port) } : { id: crypto.randomUUID(), label: "", host: "", user: "", port: "22", key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false });
   // Only ever the freshly typed value: the stored password is never read back.
   const [password, setPassword] = useState("");
   const [removePassword, setRemovePassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const canProvision = keys.some((k) => k.available);
   // Non-blocking: two connections sharing a label make `connections connect
   // <label>` resolve to whichever the host lists first.
-  const duplicateLabel = c.label.trim() !== "" && labels.includes(c.label.trim());
+  const duplicateLabel = draft.label.trim() !== "" && labels.includes(draft.label.trim());
   useEffect(() => {
-    bindProvisioned((disablePasswordAuth) => setC((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
+    bindProvisioned((disablePasswordAuth) => setDraft((prev) => ({ ...prev, disable_password_auth: disablePasswordAuth })));
     return () => bindProvisioned(null);
   }, [bindProvisioned]);
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length === 0) return;
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [fieldErrors]);
   const close = () => {
     setPassword("");
     setRemovePassword(false);
@@ -110,12 +133,23 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   };
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const found = validateConnection(draft);
+    setFieldErrors(found);
+    if (Object.keys(found).length > 0) return;
+    // The launcher takes a number; validation already proved the string parses.
+    const connection: Connection = {
+      ...draft,
+      label: draft.label.trim(),
+      host: draft.host.trim(),
+      user: draft.user.trim(),
+      port: Number(draft.port),
+    };
     try {
       // The connection must exist before its password: the id is generated here
       // (`ConnectionsAdd` never returns one).
-      await (initial ? updateConnection(c) : addConnection(c));
-      if (password) await setConnectionPassword(c.id, password);
-      else if (removePassword) await setConnectionPassword(c.id, null);
+      await (initial ? updateConnection(connection) : addConnection(connection));
+      if (password) await setConnectionPassword(connection.id, password);
+      else if (removePassword) await setConnectionPassword(connection.id, null);
       setPassword("");
       setRemovePassword(false);
       onSaved();
@@ -127,17 +161,21 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   }
   return (
     <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} className="fixed inset-0 flex items-center justify-center bg-black/50">
-      <form onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
-        <label>{t("connections.label")}<input required className={field} value={c.label} onChange={(e) => setC({ ...c, label: e.target.value })} /></label>
+      <form ref={formRef} onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
+        <label>{t("connections.label")}<input className={fieldErrors.label ? `${field} border-danger!` : field} aria-invalid={fieldErrors.label ? true : undefined} aria-describedby={fieldErrors.label ? "err-label" : undefined} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></label>
+        {fieldErrors.label && <p id="err-label" className="text-xs text-danger">{t(fieldErrors.label)}</p>}
         {duplicateLabel && <p role="alert" className="text-xs text-danger">{t("connections.duplicateLabel")}</p>}
-        <label>{t("connections.host")}<input required className={field} value={c.host} onChange={(e) => setC({ ...c, host: e.target.value })} /></label>
-        <label>{t("connections.user")}<input required className={field} value={c.user} onChange={(e) => setC({ ...c, user: e.target.value })} /></label>
-        <label>{t("connections.port")}<input required type="number" min={1} max={65535} className={field} value={c.port} onChange={(e) => setC({ ...c, port: Number(e.target.value) })} /></label>
-        <label>{t("connections.group")}<input className={field} list="sigrun-groups" value={c.group ?? ""} onChange={(e) => setC({ ...c, group: e.target.value || null })} />
+        <label>{t("connections.host")}<input className={fieldErrors.host ? `${field} border-danger!` : field} aria-invalid={fieldErrors.host ? true : undefined} aria-describedby={fieldErrors.host ? "err-host" : undefined} value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} /></label>
+        {fieldErrors.host && <p id="err-host" className="text-xs text-danger">{t(fieldErrors.host)}</p>}
+        <label>{t("connections.user")}<input className={fieldErrors.user ? `${field} border-danger!` : field} aria-invalid={fieldErrors.user ? true : undefined} aria-describedby={fieldErrors.user ? "err-user" : undefined} value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} /></label>
+        {fieldErrors.user && <p id="err-user" className="text-xs text-danger">{t(fieldErrors.user)}</p>}
+        <label>{t("connections.port")}<input inputMode="numeric" className={fieldErrors.port ? `${field} border-danger!` : field} aria-invalid={fieldErrors.port ? true : undefined} aria-describedby={fieldErrors.port ? "err-port" : undefined} value={draft.port} onChange={(e) => setDraft((prev) => ({ ...prev, port: e.target.value }))} /></label>
+        {fieldErrors.port && <p id="err-port" className="text-xs text-danger">{t(fieldErrors.port)}</p>}
+        <label>{t("connections.group")}<input className={field} list="sigrun-groups" value={draft.group ?? ""} onChange={(e) => setDraft({ ...draft, group: e.target.value || null })} />
           <datalist id="sigrun-groups">{groups.map((path) => <option value={path} key={path} />)}</datalist>
         </label>
         <label>{t("connections.key")}
-          <select className={field} value={c.key_id ?? ""} onChange={(e) => setC({ ...c, key_id: e.target.value || null })}>
+          <select className={field} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
             <option value=""></option>
             {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
           </select>

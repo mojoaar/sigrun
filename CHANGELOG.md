@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The connection form now refuses a host or user the launcher cannot use, says which field is wrong under that field, and allows a connection with no user.
 - The dialog plugin's JavaScript package now matches the Rust crate (2.7.x), so `tauri dev` no longer warns about a version mismatch.
 
 ## [0.1.0] - 2026-10-19

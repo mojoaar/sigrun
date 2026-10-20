@@ -2,7 +2,7 @@ import { act, render, screen, fireEvent, waitFor, within } from "@testing-librar
 import { describe, it, expect, vi } from "vitest";
 import { listen } from "@tauri-apps/api/event";
 import "../i18n";
-import Connections, { filterConnections, groupPaths, groupTree } from "./Connections";
+import Connections, { filterConnections, groupPaths, groupTree, validateConnection, type ConnectionDraft } from "./Connections";
 import * as api from "../api";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
@@ -34,6 +34,8 @@ const diskKey = {
 };
 
 const conn: api.Connection = { id: "c0", label: "base", host: "h", user: "u", port: 22, key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false };
+
+const draft = (over: Partial<ConnectionDraft> = {}): ConnectionDraft => ({ ...conn, port: "22", ...over });
 
 describe("Connections", () => {
   it("groups connections under headings", async () => {
@@ -624,6 +626,43 @@ describe("Connections", () => {
     ])).toEqual(["Cloud", "Cloud/EU", "PVE", "PVE/Folder 1"]);
   });
 
+  it("validates label, host, user and port the way the launcher does", () => {
+    expect(validateConnection(draft())).toEqual({});
+    // label
+    expect(validateConnection(draft({ label: "" })).label).toBe("connections.invalidLabel");
+    expect(validateConnection(draft({ label: "   " })).label).toBe("connections.invalidLabel");
+    // host: the charset ssh_invocation enforces (terminal.rs:39)
+    for (const host of ["", "   ", "web example.com", "web/example", "example.com; rm -rf /", "exa$mple"]) {
+      expect(validateConnection(draft({ host })).host).toBe("connections.invalidHost");
+    }
+    for (const host of ["web", "web.example.com", "10.0.0.5", "host_1", "a-b"]) {
+      expect(validateConnection(draft({ host })).host).toBeUndefined();
+    }
+    // user: whitespace-only is not a user the launcher refuses, it trims to empty
+    expect(validateConnection(draft({ user: "" })).user).toBeUndefined();
+    expect(validateConnection(draft({ user: "   " })).user).toBeUndefined();
+    expect(validateConnection(draft({ user: "deploy" })).user).toBeUndefined();
+    for (const user of ["de ploy", "deploy$(id)", "deploy/x"]) {
+      expect(validateConnection(draft({ user })).user).toBe("connections.invalidUser");
+    }
+    // port: integers only, 1..=65535, both ends inclusive
+    for (const port of ["", " ", "abc", "0", "-1", "1.5", "1e5", "65536"]) {
+      expect(validateConnection(draft({ port })).port).toBe("connections.invalidPort");
+    }
+    for (const port of ["1", "22", " 22 ", "65535"]) {
+      expect(validateConnection(draft({ port })).port).toBeUndefined();
+    }
+  });
+
+  it("reports every offending field at once", () => {
+    expect(validateConnection(draft({ label: "", host: "a b", user: "a;b", port: "0" }))).toEqual({
+      label: "connections.invalidLabel",
+      host: "connections.invalidHost",
+      user: "connections.invalidUser",
+      port: "connections.invalidPort",
+    });
+  });
+
   it("offers the known group paths on the group field", async () => {
     vi.mocked(api.listConnections).mockResolvedValueOnce([{ ...conn, id: "a", group: "PVE/Folder 1" }]);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -716,5 +755,66 @@ describe("Connections", () => {
 
     fireEvent.change(screen.getByLabelText("Search connections"), { target: { value: "zzz" } });
     expect(screen.getByText("No connections match.")).toBeTruthy();
+  });
+
+  it("refuses a bad port and focuses it", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([]);
+    vi.mocked(api.addConnection).mockClear();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add connection" });
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Prod" } });
+    fireEvent.change(within(dialog).getByLabelText("Host"), { target: { value: "web.example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("Port"), { target: { value: "0" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(api.addConnection).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Enter a port between 1 and 65535.")).toBeTruthy();
+    const port = within(dialog).getByLabelText("Port");
+    expect(port.getAttribute("aria-invalid")).toBe("true");
+    expect(port.getAttribute("aria-describedby")).toBe("err-port");
+    expect(document.activeElement).toBe(port);
+  });
+
+  it("refuses a host with a space, then saves a padded valid one", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([]);
+    vi.mocked(api.addConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add connection" });
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Prod" } });
+    fireEvent.change(within(dialog).getByLabelText("Host"), { target: { value: "web example.com" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(api.addConnection).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Use only letters, digits, dots, underscores and hyphens.")).toBeTruthy();
+
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "  Prod  " } });
+    fireEvent.change(within(dialog).getByLabelText("Host"), { target: { value: "  web.example.com  " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.addConnection).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(api.addConnection).mock.calls[0][0];
+    expect(call.label).toBe("Prod");
+    expect(call.host).toBe("web.example.com");
+    expect(typeof call.port).toBe("number");
+    expect(call.port).toBe(22);
+  });
+
+  it("saves an imported connection with an empty user", async () => {
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "imp", label: "Imported", user: "", source: "managed" }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await screen.findByText("Imported");
+    const row = screen.getByText("Imported").closest("li") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.updateConnection).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(api.updateConnection).mock.calls[0][0];
+    expect(call.user).toBe("");
+    expect(typeof call.port).toBe("number");
+    expect(call.port).toBe(22);
   });
 });
