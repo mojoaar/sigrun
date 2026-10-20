@@ -50,12 +50,13 @@ fn spawn_host(dir: &std::path::Path) -> (std::process::Child, PathBuf) {
 
 #[test]
 fn prints_version() {
+    // Read from the crate so a release bump cannot leave this test behind.
     Command::cargo_bin("sigrun")
         .unwrap()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("0.1.0"));
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
 }
 
 #[test]

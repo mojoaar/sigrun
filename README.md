@@ -26,7 +26,7 @@ agent, and the local IPC they both talk to.
 
 ## Install
 
-**0.1.0 is an unsigned pre-release.** Grab the installer for your platform from
+**Releases are unsigned pre-releases.** Grab the installer for your platform from
 the [releases page](https://github.com/mojoaar/sigrun/releases/latest).
 
 - **macOS** reports "unidentified developer" because the build is not notarized:

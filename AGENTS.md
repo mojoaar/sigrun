@@ -142,7 +142,7 @@ newtype variants holding a sequence.
   hand-edited.
 - Every change gets a Keep-a-Changelog entry under `## [Unreleased]`.
 - Tags matching `v*` build and publish the installers.
-- The first tag will be `v0.1.0`. Never tag from a dirty tree.
+- The first tag was `v0.1.0`. Never tag from a dirty tree.
 
 ## Git rules
 
