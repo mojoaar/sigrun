@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The GitHub release page now carries the tag's changelog section and is marked a pre-release, so a downloader sees what changed without opening the repository.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added

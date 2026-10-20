@@ -54,3 +54,23 @@ jobs:
           # gh names the asset after the uploaded file's basename; # only sets a label.
           cp "$bin" "$name"
           gh release upload "${{ github.ref_name }}" "$name" --clobber
+  notes:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # The release action creates the page with a name and nothing else, and the
+      # tag's changelog section is already required by version-sync, so publish it.
+      - name: Publish the changelog section as the release body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          awk -v heading="## [${TAG#v}]" '
+            index($0, heading) == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          # An empty body is the bug this job exists to prevent; fail the release instead.
+          test -s notes.md
+          gh release edit "$TAG" --title "Sigrun ${TAG#v}" --notes-file notes.md --prerelease
