@@ -427,7 +427,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
   const [provision, setProvision] = useState<Connection | null>(null);
   const [provisioned, setProvisioned] = useState<ProvisionOutcome | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
   const [unreachable, setUnreachable] = useState<{ message: string; retry: () => Promise<void> } | null>(null);
@@ -450,8 +450,11 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   }, [openNew]);
 
   const handle = useCallback((err: unknown) => {
-    if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
-    else setError(true);
+    const e = err as CommandError | undefined;
+    if (e?.code === "vault_locked") onVaultLocked();
+    // A host refusal says what to fix (a dangling credential names its id);
+    // anything unexplained stays the generic message.
+    else setError(e && e.code !== "internal" ? e.message : "");
   }, [onVaultLocked]);
 
   const refresh = useCallback(() => {
@@ -482,7 +485,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
     if (!connectionError) return;
     const { id, code, message, host, port } = connectionError;
     // A stale in-window banner must not sit behind a tray dialog.
-    setError(false);
+    setError(null);
     setMismatch(false);
     if (code === "host_key_unknown") {
       const [fp, algo, key] = message.split(" ");
@@ -539,6 +542,8 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
 
   const hasUsableKey = keys.some((k) => k.available);
   const filtered = filterConnections(conns, query);
+  // A credential the host no longer holds: the row says so instead of hiding it.
+  const credentialMissing = (id: string | null) => id !== null && !credentials.some((c) => c.id === id);
 
   const renderNode = (node: TreeNode) => (
     <section key={node.path} className="flex flex-col gap-2">
@@ -549,6 +554,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
             <ConnectionRow
               key={c.id}
               conn={c}
+              credentialMissing={credentialMissing(c.credential_id)}
               canProvision={hasUsableKey}
               onProvision={() => openProvision(c)}
               onConnect={() => { setMismatch(false); void doConnect(c); }}
@@ -579,7 +585,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           <button className="shrink-0 rounded bg-accent px-3 py-1 text-bg" onClick={() => setForm({ edit: null })}>{t("connections.add")}</button>
         </div>
       </div>
-      {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+      {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
       {mismatch && <p role="alert" className="text-danger">{t("trust.mismatch")}</p>}
       {provisioned && (
         <p role="status" className="text-sm">

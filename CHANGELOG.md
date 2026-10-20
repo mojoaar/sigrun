@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `sigrun credentials add` stores the credential and seals its password in one step.
+- Export carries the credential reference, never the credential; an imported connection shows a missing-credential badge until it is repaired.
 
 ## [0.2.0] - 2026-10-20
 

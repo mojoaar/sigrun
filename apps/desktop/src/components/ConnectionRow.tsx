@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import type { Connection } from "../api";
 
-type Props = { conn: Connection; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void; onGoToKeys?: () => void };
+type Props = { conn: Connection; credentialMissing: boolean; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void; onGoToKeys?: () => void };
 
-export default function ConnectionRow({ conn, canProvision, onProvision, onConnect, onEdit, onRemove, onGoToKeys }: Props) {
+export default function ConnectionRow({ conn, credentialMissing, canProvision, onProvision, onConnect, onEdit, onRemove, onGoToKeys }: Props) {
   const { t } = useTranslation();
   const btn = "rounded border border-border px-2 py-1 hover:text-accent";
   return (
@@ -22,6 +22,7 @@ export default function ConnectionRow({ conn, canProvision, onProvision, onConne
           {conn.has_password && <span className="rounded border border-border px-1 text-xs text-muted">{t("connections.hasPassword")}</span>}
         </div>
         <div className="text-sm text-muted">{conn.user}@{conn.host}:{conn.port}</div>
+        {credentialMissing && <p className="text-xs text-danger">{t("connections.missingCredential", { id: conn.credential_id })}</p>}
         {conn.source === "discovered" && <span className="text-xs text-accent">{t("connections.discovered")}</span>}
       </div>
       <div className="flex items-center gap-2">

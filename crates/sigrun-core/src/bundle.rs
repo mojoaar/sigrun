@@ -90,6 +90,9 @@ pub fn readme_text() -> String {
          This is a transfer, not a backup. It holds your connections and the\n\
          public halves of your keys.\n\
          \n\
+         Credentials are not included: a connection keeps only the id of the\n\
+         credential it used.\n\
+         \n\
          Private keys and stored connection passwords are never written here:\n\
          they live only in the encrypted vault. To restore those, keep the vault\n\
          file and the passphrase that opens it.\n"
@@ -393,6 +396,21 @@ mod tests {
             user: "me".into(),
             key_id: Some("k1".into()),
             has_password: false,
+        }
+    }
+
+    fn data_with_one_credentialed_connection() -> DataFile {
+        let mut conn = connection("c1", "one.example");
+        conn.user.clear();
+        conn.credential_id = Some("cred1".into());
+        let mut shared = credential("cred1", "prod-only-label");
+        shared.user = "deployer".into();
+        shared.has_password = true;
+        DataFile {
+            version: 1,
+            connections: vec![conn],
+            keys: vec![],
+            credentials: vec![shared],
         }
     }
 
@@ -820,6 +838,52 @@ mod tests {
         write_folder(&bundle, dir.path()).unwrap();
         let err = read_bundle(dir.path()).unwrap_err().to_string();
         assert!(err.contains("newer Sigrun"), "message was: {err}");
+    }
+
+    #[test]
+    fn an_export_carries_the_credential_reference_and_none_of_its_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let bundle = build_bundle(&data_with_one_credentialed_connection(), 1);
+        write_folder(&bundle, dir.path()).unwrap();
+        let conn = &bundle.connections[0];
+        assert_eq!(conn.credential_id.as_deref(), Some("cred1"));
+        // Only the id travels: the credential's user, key and password stay home.
+        assert!(conn.user.is_empty());
+        assert_eq!(conn.key_id, None);
+        assert!(!conn.has_password);
+        let json = std::fs::read_to_string(dir.path().join(EXPORT_FILE)).unwrap();
+        assert!(!json.contains("credentials"), "{json}");
+        assert!(!json.contains("prod-only-label"), "{json}");
+        assert!(!json.contains("deployer"), "{json}");
+    }
+
+    #[test]
+    fn the_readme_says_credentials_are_not_included() {
+        let dir = tempfile::tempdir().unwrap();
+        write_folder(
+            &build_bundle(&data_with_two_connections_and_one_key(), 1),
+            dir.path(),
+        )
+        .unwrap();
+        let readme = std::fs::read_to_string(dir.path().join(README_FILE)).unwrap();
+        assert!(readme.contains("Credentials are not included"), "{readme}");
+    }
+
+    #[test]
+    fn an_imported_connection_keeps_a_dangling_credential_reference() {
+        let bundle = build_bundle(&data_with_one_credentialed_connection(), 1);
+        let mut data = DataFile::default();
+        let summary = merge(&mut data, &bundle);
+        assert_eq!(summary.added, 1);
+        assert!(data.credentials.is_empty(), "a credential must not arrive");
+        let stored = &data.connections[0];
+        assert!(!stored.id.is_empty() && !stored.label.is_empty());
+        assert_eq!(stored.credential_id.as_deref(), Some("cred1"));
+        // Using it names the missing id instead of falling back to no identity.
+        let err = crate::model::effective(stored, &data.credentials)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cred1"), "message was: {err}");
     }
 
     #[test]

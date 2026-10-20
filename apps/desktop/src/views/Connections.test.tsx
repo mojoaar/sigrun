@@ -135,6 +135,24 @@ describe("Connections", () => {
     expect(screen.getByText(/deploy/)).toBeTruthy();
   });
 
+  it("marks a row whose credential is not here, and only that row", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "web", credential_id: "cred1" },
+      { ...conn, id: "c2", label: "old", credential_id: "gone" },
+    ]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential()]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findByText(/not here: gone/)).toBeTruthy();
+    expect(screen.queryByText(/not here: cred1/)).toBeNull();
+  });
+
+  it("shows the host's reason when a connect is refused", async () => {
+    vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "invalid_input", message: "connection old uses credential gone, which is not stored" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+    expect(await screen.findByText(/uses credential gone, which is not stored/)).toBeTruthy();
+  });
+
   it("calls onVaultLocked when connect is rejected with vault_locked", async () => {
     vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "vault_locked", message: "vault is locked" });
     const onVaultLocked = vi.fn();
