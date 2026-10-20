@@ -893,9 +893,14 @@ mod tests {
         // below runs, so the trap has to be installed first and report the end
         // itself — and the pid report must sit after the trap but before `ssh`,
         // so a session killed instantly is still watched.
-        let trap_at = line
-            .find(&format!("trap '{}; exit' HUP TERM INT;", reports.ended))
-            .expect("the trap is installed first");
+        // Build the expectation the way the implementation does: on Windows the
+        // helper path carries backslashes, so `shell_escape` single-quotes the
+        // trap body and a hand-written `'…'` would never match.
+        let trap = format!(
+            "trap {} HUP TERM INT;",
+            shell_escape(&format!("{}; exit", reports.ended))
+        );
+        let trap_at = line.find(&trap).expect("the trap is installed first");
         assert!(trap_at < started_at && started_at < ssh_at, "{line}");
         // The rc is captured right after the command and the end report runs
         // before the failure path can take over the shell.
