@@ -9,7 +9,8 @@ use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
 use crate::model::{
-    effective, Connection, Credential, DataFile, KeyAlgorithm, KeyMetadata, KeySource, KeyView,
+    effective, Auth, Connection, Credential, DataFile, KeyAlgorithm, KeyMetadata, KeySource,
+    KeyView,
 };
 use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
@@ -712,6 +713,16 @@ fn fill_active_flags(state: &HostState, connections: &mut [Connection]) {
     }
 }
 
+/// The askpass prefix for an identity that the vault can serve a password for,
+/// or `None` when it cannot. A separate function so the decision is testable
+/// without driving a real terminal launch.
+fn askpass_prefix(auth: &Auth, socket: &Path, connection_id: &str) -> Option<String> {
+    // The host may serve on `--socket`, so advertise the bound address.
+    auth.password_key
+        .is_some()
+        .then(|| env_prefix(socket, connection_id))
+}
+
 /// Store or clear a connection's password under its id. `None` clears; an absent
 /// entry is a silent no-op. The value is never logged or echoed in an error.
 async fn connections_set_password(
@@ -873,12 +884,7 @@ async fn connections_connect(
         return Ok(Response::Command(render_command(&argv)));
     }
 
-    let prefix = if auth.password_key.is_some() {
-        // The host may serve on `--socket`, so advertise the bound address.
-        env_prefix(Path::new(&state.ipc_addr), &conn.id)
-    } else {
-        String::new()
-    };
+    let prefix = askpass_prefix(&auth, Path::new(&state.ipc_addr), &conn.id).unwrap_or_default();
 
     // Windows keeps `cmd.exe /k` with no way to chain a report, so the flag is
     // only set where the launched line can clear it again.
@@ -1739,7 +1745,53 @@ mod tests {
             Ok(Response::Ok)
         ));
         assert!(!listed().await);
+        // The clear reaches the vault, not only the flag: a surviving secret
+        // would still be served to a later prompt.
+        let guard = state.vault.lock().await;
+        assert!(guard.as_ref().unwrap().get("cred1").is_none());
+        drop(guard);
         state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn setting_a_credential_password_needs_an_unlocked_vault() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        match credentials_set_password(&state, "cred1".into(), Some("s3cret".into())).await {
+            Err(Error::VaultLocked) => {}
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn setting_a_password_for_an_unknown_credential_is_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        match credentials_set_password(&state, "absent".into(), Some("s3cret".into())).await {
+            Err(Error::NotFound(id)) => assert_eq!(id, "absent"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[test]
+    fn the_askpass_prefix_follows_the_resolved_password() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.credential_id = Some("cred1".into());
+        let socket = Path::new("/tmp/sigrun.sock");
+
+        // A credential carrying a password hands ssh the helper.
+        let auth = effective(&conn, &[keyless_credential("cred1")]).unwrap();
+        let prefix = askpass_prefix(&auth, socket, "c1").expect("a stored password needs askpass");
+        assert!(prefix.contains("SIGRUN_CONNECTION_ID=c1"), "{prefix}");
+        assert!(prefix.contains("sigrun.sock"), "{prefix}");
+
+        // A key-only credential must not: ssh would then have no one to ask.
+        let auth = effective(&conn, &[keyed_credential("cred1")]).unwrap();
+        assert!(askpass_prefix(&auth, socket, "c1").is_none());
     }
 
     #[tokio::test]

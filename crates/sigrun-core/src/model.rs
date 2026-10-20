@@ -219,6 +219,12 @@ pub fn effective(conn: &Connection, creds: &[Credential]) -> crate::error::Resul
             password_key: conn.has_password.then(|| conn.id.clone()),
         });
     };
+    if cred_id.is_empty() {
+        return Err(crate::error::Error::InvalidInput(format!(
+            "connection {} has an empty credential reference",
+            conn.label
+        )));
+    }
     let cred = creds.iter().find(|c| c.id == cred_id).ok_or_else(|| {
         crate::error::Error::InvalidInput(format!(
             "connection {} uses credential {cred_id}, which is not stored",
@@ -355,6 +361,19 @@ mod tests {
         let auth = effective(&conn, &[cred]).unwrap();
         assert_eq!(auth.key_id, None);
         assert_eq!(auth.password_key.as_deref(), Some("cred1"));
+    }
+
+    #[test]
+    fn effective_refuses_an_empty_credential_reference() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.credential_id = Some(String::new());
+        match effective(&conn, &[]) {
+            Err(crate::error::Error::InvalidInput(m)) => {
+                assert!(m.contains("web"), "message was: {m}");
+                assert!(m.contains("empty"), "message was: {m}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 
     #[test]
