@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::model::{Connection, DataFile, KeyMetadata};
+use crate::model::{Connection, Credential, DataFile, KeyMetadata};
 use crate::terminal::safe_host_bytes;
 
 /// The only version marker in the format.
@@ -182,14 +182,32 @@ pub fn merge(data: &mut DataFile, bundle: &Bundle) -> ImportSummary {
 }
 
 /// Whether a connection from an untrusted export is worth storing: a non-empty
-/// id and label, a host the launcher accepts, a user it accepts or none, and a
-/// usable port.
+/// id and label, a host the launcher accepts, a user it accepts or none, a
+/// usable port, and one identity source — a credential or the connection's own
+/// user/key/password, never both.
 pub fn valid_connection(conn: &Connection) -> bool {
     !conn.id.is_empty()
         && !conn.label.is_empty()
         && safe_host_bytes(&conn.host)
         && (conn.user.is_empty() || safe_host_bytes(&conn.user))
         && conn.port != 0
+        && match &conn.credential_id {
+            Some(_) => conn.user.is_empty() && conn.key_id.is_none() && !conn.has_password,
+            None => true,
+        }
+}
+
+/// Whether a credential from an untrusted caller is worth storing: a label and a
+/// user to show, at least one way to authenticate, and a label no *other*
+/// credential carries. `all` is the stored list, so an edit (same `id`) is not
+/// its own duplicate.
+pub fn credential_valid(c: &Credential, all: &[Credential]) -> bool {
+    !c.label.is_empty()
+        && !c.user.is_empty()
+        && (c.key_id.is_some() || c.has_password)
+        && !all
+            .iter()
+            .any(|other| other.id != c.id && other.label == c.label)
 }
 
 /// Whether an export may be written to `dest`. `~/.ssh` is read-only by rule,
@@ -353,13 +371,23 @@ fn zip_error(err: zip::result::ZipError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{KeyAlgorithm, KeySource};
+    use crate::model::{Credential, KeyAlgorithm, KeySource};
 
     fn connection(id: &str, host: &str) -> Connection {
         let mut conn = Connection::managed(id, id);
         conn.host = host.into();
         conn.user = "me".into();
         conn
+    }
+
+    fn credential(id: &str, label: &str) -> Credential {
+        Credential {
+            id: id.into(),
+            label: label.into(),
+            user: "me".into(),
+            key_id: Some("k1".into()),
+            has_password: false,
+        }
     }
 
     fn data_with_two_connections_and_one_key() -> DataFile {
@@ -511,6 +539,80 @@ mod tests {
     }
 
     #[test]
+    fn a_connection_has_exactly_one_identity_source() {
+        // Every case starts from `connection`, whose own user is "me".
+        let mut shared = connection("c1", "one.example");
+        shared.user.clear();
+        shared.credential_id = Some("cred1".into());
+
+        let mut hybrid_user = connection("c2", "two.example");
+        hybrid_user.credential_id = Some("cred1".into());
+
+        let mut hybrid_key = connection("c3", "three.example");
+        hybrid_key.user.clear();
+        hybrid_key.key_id = Some("k1".into());
+        hybrid_key.credential_id = Some("cred1".into());
+
+        let mut hybrid_password = connection("c4", "four.example");
+        hybrid_password.user.clear();
+        hybrid_password.has_password = true;
+        hybrid_password.credential_id = Some("cred1".into());
+
+        let mut own_without_user = connection("c5", "five.example");
+        own_without_user.user.clear(); // ssh then uses the local user
+
+        let cases = [
+            ("credential alone", shared, true),
+            ("credential and own user", hybrid_user, false),
+            ("credential and own key", hybrid_key, false),
+            ("credential and own password", hybrid_password, false),
+            ("own state, no user", own_without_user, true),
+        ];
+        for (name, conn, expected) in cases {
+            assert_eq!(valid_connection(&conn), expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn a_credential_needs_a_label_a_user_and_a_way_to_authenticate() {
+        let good = credential("cred1", "prod");
+
+        let mut no_label = credential("cred2", "prod");
+        no_label.label.clear();
+        let mut no_user = credential("cred3", "staging");
+        no_user.user.clear();
+        let mut no_secret = credential("cred4", "dev");
+        no_secret.key_id = None;
+        let mut password_only = credential("cred5", "ops");
+        password_only.key_id = None;
+        password_only.has_password = true;
+
+        let stored = std::slice::from_ref(&good);
+        assert!(credential_valid(&good, stored));
+        assert!(!credential_valid(&no_label, stored), "no label");
+        assert!(!credential_valid(&no_user, stored), "no user");
+        assert!(!credential_valid(&no_secret, stored), "no secret");
+        assert!(
+            credential_valid(&password_only, stored),
+            "a password alone is a way in"
+        );
+    }
+
+    #[test]
+    fn a_credential_label_is_unique_among_the_others_but_not_itself() {
+        let first = credential("cred1", "prod");
+        let duplicate = credential("cred2", "prod");
+        assert!(!credential_valid(
+            &duplicate,
+            &[first.clone(), duplicate.clone()]
+        ));
+        // Saving the same credential again must not collide with its own row.
+        let mut edited = first.clone();
+        edited.user = "deployer".into();
+        assert!(credential_valid(&edited, std::slice::from_ref(&first)));
+    }
+
+    #[test]
     fn import_skips_an_invalid_entry_and_counts_it() {
         let mut data = DataFile::default();
         let mut bundle = build_bundle(&data_with_two_connections_and_one_key(), 1);
@@ -524,8 +626,12 @@ mod tests {
         let mut bad_user = connection("c4", "user.example");
         bad_user.user = "root$(id)".into();
         bundle.connections.push(bad_user);
+        // Both a credential and its own identity: one source only.
+        let mut hybrid = connection("c5", "hybrid.example");
+        hybrid.credential_id = Some("cred1".into());
+        bundle.connections.push(hybrid);
         let summary = merge(&mut data, &bundle);
-        assert_eq!(summary.invalid, 3);
+        assert_eq!(summary.invalid, 4);
         assert_eq!(summary.added, 2);
         assert_eq!(summary.skipped, 0);
         assert_eq!(data.connections.len(), 2);

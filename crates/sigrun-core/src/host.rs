@@ -8,7 +8,9 @@ use crate::bundle::{self, ExportSummary, ImportSummary};
 use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
-use crate::model::{Connection, KeyAlgorithm, KeyMetadata, KeySource, KeyView};
+use crate::model::{
+    Connection, Credential, DataFile, KeyAlgorithm, KeyMetadata, KeySource, KeyView,
+};
 use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
@@ -352,12 +354,14 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             connection.has_password = false;
             // `active` is host-derived too: a client cannot claim a session.
             connection.active = false;
+            check_identity(&state.store.load_data()?, &connection)?;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsUpdate { mut connection } => {
             connection.has_password = false;
             connection.active = false;
+            check_identity(&state.store.load_data()?, &connection)?;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
@@ -430,6 +434,35 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             state.shutdown.cancel();
             Ok(Response::Ok)
         }
+    }
+}
+
+/// The credential `id` names, if it is stored.
+fn credential_by_id<'a>(data: &'a DataFile, id: &str) -> Option<&'a Credential> {
+    data.credentials.iter().find(|cred| cred.id == id)
+}
+
+/// Refuse a connection whose stored shape cannot authenticate: a credential
+/// mixed with the connection's own identity, or a keyless credential with
+/// password auth turned off. The caller's fields are refused, never repaired.
+///
+/// This is the backstop for callers that skip [`bundle::valid_connection`].
+fn check_identity(data: &DataFile, conn: &Connection) -> Result<()> {
+    let Some(cred_id) = conn.credential_id.as_deref() else {
+        return Ok(());
+    };
+    if !conn.user.is_empty() || conn.key_id.is_some() || conn.has_password {
+        return Err(Error::InvalidInput(
+            "a connection with a credential cannot also set its own user, key or password".into(),
+        ));
+    }
+    match credential_by_id(data, cred_id) {
+        Some(cred) if conn.disable_password_auth && cred.key_id.is_none() => {
+            Err(Error::InvalidInput(format!(
+                "credential {cred_id} has no key, so password authentication cannot be disabled"
+            )))
+        }
+        _ => Ok(()),
     }
 }
 
@@ -1222,6 +1255,152 @@ mod tests {
         ));
         let stored = state.store.load_data().unwrap().connections;
         assert!(!stored[0].active);
+        state.shutdown.cancel();
+    }
+
+    /// A credential with a key: enough to turn password auth off.
+    fn keyed_credential(id: &str) -> Credential {
+        Credential {
+            id: id.into(),
+            label: "prod".into(),
+            user: "deploy".into(),
+            key_id: Some("k1".into()),
+            has_password: false,
+        }
+    }
+
+    /// A credential with only a password: it needs password auth left on.
+    fn keyless_credential(id: &str) -> Credential {
+        Credential {
+            key_id: None,
+            has_password: true,
+            ..keyed_credential(id)
+        }
+    }
+
+    fn store_credential(state: &HostState, credential: Credential) {
+        state
+            .store
+            .update_data(|data| {
+                data.credentials.push(credential);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_connection_cannot_store_a_credential_alongside_its_own_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+
+        let mut hybrid = Connection::managed("c1", "web");
+        hybrid.credential_id = Some("cred1".into());
+        hybrid.user = "me".into();
+        match handle(&state, Request::ConnectionsAdd { connection: hybrid }).await {
+            Response::Error { code, message } => {
+                assert_eq!(code, "invalid_input");
+                assert!(message.contains("credential"), "message was: {message}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        // Refused, not quietly stripped back to a credential-only connection.
+        assert!(state.store.load_data().unwrap().connections.is_empty());
+
+        let mut shared = Connection::managed("c1", "web");
+        shared.credential_id = Some("cred1".into());
+        assert!(matches!(
+            handle(&state, Request::ConnectionsAdd { connection: shared }).await,
+            Response::Ok
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored[0].credential_id.as_deref(), Some("cred1"));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn an_update_cannot_turn_a_connection_into_a_hybrid() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        state
+            .store
+            .upsert_connection(Connection::managed("c1", "web"))
+            .unwrap();
+
+        let mut hybrid = Connection::managed("c1", "web");
+        hybrid.credential_id = Some("cred1".into());
+        hybrid.key_id = Some("k1".into());
+        assert!(matches!(
+            handle(&state, Request::ConnectionsUpdate { connection: hybrid }).await,
+            Response::Error { code, .. } if code == "invalid_input"
+        ));
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored[0].credential_id, None);
+        assert_eq!(stored[0].key_id, None);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn a_keyless_credential_may_not_disable_password_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyless_credential("cred1"));
+
+        let conn = |disable: bool| {
+            let mut c = Connection::managed("c1", "web");
+            c.credential_id = Some("cred1".into());
+            c.disable_password_auth = disable;
+            c
+        };
+        match handle(
+            &state,
+            Request::ConnectionsAdd {
+                connection: conn(true),
+            },
+        )
+        .await
+        {
+            Response::Error { code, message } => {
+                assert_eq!(code, "invalid_input");
+                assert!(
+                    message.contains("password authentication"),
+                    "message was: {message}"
+                );
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(state.store.load_data().unwrap().connections.is_empty());
+
+        // With password auth left on the same connection is storable.
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsAdd {
+                    connection: conn(false)
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+        // A credential that carries a key can disable it.
+        state
+            .store
+            .update_data(|data| {
+                data.credentials[0].key_id = Some("k1".into());
+                Ok(())
+            })
+            .unwrap();
+        assert!(matches!(
+            handle(
+                &state,
+                Request::ConnectionsUpdate {
+                    connection: conn(true)
+                }
+            )
+            .await,
+            Response::Ok
+        ));
         state.shutdown.cancel();
     }
 
