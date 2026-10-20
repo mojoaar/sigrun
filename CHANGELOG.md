@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every dialog now takes focus when it opens, closes on Escape without ever confirming a destructive action, and returns focus to the control that opened it.
 - The connection form now refuses a host or user the launcher cannot use, says which field is wrong under that field, and allows a connection with no user.
 - The dialog plugin's JavaScript package now matches the Rust crate (2.7.x), so `tauri dev` no longer warns about a version mismatch.
-- New Connection (⌘N) no longer turns an open edit form into an add that overwrites the connection being edited: it opens a blank form, and while another dialog is up it does nothing.
+- New Connection (⌘N) no longer turns an open edit form into an add that overwrites the connection being edited; while another dialog is open it does nothing.
 
 ## [0.1.0] - 2026-10-19
 
