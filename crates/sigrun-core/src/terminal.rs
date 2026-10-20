@@ -893,14 +893,20 @@ mod tests {
         // below runs, so the trap has to be installed first and report the end
         // itself — and the pid report must sit after the trap but before `ssh`,
         // so a session killed instantly is still watched.
-        // Build the expectation the way the implementation does: on Windows the
-        // helper path carries backslashes, so `shell_escape` single-quotes the
-        // trap body and a hand-written `'…'` would never match.
-        let trap = format!(
-            "trap {} HUP TERM INT;",
-            shell_escape(&format!("{}; exit", reports.ended))
+        // The trap is installed first, reports the end itself, and names the
+        // signals that would otherwise kill the shell silently. Assert the
+        // structure, not the escaped text: the composed line is escaped again
+        // for `sh -c`, which is a no-op on Unix but rewrites the quotes on
+        // Windows, where the helper path is not shell-safe.
+        let trap_at = line.find("trap ").expect("the trap is installed first");
+        let signals_at = line[trap_at..]
+            .find(" HUP TERM INT;")
+            .map(|i| trap_at + i)
+            .expect("the trap names its signals");
+        assert!(
+            line[trap_at..signals_at].contains("connection-ended c1"),
+            "the trap reports the end itself: {line}"
         );
-        let trap_at = line.find(&trap).expect("the trap is installed first");
         assert!(trap_at < started_at && started_at < ssh_at, "{line}");
         // The rc is captured right after the command and the end report runs
         // before the failure path can take over the shell.
