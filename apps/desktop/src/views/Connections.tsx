@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
+import { useDialogFocus } from "../useDialogFocus";
 
 const field = "h-9 w-full rounded border border-border bg-bg px-2 text-text";
 
@@ -131,6 +132,7 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
     setRemovePassword(false);
     onClose();
   };
+  const dialogRef = useDialogFocus(true, close);
   async function submit(e: FormEvent) {
     e.preventDefault();
     const found = validateConnection(draft);
@@ -160,7 +162,7 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
     }
   }
   return (
-    <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} className="fixed inset-0 flex items-center justify-center bg-black/50">
+    <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50">
       <form ref={formRef} onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
         <label>{t("connections.label")}<input className={fieldErrors.label ? `${field} border-danger!` : field} aria-invalid={fieldErrors.label ? true : undefined} aria-describedby={fieldErrors.label ? "err-label" : undefined} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></label>
         {fieldErrors.label && <p id="err-label" className="text-xs text-danger">{t(fieldErrors.label)}</p>}
@@ -240,6 +242,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
     setKeyPassphrase("");
     onClose();
   };
+  const dialogRef = useDialogFocus(true, close);
 
   // Recursive on purpose: the trust retry calls the same request again once.
   async function run(): Promise<void> {
@@ -282,7 +285,7 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   }
 
   return (
-    <div role="dialog" aria-label={t("provision.title")} className="fixed inset-0 flex items-center justify-center bg-black/50">
+    <div role="dialog" aria-label={t("provision.title")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50">
       <form onSubmit={(e) => { e.preventDefault(); void run(); }} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
         <h3 className="font-semibold">{t("provision.title")}</h3>
         <p className="text-sm text-muted">{t("provision.body")}</p>
@@ -353,6 +356,9 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
     formSync.current = sync;
   }, []);
+  const trustRef = useDialogFocus(trust !== null, () => setTrust(null));
+  const unreachableRef = useDialogFocus(unreachable !== null, () => setUnreachable(null));
+  const removeRef = useDialogFocus(confirmRemove !== null, () => setConfirmRemove(null));
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -493,7 +499,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
       )}
       {trust && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
-          <div role="dialog" aria-label={t("trust.title")} className="rounded border border-border bg-surface p-3">
+          <div role="dialog" aria-label={t("trust.title")} ref={trustRef} className="rounded border border-border bg-surface p-3">
             <h3 className="font-semibold">{t("trust.title")}</h3>
             <p>{t("trust.body")}</p>
             <p>{t("trust.fingerprint")}: <code>{trust.fp}</code></p>
@@ -506,7 +512,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
       )}
       {unreachable && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
-          <div role="dialog" aria-label={t("connections.unreachable")} className="rounded border border-border bg-surface p-3">
+          <div role="dialog" aria-label={t("connections.unreachable")} ref={unreachableRef} className="rounded border border-border bg-surface p-3">
             <h3 className="font-semibold">{t("connections.unreachable")}</h3>
             <p>{unreachable.message}</p>
             <div className="flex gap-2">
@@ -523,7 +529,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
       {groupTree(filtered).map(renderNode)}
       {confirmRemove && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
-          <div role="dialog" aria-label={t("common.delete")} className="rounded border border-border bg-surface p-3">
+          <div role="dialog" aria-label={t("common.delete")} ref={removeRef} className="rounded border border-border bg-surface p-3">
             <h3 className="font-semibold">{t("connections.removeConfirm")}</h3>
             <div className="flex gap-2">
               <button onClick={() => setConfirmRemove(null)}>{t("common.cancel")}</button>

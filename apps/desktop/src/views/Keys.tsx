@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { generateKey, importKey, listKeys, removeKey, type CommandError, type KeyAlgorithm, type KeyView } from "../api";
 import KeyCard from "../components/KeyCard";
+import { useDialogFocus } from "../useDialogFocus";
 
 const field = "h-9 rounded border border-border bg-bg px-2 text-text";
 const btn = "h-9 shrink-0 rounded bg-accent px-3 text-bg";
@@ -13,6 +14,7 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const [gen, setGen] = useState({ name: "", algorithm: "ed25519" as KeyAlgorithm, passphrase: "" });
   const [imp, setImp] = useState({ path: "", name: "", passphrase: "" });
   const [confirmRemove, setConfirmRemove] = useState<KeyView | null>(null);
+  const removeRef = useDialogFocus(confirmRemove !== null, () => setConfirmRemove(null));
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -37,7 +39,7 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
       </ul>
       {confirmRemove && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
-          <div role="dialog" aria-label={t("keys.removeConfirm")} className="rounded border border-border bg-surface p-3">
+          <div role="dialog" aria-label={t("keys.removeConfirm")} ref={removeRef} className="rounded border border-border bg-surface p-3">
             <h3 className="font-semibold">{t("keys.removeConfirm")}</h3>
             <div className="flex gap-2">
               <button className={field} onClick={() => setConfirmRemove(null)}>{t("common.cancel")}</button>

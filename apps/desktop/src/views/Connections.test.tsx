@@ -493,6 +493,64 @@ describe("Connections", () => {
     expect(api.provisionConnection).not.toHaveBeenCalled();
   });
 
+  it("focuses the label field in the add dialog and escapes back to the toolbar", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([]);
+    vi.mocked(api.addConnection).mockClear();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const opener = await screen.findByRole("button", { name: "Add connection" });
+    // jsdom does not focus a button on click; a real click (or Enter on it) does.
+    opener.focus();
+    fireEvent.click(opener);
+
+    const dialog = await screen.findByRole("dialog", { name: "Add connection" });
+    expect(document.activeElement).toBe(within(dialog).getByLabelText("Label"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Add connection" })).toBeNull();
+    expect(api.addConnection).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("focuses Cancel in the remove confirmation and escapes without deleting", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    vi.mocked(api.removeConnection).mockClear().mockResolvedValue(undefined);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const opener = await screen.findByRole("button", { name: "Delete" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.removeConnection).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("closes only the trust prompt when Escape is pressed above the provision panel", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.provisionConnection).mockClear()
+      .mockRejectedValueOnce({ code: "host_key_unknown", message: "SHA256:abc ssh-ed25519 AAAA" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const panel = await screen.findByRole("dialog", { name: /install ssh key/i });
+    fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: "pw" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /install ssh key/i }));
+    await screen.findByRole("dialog", { name: /trust this host/i });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: /trust this host/i })).toBeNull();
+    expect(screen.getByRole("dialog", { name: /install ssh key/i })).toBeTruthy();
+  });
+
   it("saves a connection, then stores the typed password under the form's id", async () => {
     vi.mocked(api.addConnection).mockClear().mockResolvedValue(undefined);
     vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Every dialog now takes focus when it opens, closes on Escape without ever confirming a destructive action, and returns focus to the control that opened it.
 - The connection form now refuses a host or user the launcher cannot use, says which field is wrong under that field, and allows a connection with no user.
 - The dialog plugin's JavaScript package now matches the Rust crate (2.7.x), so `tauri dev` no longer warns about a version mismatch.
 
