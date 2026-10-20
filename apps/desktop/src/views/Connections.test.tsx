@@ -985,8 +985,10 @@ describe("Connections", () => {
   });
 
   it("shows and disables a credential the connection references but the host does not have", async () => {
-    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web", credential_id: "gone" }]);
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web", has_password: true, credential_id: "gone" }]);
     vi.mocked(api.listCredentials).mockResolvedValue([]);
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.setConnectionPassword).mockClear().mockResolvedValue(undefined);
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
@@ -996,6 +998,12 @@ describe("Connections", () => {
     expect(option.disabled).toBe(true);
     // The missing id stays selected, so saving cannot silently repoint the row.
     expect((within(dialog).getByLabelText("Credential") as HTMLSelectElement).value).toBe("gone");
+
+    // Save refuses the dangling reference before touching the secret or the row.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(within(dialog).getAllByRole("alert")).toHaveLength(2));
+    expect(api.updateConnection).not.toHaveBeenCalled();
+    expect(api.setConnectionPassword).not.toHaveBeenCalled();
   });
 
   it("clears a saved password before adopting a credential", async () => {

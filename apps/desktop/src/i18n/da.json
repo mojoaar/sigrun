@@ -45,6 +45,7 @@
     "sourceOwn": "Indtast mine egne",
     "sourceCredential": "Brug et login",
     "missingCredential": "Denne forbindelse bruger et login, der ikke findes her: {{id}}. Vælg et andet, eller indtast dine egne oplysninger.",
+    "chooseCredential": "Vælg et login, eller indtast dine egne oplysninger.",
     "keylessCredential": "Denne loginoplysning har ingen nøgle, og denne forbindelse tillader ikke adgang med adgangskode. Tilføj en nøgle til loginoplysningen, eller tillad adgangskoder på forbindelsen.",
     "passwordRemoved": "Den gemte adgangskode til denne forbindelse blev fjernet. Skriv den igen for at gendanne den.",
     "group": "Gruppe",

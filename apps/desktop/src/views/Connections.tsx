@@ -159,13 +159,14 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
     if (Object.keys(found).length > 0) return;
     const own = source === "own";
     const credentialId = own ? null : draft.credential_id;
-    // A reference is a non-empty id or null; the own side is always null.
-    if (!own && credentialId === null) {
-      setError(t("connections.missingCredential", { id: "" }));
+    // A reference is either the own side (null) or a stored credential. A stale
+    // id is refused, never sent: the host would persist the dangling reference.
+    const chosen = !own && credentialId !== null ? credentials.find((c) => c.id === credentialId) ?? null : null;
+    if (!own && !chosen) {
+      setError(t(credentialId === null ? "connections.chooseCredential" : "connections.missingCredential", { id: credentialId ?? "" }));
       credentialRef.current?.focus();
       return;
     }
-    const chosen = credentials.find((c) => c.id === credentialId);
     // Refused by the host after the password was already deleted; predict it.
     if (chosen && chosen.key_id === null && draft.disable_password_auth) {
       setError(t("connections.keylessCredential"));
