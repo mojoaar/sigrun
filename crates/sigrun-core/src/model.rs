@@ -198,6 +198,40 @@ pub struct Credential {
     pub has_password: bool,
 }
 
+/// What a connection authenticates with once its credential reference (if any)
+/// is resolved. `password_key` is the vault key to read when a password is
+/// needed: the connection's own id, or the credential's id.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Auth {
+    pub user: String,
+    pub key_id: Option<String>,
+    pub password_key: Option<String>,
+}
+
+/// The one place that decides who a connection logs in as. A dangling
+/// `credential_id` is an error, never a fallback to the connection's own
+/// fields: a broken reference must surface, not silently change identity.
+pub fn effective(conn: &Connection, creds: &[Credential]) -> crate::error::Result<Auth> {
+    let Some(cred_id) = conn.credential_id.as_deref() else {
+        return Ok(Auth {
+            user: conn.user.clone(),
+            key_id: conn.key_id.clone(),
+            password_key: conn.has_password.then(|| conn.id.clone()),
+        });
+    };
+    let cred = creds.iter().find(|c| c.id == cred_id).ok_or_else(|| {
+        crate::error::Error::InvalidInput(format!(
+            "connection {} uses credential {cred_id}, which is not stored",
+            conn.label
+        ))
+    })?;
+    Ok(Auth {
+        user: cred.user.clone(),
+        key_id: cred.key_id.clone(),
+        password_key: cred.has_password.then(|| cred.id.clone()),
+    })
+}
+
 /// The whole `data.toml` document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -264,6 +298,77 @@ mod tests {
     fn settings_without_an_open_in_key_still_load() {
         let parsed: Settings = toml::from_str("version = 1\ntheme = \"nordlys\"\n").unwrap();
         assert_eq!(parsed.open_in, "window");
+    }
+
+    #[test]
+    fn effective_keeps_an_own_connection_identity() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.user = "me".into();
+        conn.key_id = Some("k1".into());
+        conn.has_password = true;
+        assert_eq!(
+            effective(&conn, &[]).unwrap(),
+            Auth {
+                user: "me".into(),
+                key_id: Some("k1".into()),
+                password_key: Some("c1".into()),
+            }
+        );
+
+        // No stored password: nothing to read from the vault.
+        conn.has_password = false;
+        assert_eq!(effective(&conn, &[]).unwrap().password_key, None);
+    }
+
+    #[test]
+    fn effective_takes_the_credential_identity_and_password_key() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.credential_id = Some("cred1".into());
+        let cred = Credential {
+            id: "cred1".into(),
+            label: "prod".into(),
+            user: "deploy".into(),
+            key_id: Some("k2".into()),
+            has_password: true,
+        };
+        assert_eq!(
+            effective(&conn, std::slice::from_ref(&cred)).unwrap(),
+            Auth {
+                user: "deploy".into(),
+                key_id: Some("k2".into()),
+                password_key: Some("cred1".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn effective_handles_a_password_only_credential() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.credential_id = Some("cred1".into());
+        let cred = Credential {
+            id: "cred1".into(),
+            label: "prod".into(),
+            user: "deploy".into(),
+            key_id: None,
+            has_password: true,
+        };
+        let auth = effective(&conn, &[cred]).unwrap();
+        assert_eq!(auth.key_id, None);
+        assert_eq!(auth.password_key.as_deref(), Some("cred1"));
+    }
+
+    #[test]
+    fn effective_refuses_a_missing_credential_instead_of_falling_back() {
+        let mut conn = Connection::managed("c1", "web");
+        conn.credential_id = Some("gone".into());
+        conn.user = "me".into();
+        match effective(&conn, &[]) {
+            Err(crate::error::Error::InvalidInput(m)) => {
+                assert!(m.contains("gone"), "message was: {m}");
+                assert!(!m.contains("me"), "message was: {m}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 
     #[test]

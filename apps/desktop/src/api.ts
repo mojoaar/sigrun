@@ -73,6 +73,8 @@ export const trustHost = (host: string, port: number, algo: string, keyB64: stri
 export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>
   call<ProvisionOutcome>("provision_connection", { id, password, keyIds, disablePasswordAuth });
 export const listCredentials = () => call<Credential[]>("list_credentials");
+export const setCredentialPassword = (id: string, password: string | null) =>
+  call<void>("set_credential_password", { id, password });
 // Rust `KeyView` flattens `key` onto the wire; re-nest it for the UI.
 export const listKeys = async (): Promise<KeyView[]> => {
   const rows = await call<Array<KeyMetadata & { available: boolean }>>("list_keys");

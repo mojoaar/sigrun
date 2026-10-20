@@ -6,7 +6,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::model::{Connection, KeyMetadata, KeySource};
+use crate::model::{Auth, Connection, KeyMetadata, KeySource};
 
 /// The platform Sigrun is running on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,14 +44,20 @@ pub(crate) fn safe_host_bytes(value: &str) -> bool {
 }
 
 /// Build the `ssh` argv for a connection. This is the injection boundary: host
-/// and user are validated here, and the terminal path re-escapes on top.
-pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Vec<String>> {
+/// and the resolved user are validated here, and the terminal path re-escapes
+/// on top. The user and the password can belong to a shared credential, so they
+/// come from `auth`, never from the connection's own fields.
+pub fn ssh_invocation(
+    conn: &Connection,
+    auth: &Auth,
+    key: Option<&KeyMetadata>,
+) -> Result<Vec<String>> {
     if !safe_host_bytes(&conn.host) {
         return Err(Error::InvalidInput(
             "host contains unsupported characters".into(),
         ));
     }
-    if !conn.user.is_empty() && !safe_host_bytes(&conn.user) {
+    if !auth.user.is_empty() && !safe_host_bytes(&auth.user) {
         return Err(Error::InvalidInput(
             "user contains unsupported characters".into(),
         ));
@@ -62,10 +68,10 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
         ));
     }
 
-    let target = if conn.user.is_empty() {
+    let target = if auth.user.is_empty() {
         conn.host.clone()
     } else {
-        format!("{}@{}", conn.user, conn.host)
+        format!("{}@{}", auth.user, conn.host)
     };
 
     let mut argv = vec![
@@ -92,7 +98,7 @@ pub fn ssh_invocation(conn: &Connection, key: Option<&KeyMetadata>) -> Result<Ve
     // three times: one wrong attempt is enough to report the failure. Windows
     // has no helper yet, so it keeps ssh's normal retry count instead of
     // gaining a restriction that could only lock the user out sooner.
-    if !cfg!(windows) && conn.has_password {
+    if !cfg!(windows) && auth.password_key.is_some() {
         argv.push("-o".to_string());
         argv.push("NumberOfPasswordPrompts=1".to_string());
     }
@@ -596,6 +602,16 @@ mod tests {
     use crate::model::KeyAlgorithm;
     use std::time::Duration;
 
+    /// The identity an own-secret connection resolves to, for tests that only
+    /// care about the argv shape.
+    fn own(conn: &Connection) -> Auth {
+        Auth {
+            user: conn.user.clone(),
+            key_id: conn.key_id.clone(),
+            password_key: conn.has_password.then(|| conn.id.clone()),
+        }
+    }
+
     #[tokio::test]
     async fn probe_reports_a_closed_port() {
         let err = probe_reachable("127.0.0.1", 1, Duration::from_millis(500))
@@ -646,7 +662,7 @@ mod tests {
         );
         k.disk_path = Some("/home/u/.ssh/id_work".into());
         assert_eq!(
-            ssh_invocation(&c, Some(&k)).unwrap(),
+            ssh_invocation(&c, &own(&c), Some(&k)).unwrap(),
             vec![
                 "ssh",
                 "deploy@example.com",
@@ -670,7 +686,7 @@ mod tests {
             "SHA256:x",
             KeySource::Vault,
         );
-        let argv = ssh_invocation(&c, Some(&k)).unwrap();
+        let argv = ssh_invocation(&c, &own(&c), Some(&k)).unwrap();
         assert!(!argv.iter().any(|a| a == "-i"));
         assert!(!argv.iter().any(|a| a == "IdentitiesOnly=yes"));
     }
@@ -680,13 +696,13 @@ mod tests {
         let mut c = Connection::managed("id", "web");
         c.host = "example.com; rm -rf /".into();
         assert!(matches!(
-            ssh_invocation(&c, None),
+            ssh_invocation(&c, &own(&c), None),
             Err(Error::InvalidInput(_))
         ));
         let mut c = Connection::managed("id", "web");
         c.user = "deploy$(id)".into();
         assert!(matches!(
-            ssh_invocation(&c, None),
+            ssh_invocation(&c, &own(&c), None),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -777,7 +793,7 @@ mod tests {
         conn.host = "example.com".into();
         conn.user = "deploy".into();
         conn.has_password = true;
-        let argv = ssh_invocation(&conn, None).unwrap();
+        let argv = ssh_invocation(&conn, &own(&conn), None).unwrap();
         let prefix = env_prefix(Path::new("/tmp/host.sock"), "c1");
         assert!(prefix.starts_with("SSH_ASKPASS="));
         assert!(prefix.contains("SSH_ASKPASS_REQUIRE=force"));
@@ -999,11 +1015,11 @@ mod tests {
     #[cfg(not(windows))]
     fn a_stored_password_limits_ssh_to_one_prompt() {
         let mut conn = Connection::managed("c1", "web");
-        let plain = ssh_invocation(&conn, None).unwrap();
+        let plain = ssh_invocation(&conn, &own(&conn), None).unwrap();
         assert!(!plain.iter().any(|a| a == "NumberOfPasswordPrompts=1"));
 
         conn.has_password = true;
-        let argv = ssh_invocation(&conn, None).unwrap();
+        let argv = ssh_invocation(&conn, &own(&conn), None).unwrap();
         let tail = &argv[argv.len() - 2..];
         assert_eq!(tail, ["-o", "NumberOfPasswordPrompts=1"]);
     }

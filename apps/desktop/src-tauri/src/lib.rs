@@ -176,6 +176,7 @@ pub fn run() {
             commands::update_connection,
             commands::remove_connection,
             commands::set_connection_password,
+            commands::set_credential_password,
             commands::connect,
             commands::provision_connection,
             commands::trust_host,

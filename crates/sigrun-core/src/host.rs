@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 use crate::ipc::protocol::{error_code, Request, Response, StatusInfo};
 use crate::keys::{self, GeneratedKey, ImportedKey};
 use crate::model::{
-    Connection, Credential, DataFile, KeyAlgorithm, KeyMetadata, KeySource, KeyView,
+    effective, Connection, Credential, DataFile, KeyAlgorithm, KeyMetadata, KeySource, KeyView,
 };
 use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
@@ -293,6 +293,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::ConnectionsConnect { .. }
             | Request::ConnectionsProvision { .. }
             | Request::ConnectionsSetPassword { .. }
+            | Request::CredentialsSetPassword { .. }
     ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -384,6 +385,9 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         }
         Request::ConnectionsSetPassword { id, password } => {
             connections_set_password(state, id, password).await
+        }
+        Request::CredentialsSetPassword { id, password } => {
+            credentials_set_password(state, id, password).await
         }
         Request::PasswordGet { id } => password_get(state, id).await,
         Request::KeysList => keys_list(state).await,
@@ -689,6 +693,18 @@ fn with_password_flag(vault: Option<&UnlockedVault>, conn: &mut Connection) {
         vault.is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })));
 }
 
+/// Whether the unlocked vault holds a password under `key`. A locked vault
+/// answers false, so ssh prompts instead of asking a helper that cannot reply.
+async fn vault_has_password(state: &HostState, key: Option<&str>) -> bool {
+    let Some(key) = key else {
+        return false;
+    };
+    let guard = state.vault.lock().await;
+    (*guard)
+        .as_ref()
+        .is_some_and(|v| matches!(v.get(key), Some(Secret::Password { .. })))
+}
+
 /// Fill `active` for each connection from the host's live-session set.
 fn fill_active_flags(state: &HostState, connections: &mut [Connection]) {
     for conn in connections {
@@ -726,12 +742,69 @@ async fn connections_set_password(
     Ok(Response::Ok)
 }
 
-/// Hand a stored password to the caller. The only request that ever returns a
+/// Store or clear a credential's password under its id, flipping `has_password`
+/// in the same update. `None` clears; an absent entry is a silent no-op. The
+/// value is never logged or echoed in an error.
+async fn credentials_set_password(
+    state: &HostState,
+    id: String,
+    password: Option<String>,
+) -> Result<Response> {
+    let mut guard = state.vault.lock().await;
+    let vault = (*guard).as_mut().ok_or(Error::VaultLocked)?;
+    if !state
+        .store
+        .load_data()?
+        .credentials
+        .iter()
+        .any(|c| c.id == id)
+    {
+        return Err(Error::NotFound(id));
+    }
+    let has_password = match password {
+        Some(password) => {
+            if password.is_empty() {
+                return Err(Error::InvalidInput("password must not be empty".into()));
+            }
+            vault.put(&id, Secret::Password { password })?;
+            true
+        }
+        None => {
+            vault.remove(&id)?;
+            false
+        }
+    };
+    state.store.update_data(|data| {
+        if let Some(cred) = data.credentials.iter_mut().find(|c| c.id == id) {
+            cred.has_password = has_password;
+        }
+        Ok(())
+    })?;
+    Ok(Response::Ok)
+}
+
+/// Hand a connection's stored password to the caller — the askpass helper. The
+/// connection is resolved through [`effective`], so a shared credential serves
+/// every connection that references it. The only request that ever returns a
 /// secret; it travels to the 0600 socket exactly as `VaultUnlock`'s passphrase.
 async fn password_get(state: &HostState, id: String) -> Result<Response> {
+    let data = state.store.load_data()?;
+    let mut conn = data
+        .connections
+        .iter()
+        .find(|c| c.id == id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound(id.clone()))?;
     let guard = state.vault.lock().await;
     let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
-    match vault.get(&id) {
+    // An own connection's flag is host-derived and never persisted, so fill it
+    // from the vault before resolving; a credential connection ignores it.
+    conn.has_password = matches!(vault.get(&conn.id), Some(Secret::Password { .. }));
+    let auth = effective(&conn, &data.credentials)?;
+    let key = auth
+        .password_key
+        .ok_or_else(|| Error::NotFound(id.clone()))?;
+    match vault.get(&key) {
         Some(Secret::Password { password }) => Ok(Response::Password(password.clone())),
         _ => Err(Error::NotFound(id)),
     }
@@ -753,7 +826,12 @@ async fn connections_connect(
         .ok_or_else(|| Error::NotFound(id.clone()))?;
     let settings = state.store.load_settings()?;
 
-    let meta = match &conn.key_id {
+    // The store never persists `has_password`, so an own connection's flag has
+    // to come from the vault before its identity can be resolved.
+    conn.has_password = vault_has_password(state, Some(&conn.id)).await;
+    let mut auth = effective(&conn, &data.credentials)?;
+
+    let meta = match &auth.key_id {
         None => None,
         Some(key_id) => {
             let meta = data
@@ -783,23 +861,19 @@ async fn connections_connect(
         probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await?;
     }
 
-    // The store never persists `has_password`, so fill it from the vault now:
-    // it drives both the ssh argv and the askpass prefix. A locked vault cannot
-    // answer, so the connection stays password-less and ssh prompts as before.
-    let stored = {
-        let guard = state.vault.lock().await;
-        (*guard)
-            .as_ref()
-            .is_some_and(|v| matches!(v.get(&conn.id), Some(Secret::Password { .. })))
-    };
-    conn.has_password = stored;
+    // Only a password the vault can actually serve drives the ssh argv and the
+    // askpass prefix. A locked vault cannot answer, so the connection stays
+    // password-less and ssh prompts as before.
+    if !vault_has_password(state, auth.password_key.as_deref()).await {
+        auth.password_key = None;
+    }
 
-    let argv = ssh_invocation(&conn, meta.as_ref())?;
+    let argv = ssh_invocation(&conn, &auth, meta.as_ref())?;
     if print_only {
         return Ok(Response::Command(render_command(&argv)));
     }
 
-    let prefix = if stored {
+    let prefix = if auth.password_key.is_some() {
         // The host may serve on `--socket`, so advertise the bound address.
         env_prefix(Path::new(&state.ipc_addr), &conn.id)
     } else {
@@ -852,8 +926,9 @@ async fn connections_provision(
         }
     };
 
+    let auth = effective(&conn, &data.credentials)?;
     let key_ids = if key_ids.is_empty() {
-        conn.key_id.clone().into_iter().collect()
+        auth.key_id.clone().into_iter().collect()
     } else {
         key_ids
     };
@@ -899,7 +974,9 @@ async fn connections_provision(
     let opts = ProvisionOptions {
         host: conn.host,
         port: conn.port,
-        user: conn.user,
+        // The identity is the resolved one; `password` is the one the caller
+        // supplied for this run, exactly as before.
+        user: auth.user,
         password,
         known_hosts: state.paths.data_dir.join("known_hosts"),
         disable_password_auth,
@@ -1623,6 +1700,98 @@ mod tests {
             .await,
             Response::Ok
         ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn setting_and_clearing_a_credential_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let mut cred = keyed_credential("cred1");
+        cred.has_password = false;
+        store_credential(&state, cred);
+
+        let listed = async || match handle(&state, Request::CredentialsList).await {
+            Response::Credentials(cs) => cs[0].has_password,
+            other => panic!("unexpected {other:?}"),
+        };
+        assert!(!listed().await);
+
+        assert!(matches!(
+            credentials_set_password(&state, "cred1".into(), Some("s3cret".into())).await,
+            Ok(Response::Ok)
+        ));
+        assert!(listed().await);
+        // The secret lives only in the vault, never in the metadata file.
+        let data_toml = std::fs::read_to_string(state.paths.data_file()).unwrap();
+        assert!(!data_toml.contains("s3cret"), "{data_toml}");
+
+        // An empty password is refused, like a connection's.
+        match credentials_set_password(&state, "cred1".into(), Some(String::new())).await {
+            Err(Error::InvalidInput(m)) => assert_eq!(m, "password must not be empty"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(listed().await);
+
+        assert!(matches!(
+            credentials_set_password(&state, "cred1".into(), None).await,
+            Ok(Response::Ok)
+        ));
+        assert!(!listed().await);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connecting_through_a_credential_uses_its_identity_and_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        store_credential(&state, keyless_credential("cred1"));
+        credentials_set_password(&state, "cred1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+        let mut conn = Connection::managed("c1", "web");
+        conn.host = "example.com".into();
+        conn.credential_id = Some("cred1".into());
+        state.store.upsert_connection(conn).unwrap();
+
+        let Response::Command(cmd) = connections_connect(&state, "c1".into(), true, false)
+            .await
+            .unwrap()
+        else {
+            panic!("expected a command");
+        };
+        // The user comes from the credential, not the connection's empty field.
+        assert!(cmd.contains("deploy@example.com"), "{cmd}");
+        #[cfg(not(windows))]
+        assert!(cmd.contains("NumberOfPasswordPrompts=1"), "{cmd}");
+
+        // The askpass helper asks by connection id; the host resolves the
+        // credential, so rotating it is what every connection reads.
+        match password_get(&state, "c1".into()).await {
+            Ok(Response::Password(password)) => assert_eq!(password, "s3cret"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connecting_through_a_missing_credential_names_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut conn = Connection::managed("c1", "web");
+        conn.host = "example.com".into();
+        conn.credential_id = Some("gone".into());
+        state.store.upsert_connection(conn).unwrap();
+
+        // No fallback to the connection's own (empty) user, and no prompt.
+        match connections_connect(&state, "c1".into(), true, false).await {
+            Err(Error::InvalidInput(m)) => {
+                assert!(m.contains("gone"), "message was: {m}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
         state.shutdown.cancel();
     }
 

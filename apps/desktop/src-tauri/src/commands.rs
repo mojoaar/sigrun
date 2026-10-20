@@ -70,6 +70,13 @@ pub async fn set_connection_password_inner(
 ) -> CmdResult {
     call(state, Request::ConnectionsSetPassword { id, password }).await
 }
+pub async fn set_credential_password_inner(
+    state: Arc<HostState>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    call(state, Request::CredentialsSetPassword { id, password }).await
+}
 pub async fn connect_inner(
     state: Arc<HostState>,
     id: String,
@@ -236,6 +243,14 @@ pub async fn set_connection_password(
     password: Option<String>,
 ) -> CmdResult {
     set_connection_password_inner(state.inner().clone(), id, password).await
+}
+#[tauri::command]
+pub async fn set_credential_password(
+    state: St<'_>,
+    id: String,
+    password: Option<String>,
+) -> CmdResult {
+    set_credential_password_inner(state.inner().clone(), id, password).await
 }
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");

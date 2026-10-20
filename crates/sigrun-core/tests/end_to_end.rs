@@ -3,7 +3,7 @@
 
 use sigrun_core::agent;
 use sigrun_core::keys;
-use sigrun_core::model::{Connection, KeyAlgorithm, KeyMetadata, KeySource};
+use sigrun_core::model::{effective, Connection, KeyAlgorithm, KeyMetadata, KeySource};
 use sigrun_core::paths::Paths;
 use sigrun_core::store::Store;
 use sigrun_core::terminal;
@@ -46,6 +46,8 @@ async fn vault_to_agent_to_connection_flow() {
     conn.key_id = Some("k1".into());
     store.upsert_connection(conn.clone()).unwrap();
 
-    let argv = terminal::ssh_invocation(&conn, store.load_data().unwrap().keys.first()).unwrap();
+    let data = store.load_data().unwrap();
+    let auth = effective(&conn, &data.credentials).unwrap();
+    let argv = terminal::ssh_invocation(&conn, &auth, data.keys.first()).unwrap();
     assert_eq!(argv, vec!["ssh", "deploy@example.com", "-p", "22"]);
 }

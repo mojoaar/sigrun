@@ -34,6 +34,10 @@ pub enum Request {
         id: String,
         password: Option<String>,
     },
+    CredentialsSetPassword {
+        id: String,
+        password: Option<String>,
+    },
     PasswordGet {
         id: String,
     },
