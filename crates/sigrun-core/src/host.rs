@@ -361,7 +361,9 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         Request::ConnectionsUpdate { mut connection } => {
             connection.has_password = false;
             connection.active = false;
-            check_identity(&state.store.load_data()?, &connection)?;
+            let data = state.store.load_data()?;
+            check_identity(&data, &connection)?;
+            refuse_saved_password(state, &data, &connection).await?;
             state.store.upsert_connection(connection)?;
             Ok(Response::Ok)
         }
@@ -451,6 +453,8 @@ fn check_identity(data: &DataFile, conn: &Connection) -> Result<()> {
     let Some(cred_id) = conn.credential_id.as_deref() else {
         return Ok(());
     };
+    // The stored-secret refusal in `refuse_saved_password` is what really
+    // enforces the password side; the host clears this flag on the way in.
     if !conn.user.is_empty() || conn.key_id.is_some() || conn.has_password {
         return Err(Error::InvalidInput(
             "a connection with a credential cannot also set its own user, key or password".into(),
@@ -464,6 +468,38 @@ fn check_identity(data: &DataFile, conn: &Connection) -> Result<()> {
         }
         _ => Ok(()),
     }
+}
+
+/// Refuse adopting a credential while the connection still holds its own
+/// password: the spec allows one source only, and removing a secret is the
+/// user's call, never a side effect of a save. A locked vault cannot answer, so
+/// the refusal waits until it is unlocked, as `with_password_flag` does.
+async fn refuse_saved_password(
+    state: &HostState,
+    data: &DataFile,
+    conn: &Connection,
+) -> Result<()> {
+    if conn.credential_id.is_none() {
+        return Ok(());
+    }
+    let stored_flag = data
+        .connections
+        .iter()
+        .find(|c| c.id == conn.id)
+        .is_some_and(|c| c.has_password);
+    let held = stored_flag || {
+        let guard = state.vault.lock().await;
+        let mut probe = conn.clone();
+        with_password_flag((*guard).as_ref(), &mut probe);
+        probe.has_password
+    };
+    if !held {
+        return Ok(());
+    }
+    Err(Error::InvalidInput(format!(
+        "connection {} still has a saved password; remove it before using a credential",
+        conn.label
+    )))
 }
 
 async fn vault_status(state: &HostState) -> VaultStatus {
@@ -1338,6 +1374,48 @@ mod tests {
         let stored = state.store.load_data().unwrap().connections;
         assert_eq!(stored[0].credential_id, None);
         assert_eq!(stored[0].key_id, None);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn adopting_a_credential_is_refused_while_a_saved_password_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        unlock(&state, dir.path()).await;
+        // Both the stored flag and the vault say this connection owns a password.
+        let mut own = Connection::managed("c1", "web");
+        own.has_password = true;
+        state.store.upsert_connection(own).unwrap();
+        connections_set_password(&state, "c1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+
+        let mut adopting = Connection::managed("c1", "web");
+        adopting.credential_id = Some("cred1".into());
+        match handle(
+            &state,
+            Request::ConnectionsUpdate {
+                connection: adopting,
+            },
+        )
+        .await
+        {
+            Response::Error { code, message } => {
+                assert_eq!(code, "invalid_input");
+                assert!(message.contains("saved password"), "message was: {message}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        // Nothing was removed to make the switch work: not the secret ...
+        match password_get(&state, "c1".into()).await {
+            Ok(Response::Password(password)) => assert_eq!(password, "s3cret"),
+            other => panic!("unexpected {other:?}"),
+        }
+        // ... and not the stored row.
+        let stored = state.store.load_data().unwrap().connections;
+        assert_eq!(stored[0].credential_id, None);
+        assert!(stored[0].has_password);
         state.shutdown.cancel();
     }
 

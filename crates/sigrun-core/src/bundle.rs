@@ -192,7 +192,13 @@ pub fn valid_connection(conn: &Connection) -> bool {
         && (conn.user.is_empty() || safe_host_bytes(&conn.user))
         && conn.port != 0
         && match &conn.credential_id {
-            Some(_) => conn.user.is_empty() && conn.key_id.is_none() && !conn.has_password,
+            // An empty id is a phantom reference, not a credential.
+            Some(id) => {
+                !id.is_empty()
+                    && conn.user.is_empty()
+                    && conn.key_id.is_none()
+                    && !conn.has_password
+            }
             None => true,
         }
 }
@@ -561,12 +567,17 @@ mod tests {
         let mut own_without_user = connection("c5", "five.example");
         own_without_user.user.clear(); // ssh then uses the local user
 
+        let mut empty_id = connection("c6", "six.example");
+        empty_id.user.clear();
+        empty_id.credential_id = Some(String::new());
+
         let cases = [
             ("credential alone", shared, true),
             ("credential and own user", hybrid_user, false),
             ("credential and own key", hybrid_key, false),
             ("credential and own password", hybrid_password, false),
             ("own state, no user", own_without_user, true),
+            ("empty credential id", empty_id, false),
         ];
         for (name, conn, expected) in cases {
             assert_eq!(valid_connection(&conn), expected, "{name}");

@@ -48,7 +48,8 @@ pub struct Connection {
     #[serde(default)]
     pub key_id: Option<String>,
     /// The shared identity to authenticate with. Set means the connection's own
-    /// `user`/`key_id`/`has_password` are unused.
+    /// `user`, `key_id` and `has_password` must be empty, `None` and false;
+    /// mixing the two is refused, never repaired.
     #[serde(default)]
     pub credential_id: Option<String>,
     #[serde(default)]
