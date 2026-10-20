@@ -59,7 +59,7 @@ newtype variants holding a sequence.
 
 ## Code rules
 
-- Rust 2021, MSRV 1.85. Dependencies only via `[workspace.dependencies]`.
+- Rust 2021, MSRV 1.90. Dependencies only via `[workspace.dependencies]`.
 - **The gate** is `cargo fmt --all -- --check && cargo clippy --workspace
   --all-targets --all-features -- -D warnings && cargo test --all-targets`.
 - When frontend files change, also run `npm test -- --run && npm run typecheck
@@ -118,7 +118,8 @@ newtype variants holding a sequence.
   metadata only — never a private key — and refuses a destination inside
   `~/.ssh` or one already holding `export.json`/`README.txt` (or an existing
   `.zip`). `zip` (~7.3) and `tauri-plugin-dialog` (~2.7) are pinned
-  to the MSRV floor (a caret range pulls releases needing Rust 1.88/1.90), and the
+  to the MSRV floor (a caret range can pull a release that needs a newer
+  toolchain), and the
   capability grants only `dialog:allow-open`/`dialog:allow-save`, not the wider
   `dialog:default`.
 

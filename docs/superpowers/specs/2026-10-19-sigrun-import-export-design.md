@@ -43,9 +43,10 @@ exported material says so itself.
 
 ## Constraints
 
-- **MSRV 1.85 binds the dependency choice.** `tauri-plugin-dialog` must be
-  **2.7.3** (2.8.x needs Rust 1.90) and `zip` must be **7.3.0** (8.x/9.x need
-  1.88). Both go in `[workspace.dependencies]`; `zip` with
+- **The dependency pins guard the MSRV.** The floor is Rust 1.90, so
+  `tauri-plugin-dialog` stays **2.7.3** and `zip` stays **7.3.0** (8.x/9.x
+  need 1.88); the pins keep a future release from raising the floor again.
+  Both go in `[workspace.dependencies]`; `zip` with
   `default-features = false` and only its deflate backend, because the default
   set drags in bzip2, zstd, lzma, ppmd and AES for no reason here.
 - The frontend needs `@tauri-apps/plugin-dialog`, and the webview's calls need
@@ -244,9 +245,8 @@ a result line.
    exporting machine: meaningless elsewhere, and a leak of the exporter's
    filesystem layout.
 3. **The dependency pins use a `~` range.** `zip` 7.4 needs Rust 1.88 and
-   `tauri-plugin-dialog` 2.8 needs 1.90; both are above the project's declared
-   1.85, so a caret range would silently raise the floor. Pinned to 7.3.x and
-   2.7.x.
+   `tauri-plugin-dialog` 2.8 needs 1.90, so a caret range can pull a release
+   that raises the floor. Pinned to 7.3.x and 2.7.x.
 4. **The `~/.ssh` refusal must not canonicalise a destination that does not
    exist yet**, which is the normal case for a picker result. Compare against
    the destination's longest existing ancestor plus the remainder, and refuse

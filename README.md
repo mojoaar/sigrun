@@ -60,7 +60,7 @@ use **Install SSH key…** — see
 
 ## Requirements
 
-- Rust 1.85 or newer (plus Node 22+ to build the desktop app)
+- Rust 1.90 or newer (plus Node 22+ to build the desktop app)
 - macOS, Linux, or Windows
 
 ## What it does

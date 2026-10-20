@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The macOS menu gained a File menu (New Connection ⌘N, Import…, Export…) and a Settings… item (⌘,); both follow the Language setting.
 
+### Changed
+
+- Rust 1.90 is now the minimum supported version, matching what a dependency of the desktop app (Tauri 2.12) already requires.
+
 ### Fixed
 
 - The macOS app menu (Edit, View, Window, Quit) now follows the Language setting instead of staying English.
