@@ -94,14 +94,12 @@ it is a non-goal.
   `document.activeElement`.
 - Behaviour for mouse users does not change.
 - The macOS menu labels are Rust strings, like the tray's, because the menu is
-  built in Rust; they are matched on `Settings.language` rather than `t(...)`.
+  built in Rust; they must be matched on `Settings.language`, not `t(...)`.
 
 ## What is left to the builder
 
 - The exact shape of the shared hook (its name and whether it returns props or
   takes a ref).
-- Whether the announce-able messages use `role="status"` or `aria-live="polite"`
-  — they are equivalent for these cases; pick one and use it everywhere.
 - How much of the focus-ring verification becomes a test versus a manual check.
 - Whether slice 4 rebuilds the whole menu or swaps only the labels.
 
