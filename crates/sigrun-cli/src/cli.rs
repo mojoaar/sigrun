@@ -215,7 +215,7 @@ pub enum CredentialsCommand {
         label: String,
         #[arg(long)]
         user: String,
-        /// A key id from `sigrun keys list`.
+        /// A key id from `sigrun keys list --json`.
         #[arg(long)]
         key: Option<String>,
         /// Read a password from stdin.
@@ -446,7 +446,19 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
             // A credential is the whole identity, so its id is resolved before
             // anything is stored; clap has already refused `--user`/`--key`.
             let credential_id = match credential {
-                Some(arg) => Some(resolve_credential(&list_credentials(&addr).await?, &arg)?),
+                Some(arg) => {
+                    let creds = list_credentials(&addr).await?;
+                    let id = resolve_credential(&creds, &arg)?;
+                    // `resolve_credential` passes an unknown value through for
+                    // `remove`, which lets the host name it. Adding a
+                    // connection must not store that text as an id.
+                    if !creds.iter().any(|c| c.id == id) {
+                        anyhow::bail!(
+                            "invalid_input: no credential matches '{arg}'; credentials are matched by id or label"
+                        );
+                    }
+                    Some(id)
+                }
                 None => None,
             };
             let connection = Connection {

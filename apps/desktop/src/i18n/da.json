@@ -90,6 +90,7 @@
     "missing": "Login mangler",
     "invalidLabel": "Et navn er påkrævet.",
     "invalidUser": "En bruger er påkrævet.",
+    "invalidKey": "En nøgle er påkrævet, medmindre der er gemt en adgangskode.",
     "removeConfirm": "Vil du fjerne dette login? Det kan ikke fortrydes."
   },
   "provision": {

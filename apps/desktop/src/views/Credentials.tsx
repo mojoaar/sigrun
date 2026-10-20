@@ -13,7 +13,7 @@ function methodKey(c: Credential): string {
 }
 
 type Draft = { label: string; user: string; key_id: string | null; password: string; removePassword: boolean };
-type FieldErrors = Partial<Record<"label" | "user", string>>;
+type FieldErrors = Partial<Record<"label" | "user" | "key", string>>;
 
 function Form({ initial, keys, onClose, onSaved, onVaultLocked }: {
   initial: Credential | null;
@@ -40,6 +40,10 @@ function Form({ initial, keys, onClose, onSaved, onVaultLocked }: {
     const found: FieldErrors = {};
     if (draft.label.trim() === "") found.label = "credentials.invalidLabel";
     if (draft.user.trim() === "") found.user = "credentials.invalidUser";
+    // A credential with no key is a password-only identity; removing that last
+    // secret would leave it unable to authenticate.
+    const keepsPassword = draft.password !== "" || (initial?.has_password === true && !draft.removePassword);
+    if (draft.key_id === null && !keepsPassword) found.key = "credentials.invalidKey";
     setFieldErrors(found);
     if (Object.keys(found).length > 0) return;
     const credential: Credential = {
@@ -75,11 +79,12 @@ function Form({ initial, keys, onClose, onSaved, onVaultLocked }: {
         <label>{t("credentials.user")}<input className={fieldErrors.user ? `${field} border-danger!` : field} aria-invalid={fieldErrors.user ? true : undefined} aria-describedby={fieldErrors.user ? "err-user" : undefined} value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} /></label>
         {fieldErrors.user && <p id="err-user" className="text-xs text-danger">{t(fieldErrors.user)}</p>}
         <label>{t("credentials.key")}
-          <select className={field} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
+          <select className={field} aria-invalid={fieldErrors.key ? true : undefined} aria-describedby={fieldErrors.key ? "err-key" : undefined} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
             <option value=""></option>
             {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
           </select>
         </label>
+        {fieldErrors.key && <p id="err-key" className="text-xs text-danger">{t(fieldErrors.key)}</p>}
         <label>{t("credentials.password")}<input type="password" autoComplete="off" className={field} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
         <p className="text-sm text-muted">{t("credentials.passwordHint")}</p>
         {initial?.has_password && (

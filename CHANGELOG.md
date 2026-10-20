@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removing the saved password from a credential with no key is refused by the app and the host, so a connection can no longer resolve to an identity with neither a key nor a password.
+- `sigrun connections add --credential` refuses a value that matches no credential instead of storing the typed text as a dangling id.
+- The `--key` help now points at `sigrun keys list --json`, which prints the ids it asks for.
 - Saving a connection whose credential no longer exists now refuses instead of storing a dangling reference and deleting its saved password.
 - A connection that switches to a credential no longer loses its saved password before a switch the host will refuse, and says so when the password had to be removed first.
 - A connection can no longer mix a credential with its own user or secret.

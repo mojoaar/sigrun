@@ -134,6 +134,26 @@ describe("Credentials", () => {
       .toBeLessThan(vi.mocked(api.setCredentialPassword).mock.invocationCallOrder[0]);
   });
 
+  it("refuses to remove the last secret from a credential with no key", async () => {
+    vi.mocked(api.listCredentials).mockResolvedValue([cred()]);
+    vi.mocked(api.listConnections).mockResolvedValue([]);
+    vi.mocked(api.updateCredential).mockClear().mockResolvedValue(undefined);
+    vi.mocked(api.setCredentialPassword).mockClear().mockResolvedValue(undefined);
+    render(<Credentials onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit credential" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit credential" });
+    fireEvent.click(within(dialog).getByLabelText(/remove the saved password/i));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(api.updateCredential).not.toHaveBeenCalled();
+    expect(api.setCredentialPassword).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("A key is required unless a password is saved.")).toBeTruthy();
+    const key = within(dialog).getByLabelText("Key");
+    expect(key.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(key);
+  });
+
   it("clears the saved password when asked", async () => {
     vi.mocked(api.listCredentials).mockResolvedValue([cred({ key_id: "k1" })]);
     vi.mocked(api.listConnections).mockResolvedValue([]);

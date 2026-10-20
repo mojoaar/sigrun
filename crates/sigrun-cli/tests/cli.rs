@@ -358,6 +358,80 @@ fn connections_add_stores_the_resolved_credential_id() {
     host.wait().unwrap();
 }
 
+// A typo is refused before the save, so the raw text never lands in a
+// connection as a dangling credential id.
+#[test]
+fn connections_add_refuses_an_unknown_credential() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    let run = |args: &[&str], stdin: &str| {
+        let mut cmd = Command::cargo_bin("sigrun").unwrap();
+        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+            .arg("--socket")
+            .arg(&sock)
+            .args(args)
+            .write_stdin(stdin);
+        cmd
+    };
+
+    run(
+        &[
+            "credentials",
+            "add",
+            "--label",
+            "prod",
+            "--user",
+            "deploy",
+            "--key",
+            "k1",
+        ],
+        "",
+    )
+    .assert()
+    .success();
+
+    run(
+        &[
+            "connections",
+            "add",
+            "--label",
+            "web",
+            "--host",
+            "example.com",
+            "--credential",
+            "prd",
+        ],
+        "",
+    )
+    .assert()
+    .failure()
+    .stderr(predicate::str::contains("prd"))
+    .stderr(predicate::str::contains("label"));
+
+    let out = run(&["connections", "list", "--json"], "")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "[]");
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
 // `sigrun credentials add` reads the secret from stdin, never argv.
 #[test]
 fn credentials_add_rejects_an_empty_password_before_contacting_the_host() {

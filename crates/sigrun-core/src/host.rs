@@ -771,14 +771,19 @@ async fn credentials_set_password(
 ) -> Result<Response> {
     let mut guard = state.vault.lock().await;
     let vault = (*guard).as_mut().ok_or(Error::VaultLocked)?;
-    if !state
-        .store
-        .load_data()?
+    let data = state.store.load_data()?;
+    let stored = data
         .credentials
         .iter()
-        .any(|c| c.id == id)
-    {
-        return Err(Error::NotFound(id));
+        .find(|c| c.id == id)
+        .ok_or_else(|| Error::NotFound(id.clone()))?;
+    // A keyless credential is a password-only identity. Clearing that last
+    // secret would leave nothing to authenticate with, so the row must go.
+    if password.is_none() && stored.key_id.is_none() {
+        return Err(Error::InvalidInput(format!(
+            "credential '{}' has no key, so its password cannot be removed; delete the credential instead",
+            stored.label
+        )));
     }
     let has_password = match password {
         Some(password) => {
@@ -1867,6 +1872,37 @@ mod tests {
         // would still be served to a later prompt.
         let guard = state.vault.lock().await;
         assert!(guard.as_ref().unwrap().get("cred1").is_none());
+        drop(guard);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn clearing_the_password_of_a_keyless_credential_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        store_credential(&state, keyless_credential("cred1"));
+        credentials_set_password(&state, "cred1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+
+        match credentials_set_password(&state, "cred1".into(), None).await {
+            Err(Error::InvalidInput(m)) => {
+                assert!(m.contains("prod"), "message was: {m}");
+                assert!(m.contains("delete"), "message was: {m}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        // Refused, not emptied: the row still claims a password and the vault
+        // still holds it, so no connection resolves to a keyless, secretless
+        // identity.
+        let stored = &state.store.load_data().unwrap().credentials[0];
+        assert!(stored.has_password);
+        let guard = state.vault.lock().await;
+        match guard.as_ref().unwrap().get("cred1") {
+            Some(Secret::Password { password }) => assert_eq!(password, "s3cret"),
+            _ => panic!("the refused clear must not touch the vault"),
+        }
         drop(guard);
         state.shutdown.cancel();
     }

@@ -90,6 +90,7 @@
     "missing": "Credential missing",
     "invalidLabel": "A label is required.",
     "invalidUser": "A user is required.",
+    "invalidKey": "A key is required unless a password is saved.",
     "removeConfirm": "Remove this credential? This cannot be undone."
   },
   "provision": {
