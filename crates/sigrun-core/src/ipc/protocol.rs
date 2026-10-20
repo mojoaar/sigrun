@@ -34,10 +34,12 @@ pub enum Request {
         id: String,
         password: Option<String>,
     },
-    /// Create a credential from its metadata. An empty id is assigned here; the
-    /// password, if any, is a separate `CredentialsSetPassword`.
+    /// Create a credential. The host assigns the id; the optional password is
+    /// sealed in the same transaction, so the row never claims a secret the
+    /// vault does not hold. Rotating one later is `CredentialsSetPassword`.
     CredentialsAdd {
         credential: Credential,
+        password: Option<String>,
     },
     /// Replace a credential's metadata, keeping its id and its stored password.
     CredentialsUpdate {

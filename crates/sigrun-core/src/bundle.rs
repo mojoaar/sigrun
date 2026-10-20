@@ -213,7 +213,7 @@ pub fn credential_valid(c: &Credential, all: &[Credential]) -> bool {
         && (c.key_id.is_some() || c.has_password)
         && !all
             .iter()
-            .any(|other| other.id != c.id && other.label == c.label)
+            .any(|other| other.id != c.id && other.label.eq_ignore_ascii_case(&c.label))
 }
 
 /// Whether an export may be written to `dest`. `~/.ssh` is read-only by rule,
@@ -617,9 +617,18 @@ mod tests {
             &duplicate,
             &[first.clone(), duplicate.clone()]
         ));
-        // Saving the same credential again must not collide with its own row.
+        // Resolution lowercases a label, so `PROD` would make `prod` ambiguous.
+        let case_duplicate = credential("cred3", "PROD");
+        assert!(!credential_valid(
+            &case_duplicate,
+            &[first.clone(), case_duplicate.clone()]
+        ));
+        // Saving the same credential again must not collide with its own row,
+        // even when the edit changes the case of its own label.
         let mut edited = first.clone();
         edited.user = "deployer".into();
+        assert!(credential_valid(&edited, std::slice::from_ref(&first)));
+        edited.label = "Prod".into();
         assert!(credential_valid(&edited, std::slice::from_ref(&first)));
     }
 

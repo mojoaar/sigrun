@@ -73,7 +73,8 @@ export const trustHost = (host: string, port: number, algo: string, keyB64: stri
 export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>
   call<ProvisionOutcome>("provision_connection", { id, password, keyIds, disablePasswordAuth });
 export const listCredentials = () => call<Credential[]>("list_credentials");
-export const addCredential = (credential: Credential) => call<void>("add_credential", { credential });
+export const addCredential = (credential: Credential, password?: string | null) =>
+  call<void>("add_credential", { credential, password: password ?? null });
 export const updateCredential = (credential: Credential) => call<void>("update_credential", { credential });
 export const removeCredential = (id: string) => call<void>("remove_credential", { id });
 export const setCredentialPassword = (id: string, password: string | null) =>

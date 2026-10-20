@@ -392,7 +392,10 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             credentials_set_password(state, id, password).await
         }
         // Add and update write metadata only; remove also clears the secret.
-        Request::CredentialsAdd { credential } => credentials_add(state, credential).await,
+        Request::CredentialsAdd {
+            credential,
+            password,
+        } => credentials_add(state, credential, password).await,
         Request::CredentialsUpdate { credential } => credentials_update(state, credential).await,
         Request::CredentialsRemove { id } => credentials_remove(state, id).await,
         Request::PasswordGet { id } => password_get(state, id).await,
@@ -812,26 +815,43 @@ fn check_credential(credential: &Credential, all: &[Credential]) -> Result<()> {
     )))
 }
 
-/// Create a credential's metadata. An empty id is assigned here, like a
-/// connection's. `has_password` is the caller's intent: the secret itself
-/// arrives in the following `CredentialsSetPassword`, which owns the flag from
-/// then on.
-async fn credentials_add(state: &HostState, mut credential: Credential) -> Result<Response> {
-    if credential.id.trim().is_empty() {
-        credential.id = uuid::Uuid::new_v4().to_string();
+/// Create a credential. The host assigns the id, and a password is sealed in
+/// the same metadata transaction, so `has_password` can never disagree with the
+/// vault. Integration and connection ids share the vault keyspace, so a caller
+/// may not choose an id.
+async fn credentials_add(
+    state: &HostState,
+    mut credential: Credential,
+    password: Option<String>,
+) -> Result<Response> {
+    if !credential.id.trim().is_empty() {
+        return Err(Error::InvalidInput(
+            "credential ids are assigned by the host".into(),
+        ));
     }
+    if password.as_deref() == Some("") {
+        return Err(Error::InvalidInput("password must not be empty".into()));
+    }
+    credential.id = uuid::Uuid::new_v4().to_string();
+    // Never trust the payload's flag: the password argument decides.
+    credential.has_password = password.is_some();
     let data = state.store.load_data()?;
-    // Every lookup (a connection's reference, remove, the password) treats the
-    // id as a key, so two rows can never share one.
-    if data.credentials.iter().any(|c| c.id == credential.id) {
-        return Err(Error::AlreadyExists(format!(
-            "credential {}",
-            credential.id
-        )));
-    }
     check_credential(&credential, &data.credentials)?;
+
+    // Hold the vault for the whole add when a secret is written: a locked
+    // vault refuses before anything is stored, and the secret cannot lag the
+    // metadata behind.
+    let mut guard = state.vault.lock().await;
+    let vault = match &password {
+        Some(_) => Some((*guard).as_mut().ok_or(Error::VaultLocked)?),
+        None => None,
+    };
+    let id = credential.id.clone();
     state.store.update_data(|data| {
         data.credentials.push(credential);
+        if let (Some(vault), Some(password)) = (vault, password) {
+            vault.put(&id, Secret::Password { password })?;
+        }
         Ok(())
     })?;
     Ok(Response::Ok)
@@ -1957,7 +1977,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
         assert!(matches!(
-            credentials_add(&state, new_credential("prod", "deploy")).await,
+            credentials_add(&state, new_credential("prod", "deploy"), None).await,
             Ok(Response::Ok)
         ));
         let stored = state.store.load_data().unwrap().credentials;
@@ -1965,15 +1985,78 @@ mod tests {
         assert!(!stored[0].id.is_empty());
         assert_eq!(stored[0].label, "prod");
         assert_eq!(stored[0].user, "deploy");
+        assert!(!stored[0].has_password, "no password was supplied");
 
-        // A caller cannot add a second row under the same id.
-        let mut duplicate = new_credential("other", "deploy");
-        duplicate.id = stored[0].id.clone();
-        match credentials_add(&state, duplicate).await {
-            Err(Error::AlreadyExists(m)) => assert!(m.contains(&stored[0].id), "message was: {m}"),
+        // The vault keyspace is shared with connection passwords, so a caller
+        // cannot choose an id: a connection's id here would overwrite its secret.
+        let mut chosen = new_credential("other", "deploy");
+        chosen.id = "c1".into();
+        match credentials_add(&state, chosen, None).await {
+            Err(Error::InvalidInput(m)) => {
+                assert!(m.contains("assigned by the host"), "message was: {m}")
+            }
             other => panic!("unexpected {other:?}"),
         }
         assert_eq!(state.store.load_data().unwrap().credentials.len(), 1);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn adding_with_a_password_seals_it_with_the_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        // A password-only credential: valid only because the supplied password
+        // decides the flag, whatever the payload says.
+        let mut credential = new_credential("prod", "deploy");
+        credential.key_id = None;
+        credential.has_password = false;
+        assert!(matches!(
+            credentials_add(&state, credential, Some("s3cret".into())).await,
+            Ok(Response::Ok)
+        ));
+
+        let stored = state.store.load_data().unwrap().credentials;
+        assert!(stored[0].has_password);
+        let guard = state.vault.lock().await;
+        match guard.as_ref().unwrap().get(&stored[0].id) {
+            Some(Secret::Password { password }) => assert_eq!(password, "s3cret"),
+            _ => panic!("the vault should hold the password"),
+        }
+        drop(guard);
+        // The secret lives only in the vault, never in the metadata file.
+        let data_toml = std::fs::read_to_string(state.paths.data_file()).unwrap();
+        assert!(!data_toml.contains("s3cret"), "{data_toml}");
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn adding_with_a_password_needs_an_unlocked_vault() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut credential = new_credential("prod", "deploy");
+        credential.key_id = None;
+        match credentials_add(&state, credential, Some("s3cret".into())).await {
+            Err(Error::VaultLocked) => {}
+            other => panic!("unexpected {other:?}"),
+        }
+        // Refused before any write: no row claiming a secret that is not there.
+        assert!(state.store.load_data().unwrap().credentials.is_empty());
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn adding_with_an_empty_password_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let mut credential = new_credential("prod", "deploy");
+        credential.key_id = None;
+        match credentials_add(&state, credential, Some(String::new())).await {
+            Err(Error::InvalidInput(m)) => assert_eq!(m, "password must not be empty"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(state.store.load_data().unwrap().credentials.is_empty());
         state.shutdown.cancel();
     }
 
@@ -1982,19 +2065,24 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
         assert!(matches!(
-            credentials_add(&state, new_credential("prod", "deploy")).await,
+            credentials_add(&state, new_credential("prod", "deploy"), None).await,
             Ok(Response::Ok)
         ));
         // Second `prod`: the CLI's `--credential prod` would have two answers.
-        match credentials_add(&state, new_credential("prod", "other")).await {
+        match credentials_add(&state, new_credential("prod", "other"), None).await {
             Err(Error::InvalidInput(m)) => assert!(m.contains("prod"), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        // Case only differs, and resolution lowercases, so it is the same label.
+        match credentials_add(&state, new_credential("PROD", "other"), None).await {
+            Err(Error::InvalidInput(m)) => assert!(m.contains("PROD"), "message was: {m}"),
             other => panic!("unexpected {other:?}"),
         }
         assert_eq!(state.store.load_data().unwrap().credentials.len(), 1);
 
         // An edit onto an existing label is refused too, not only an add.
         assert!(matches!(
-            credentials_add(&state, new_credential("staging", "deploy")).await,
+            credentials_add(&state, new_credential("staging", "deploy"), None).await,
             Ok(Response::Ok)
         ));
         let staging = state.store.load_data().unwrap().credentials[1].clone();
@@ -2004,6 +2092,11 @@ mod tests {
             Err(Error::InvalidInput(m)) => assert!(m.contains("prod"), "message was: {m}"),
             other => panic!("unexpected {other:?}"),
         }
+        // Saving a row unchanged must not collide with itself.
+        assert!(matches!(
+            credentials_update(&state, staging).await,
+            Ok(Response::Ok)
+        ));
         let stored = state.store.load_data().unwrap().credentials;
         assert_eq!(stored[1].label, "staging");
         state.shutdown.cancel();
@@ -2033,6 +2126,13 @@ mod tests {
         let stored = state.store.load_data().unwrap().credentials;
         assert_eq!(stored[0].user, "deployer");
         assert!(stored[0].has_password, "the vault still holds a password");
+        // Not only the flag: an update that deleted the secret would fail here.
+        let guard = state.vault.lock().await;
+        match guard.as_ref().unwrap().get(&stored[0].id) {
+            Some(Secret::Password { password }) => assert_eq!(password, "s3cret"),
+            _ => panic!("the update must not touch the password"),
+        }
+        drop(guard);
         state.shutdown.cancel();
     }
 

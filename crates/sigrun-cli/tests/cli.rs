@@ -273,6 +273,91 @@ fn connections_add_accepts_a_credential_alone() {
         .stderr(predicate::str::contains("sigrun host"));
 }
 
+// A label is resolved to the stored row before the save, so the connection
+// carries the credential's id and not the text the user typed.
+#[test]
+fn connections_add_stores_the_resolved_credential_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    let run = |args: &[&str], stdin: &str| {
+        let mut cmd = Command::cargo_bin("sigrun").unwrap();
+        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+            .arg("--socket")
+            .arg(&sock)
+            .args(args)
+            .write_stdin(stdin);
+        cmd
+    };
+
+    run(
+        &[
+            "credentials",
+            "add",
+            "--label",
+            "prod",
+            "--user",
+            "deploy",
+            "--key",
+            "k1",
+        ],
+        "",
+    )
+    .assert()
+    .success();
+
+    run(
+        &[
+            "connections",
+            "add",
+            "--label",
+            "web",
+            "--host",
+            "example.com",
+            "--credential",
+            "prod",
+        ],
+        "",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["connections", "list", "--json"], "")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let rows: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let credential_id = rows[0]["credential_id"].as_str().expect("a credential id");
+    assert_ne!(credential_id, "prod", "the label itself must not be stored");
+    assert_eq!(credential_id.len(), 36, "{credential_id}");
+
+    // The used-by count matches ids, so one reference proves where the id came from.
+    run(&["credentials", "list"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("prod  deploy  key  1"));
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
 // `sigrun credentials add` reads the secret from stdin, never argv.
 #[test]
 fn credentials_add_rejects_an_empty_password_before_contacting_the_host() {

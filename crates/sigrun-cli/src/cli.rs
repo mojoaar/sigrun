@@ -750,37 +750,22 @@ async fn credentials(socket: &Option<PathBuf>, cmd: CredentialsCommand) -> anyho
             };
             let credential = Credential {
                 id: String::new(),
-                label: label.clone(),
+                label,
                 user,
                 key_id: key,
                 has_password: password.is_some(),
             };
-            let resp = client::request(&addr, &Request::CredentialsAdd { credential }).await?;
+            let resp = client::request(
+                &addr,
+                &Request::CredentialsAdd {
+                    credential,
+                    password,
+                },
+            )
+            .await?;
             match resp {
                 Response::Ok => {}
                 _ => anyhow::bail!("internal: unexpected response"),
-            }
-            // The host assigned the id, and labels are unique, so the new row is
-            // the only one carrying this label.
-            if let Some(password) = password {
-                let id = list_credentials(&addr)
-                    .await?
-                    .into_iter()
-                    .find(|c| c.label == label)
-                    .map(|c| c.id)
-                    .ok_or_else(|| anyhow::anyhow!("internal: the new credential is missing"))?;
-                let resp = client::request(
-                    &addr,
-                    &Request::CredentialsSetPassword {
-                        id,
-                        password: Some(password),
-                    },
-                )
-                .await?;
-                match resp {
-                    Response::Ok => {}
-                    _ => anyhow::bail!("internal: unexpected response"),
-                }
             }
             println!("credential added");
         }

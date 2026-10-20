@@ -77,8 +77,19 @@ pub async fn set_credential_password_inner(
 ) -> CmdResult {
     call(state, Request::CredentialsSetPassword { id, password }).await
 }
-pub async fn add_credential_inner(state: Arc<HostState>, credential: Credential) -> CmdResult {
-    call(state, Request::CredentialsAdd { credential }).await
+pub async fn add_credential_inner(
+    state: Arc<HostState>,
+    credential: Credential,
+    password: Option<String>,
+) -> CmdResult {
+    call(
+        state,
+        Request::CredentialsAdd {
+            credential,
+            password,
+        },
+    )
+    .await
 }
 pub async fn update_credential_inner(state: Arc<HostState>, credential: Credential) -> CmdResult {
     call(state, Request::CredentialsUpdate { credential }).await
@@ -262,8 +273,12 @@ pub async fn set_credential_password(
     set_credential_password_inner(state.inner().clone(), id, password).await
 }
 #[tauri::command]
-pub async fn add_credential(state: St<'_>, credential: Credential) -> CmdResult {
-    add_credential_inner(state.inner().clone(), credential).await
+pub async fn add_credential(
+    state: St<'_>,
+    credential: Credential,
+    password: Option<String>,
+) -> CmdResult {
+    add_credential_inner(state.inner().clone(), credential, password).await
 }
 #[tauri::command]
 pub async fn update_credential(state: St<'_>, credential: Credential) -> CmdResult {

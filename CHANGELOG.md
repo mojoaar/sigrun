@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A connection can no longer mix a credential with its own user or secret.
 
+### Changed
+
+- `sigrun credentials add` stores the credential and seals its password in one step.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added
