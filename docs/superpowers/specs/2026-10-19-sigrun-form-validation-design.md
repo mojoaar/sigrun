@@ -1,6 +1,6 @@
 # Sigrun form validation — design
 
-**Status:** approved in conversation 2026-10-19, pending plan.
+**Status:** implemented 2026-10-20.
 
 ## Why
 
@@ -12,7 +12,7 @@ app: the tooltip was the platform's language and wording, jsdom does not
 implement constraint validation so the test suite could not see them, and their
 rules stopped at presence and range: nothing checked the host or user charset.
 
-Three field rules were genuinely unprotected before this pass:
+Two rules were missing before this pass, and one was too strict:
 
 - **host** was accepted with a space, a slash or a shell metacharacter. The
   launcher refuses it at connect time (`terminal::ssh_invocation`), so a typo

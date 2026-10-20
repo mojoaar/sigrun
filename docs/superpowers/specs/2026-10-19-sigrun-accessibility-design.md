@@ -1,6 +1,6 @@
 # Sigrun accessibility and keyboard pass — design
 
-**Status:** approved in conversation 2026-10-19, pending plan.
+**Status:** implemented 2026-10-20.
 
 ## Why
 
@@ -39,7 +39,7 @@ This is one design with four plans, in this order:
 Six dialogs exist, all built the same way: the connection form, the provision
 panel, the trust prompt, the unreachable prompt, the connection remove
 confirmation, and the key remove confirmation (`Connections.tsx:165, 288, 514,
-527, 544`; `Keys.tsx:42`). Each gains:
+527, 544`; `Keys.tsx:42`). Each has:
 
 - focus moving to the first meaningful control on open (the dialog's input, or
   its first button when it has none);
@@ -57,10 +57,9 @@ and it has no dismiss path.
 
 ### 2. Announcements
 
-- `connections.noMatches` gets `role="status"`. The import/export result
+- `connections.noMatches` has `role="status"`. The import/export result
   (`Settings.tsx:166`), the provisioning result (`Connections.tsx:507`) and the
-  vault-locked notice (`VaultGate.tsx:39`) already have it; nothing to change
-  there.
+  vault-locked notice (`VaultGate.tsx:39`) have it too.
 - The pulsing dot keeps its existing `role="img"` with an `aria-label`, and is
   **not** put in a live region: a list whose rows change on a two-second poll
   would announce continuously. The dot is information when you navigate to it,
@@ -81,12 +80,14 @@ and it has no dismiss path.
 
 ### 4. Native menu labels
 
-The macOS app menu is built once in `setup`, so its labels are frozen at
-startup: "Sigrun", "Edit", "View", "Window", "Quit Sigrun". Making them follow
-the Language setting means rebuilding the menu when the language changes. The
-predefined items (Services, Hide, Cut/Copy/Paste) keep the strings macOS
-supplies in the system language — that is the platform's behaviour and matching
-it is a non-goal.
+The macOS app menu used to be built once in `setup`, so its labels were frozen
+at startup: "Sigrun", "Edit", "View", "Window", "Quit Sigrun". Making them
+follow the Language setting meant rebuilding the menu when the language
+changes; the host now builds it from the stored language at startup
+(`lib.rs:215`) and rebuilds it on a successful settings save
+(`commands.rs:416`). The predefined items (Services, Hide, Cut/Copy/Paste) keep
+the strings macOS supplies in the system language — that is the platform's
+behaviour and matching it is a non-goal.
 
 ## Constraints
 

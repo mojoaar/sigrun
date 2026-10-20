@@ -1,15 +1,16 @@
 # Sigrun import and export — design
 
-**Status:** approved in conversation 2026-10-19, pending plan.
+**Status:** implemented 2026-10-19.
 
 ## Why
 
 A Sigrun install holds two things worth moving: the connections you have built
 up, and the metadata for the keys you use (names, fingerprints, the public
-halves). Today there is no way to get either onto a second machine or back
-after a reinstall — you retype connections and re-import keys by hand.
+halves). Before this pass there was no way to get either onto a second machine
+or back after a reinstall — you retyped connections and re-imported keys by
+hand.
 
-This adds an **Import and export** section to Settings that writes a folder or
+This added an **Import and export** section to Settings that writes a folder or
 a `.zip` file, and reads it back. It is deliberately *not* a backup, and the
 exported material says so itself.
 
@@ -44,8 +45,8 @@ exported material says so itself.
 ## Constraints
 
 - **The dependency pins guard the MSRV.** The floor is Rust 1.90, so
-  `tauri-plugin-dialog` stays **2.7.3** and `zip` stays **7.3.0** (8.x/9.x
-  need 1.88); the pins keep a future release from raising the floor again.
+  `tauri-plugin-dialog` stays on **2.7.x** and `zip` on **7.3.x**; the `~`
+  pins stop a later release from needing a newer toolchain.
   Both go in `[workspace.dependencies]`; `zip` with
   `default-features = false` and only its deflate backend, because the default
   set drags in bzip2, zstd, lzma, ppmd and AES for no reason here.
@@ -96,24 +97,14 @@ sigrun-export-2026-10-19/
 stored passwords are not here; the vault file plus the passphrase is the only
 way to restore those.
 
-## Keys in the export and import — a deviation, please veto if wrong
+## Keys in the export and import — superseded
 
-We discussed "connections only" for import. Writing the spec showed that the
-keys half of an export would then be decorative: the metadata already lives in
-`data.toml`, the public keys are not secrets, and disk-discovered keys are
-identified by their fingerprint (stable across machines), so importing the
-records costs one `upsert_key` loop and makes the export whole — after a
-reinstall your key list comes back by name and fingerprint, and any connection
-pointing at a disk key resolves.
-
-So the design imports key metadata too, skipping ids that already exist. It
-still cannot restore a vault key's private half; such a key comes back as a
-record marked unavailable, which is exactly what `KeyView.available` already
-communicates. Import never writes to the vault.
-
-If you would rather keep the strictly connections-only behaviour we agreed,
-that is a one-line change to the plan and the export keeps the public keys for
-inspection only.
+**Superseded by the Revision 2026-10-19 below: import is connections-only, and
+this section does not describe the shipped behaviour.** The original draft
+proposed importing key metadata too, so a reinstall would bring a key list back
+by name and fingerprint. The revision records why that was dropped;
+`bundle::merge` reads only `bundle.connections`, and the `keys/*.pub` files are
+reference material for the human.
 
 ## Behaviour
 

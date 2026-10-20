@@ -28,7 +28,7 @@
 
 1. **No new false claim.** After Task 1, every sentence the docs assert about the code must be true at `HEAD`. The reviewer greps each edited claim against the source rather than trusting the brief.
 2. **The declared MSRV is buildable.** `rust-version = "1.90"` matches the highest `rust_version` any dependency declares (measured: `muda`, `tauri`, `tauri-build`, `tauri-codegen` at 1.90; next highest is 1.89). A floor lower than the dependency graph's maximum is the defect being fixed.
-3. **Three places agree.** `Cargo.toml`, `README.md` and `AGENTS.md` name the same number; `rg '1\.85' --glob '!target'` returns nothing.
+3. **Three places agree.** `Cargo.toml`, `README.md` and `AGENTS.md` name the same number; `rg '1\.85' Cargo.toml README.md AGENTS.md docs/superpowers/specs/` returns nothing. The historical plans under `docs/superpowers/plans/` keep their mentions on purpose, per Step 2.
 4. **The IPC spellings are the shipped ones.** `ExportBundle { path, zipped }`, `ImportBundle { path }`, `export_bundle(state, path, zipped)`, `import_bundle(state, path)`, and the helper names `build_bundle` / `read_bundle` / `merge` / `destination_is_allowed`.
 5. **The migration policy is a rule, not a promise of work.** No migration code, no new module, no `FORMAT_VERSION` bump.
 
