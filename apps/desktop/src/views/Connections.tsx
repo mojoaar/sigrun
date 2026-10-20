@@ -348,11 +348,6 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const [query, setQuery] = useState("");
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
-  useEffect(() => {
-    if (!openNew) return;
-    setForm({ edit: null });
-    onNewOpened?.();
-  }, [openNew]);
   const [provision, setProvision] = useState<Connection | null>(null);
   const [provisioned, setProvisioned] = useState<ProvisionOutcome | null>(null);
   const [error, setError] = useState(false);
@@ -367,6 +362,15 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const trustRef = useDialogFocus(trust !== null, () => setTrust(null));
   const unreachableRef = useDialogFocus(unreachable !== null, () => setUnreachable(null));
   const removeRef = useDialogFocus(confirmRemove !== null, () => setConfirmRemove(null));
+
+  // The one-shot menu request: consumed even when a dialog is already up, since
+  // a form mounted under it would take the focus and the first Escape.
+  useEffect(() => {
+    if (!openNew) return;
+    onNewOpened?.();
+    if (form || provision || trust || unreachable || confirmRemove) return;
+    setForm({ edit: null });
+  }, [openNew]);
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -555,7 +559,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           </div>
         </div>
       )}
-      {form && <Form initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label.trim())} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
+      {form && <Form key={form.edit?.id ?? "new"} initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label.trim())} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

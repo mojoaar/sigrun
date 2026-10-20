@@ -21,7 +21,8 @@ export function useDialogFocus(open: boolean, onClose: () => void): RefObject<HT
     (ref.current?.querySelector<HTMLElement>(FOCUSABLE) ?? ref.current)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || stack[stack.length - 1] !== token) return;
+      // A held key auto-repeats; one press must not walk down the stack.
+      if (e.repeat || e.key !== "Escape" || stack[stack.length - 1] !== token) return;
       e.preventDefault();
       close.current();
     };

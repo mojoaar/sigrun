@@ -545,6 +545,11 @@ describe("Connections", () => {
     fireEvent.click(within(panel).getByRole("button", { name: /install ssh key/i }));
     await screen.findByRole("dialog", { name: /trust this host/i });
 
+    // A held key must not cascade down the stack.
+    fireEvent.keyDown(document, { key: "Escape", repeat: true });
+    expect(screen.getByRole("dialog", { name: /trust this host/i })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /install ssh key/i })).toBeTruthy();
+
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(screen.queryByRole("dialog", { name: /trust this host/i })).toBeNull();
@@ -868,6 +873,10 @@ describe("Connections", () => {
     const row = screen.getByText("Imported").closest("li") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Edit connection" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit connection" });
+    // No native constraint validation in jsdom: `required` would silently block
+    // the save without these, so the empty user is refused by hand.
+    for (const name of ["Label", "Host", "User", "Port"])
+      expect((within(dialog).getByLabelText(name) as HTMLInputElement).hasAttribute("required")).toBe(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(api.updateConnection).toHaveBeenCalledTimes(1));
@@ -882,5 +891,38 @@ describe("Connections", () => {
     render(<Connections openNew onNewOpened={opened} onVaultLocked={() => {}} onGoToKeys={() => {}} />);
     expect(await screen.findByRole("dialog", { name: "Add connection" })).toBeTruthy();
     expect(opened).toHaveBeenCalled();
+  });
+
+  it("keeps an open edit form when the menu asks for a new connection", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    vi.mocked(api.addConnection).mockClear();
+    vi.mocked(api.updateConnection).mockClear().mockResolvedValue(undefined);
+    const opened = vi.fn();
+    const { rerender } = render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    await screen.findByRole("dialog", { name: "Edit connection" });
+
+    rerender(<Connections openNew onNewOpened={opened} onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    // The request is consumed, but the form under it is left as it was.
+    expect(opened).toHaveBeenCalled();
+    const edit = screen.getByRole("dialog", { name: "Edit connection" });
+    expect((within(edit).getByLabelText("Label") as HTMLInputElement).value).toBe("web");
+
+    fireEvent.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.updateConnection).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" })));
+    expect(api.addConnection).not.toHaveBeenCalled();
+  });
+
+  it("shows a blank form when Add is clicked over an open edit form", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([{ ...conn, id: "c1", label: "web" }]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit connection" }));
+    await screen.findByRole("dialog", { name: "Edit connection" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+    const add = await screen.findByRole("dialog", { name: "Add connection" });
+    expect((within(add).getByLabelText("Label") as HTMLInputElement).value).toBe("");
+    expect((within(add).getByLabelText("Host") as HTMLInputElement).value).toBe("");
   });
 });
