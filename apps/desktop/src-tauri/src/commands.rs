@@ -404,9 +404,19 @@ pub async fn get_settings(state: St<'_>) -> CmdResult {
 #[tauri::command]
 pub async fn save_settings(state: St<'_>, app: tauri::AppHandle, settings: Settings) -> CmdResult {
     let st = state.inner().clone();
+    #[cfg(target_os = "macos")]
+    let language = settings.language.clone();
     let out = save_settings_inner(st.clone(), settings).await;
     // The tray labels follow Settings.language.
     crate::tray::sync_tray(&app, &st);
+    // The macOS menu labels follow it too. A failed save must not repaint the
+    // menu with a language that was not stored.
+    #[cfg(target_os = "macos")]
+    if matches!(&out, Ok(Response::Ok)) {
+        if let Err(e) = crate::setup_macos_menu(&app, &language) {
+            eprintln!("sigrun: could not rebuild the menu: {e}");
+        }
+    }
     out
 }
 

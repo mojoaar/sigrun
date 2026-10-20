@@ -27,6 +27,34 @@ pub fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
     }
 }
 
+/// The macOS menu strings Sigrun writes itself. Predefined items (Services,
+/// Hide, Cut/Copy/Paste, Fullscreen) keep the strings macOS supplies in the
+/// system language; the product name is not translated. Matches `tray::labels`
+/// in shape and fallback.
+pub struct MenuLabels {
+    pub edit: String,
+    pub view: String,
+    pub window: String,
+    pub quit: String,
+}
+
+pub fn menu_labels(language: &str) -> MenuLabels {
+    match language {
+        "da" => MenuLabels {
+            edit: "Rediger".into(),
+            view: "Vis".into(),
+            window: "Vindue".into(),
+            quit: "Afslut Sigrun".into(),
+        },
+        _ => MenuLabels {
+            edit: "Edit".into(),
+            view: "View".into(),
+            window: "Window".into(),
+            quit: "Quit Sigrun".into(),
+        },
+    }
+}
+
 /// The window's native appearance for a Light/Dark/System setting. `None`
 /// means "follow the OS", which is what `"system"` — and any unknown value —
 /// asks for.
@@ -51,11 +79,11 @@ pub fn window_theme(setting: &str) -> Option<tauri::Theme> {
 /// event to every global menu listener (app.rs, `MenuEvent` arm), and the tray
 /// registers one for [`tray::MENU_QUIT_ID`].
 #[cfg(target_os = "macos")]
-fn setup_macos_menu(app: &tauri::App) -> tauri::Result<()> {
+pub(crate) fn setup_macos_menu(handle: &tauri::AppHandle, language: &str) -> tauri::Result<()> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 
-    let handle = app.handle();
-    let quit = MenuItemBuilder::with_id(tray::MENU_QUIT_ID, "Quit Sigrun")
+    let labels = menu_labels(language);
+    let quit = MenuItemBuilder::with_id(tray::MENU_QUIT_ID, &labels.quit)
         // The predefined Quit would have carried ⌘Q; a custom one must ask.
         .accelerator("CmdOrCtrl+Q")
         .build(handle)?;
@@ -70,7 +98,7 @@ fn setup_macos_menu(app: &tauri::App) -> tauri::Result<()> {
         .separator()
         .item(&quit)
         .build()?;
-    let edit_menu = SubmenuBuilder::new(handle, "Edit")
+    let edit_menu = SubmenuBuilder::new(handle, &labels.edit)
         .undo()
         .redo()
         .separator()
@@ -79,17 +107,20 @@ fn setup_macos_menu(app: &tauri::App) -> tauri::Result<()> {
         .paste()
         .select_all()
         .build()?;
-    let window_menu = SubmenuBuilder::with_id(handle, tauri::menu::WINDOW_SUBMENU_ID, "Window")
-        .minimize()
-        .maximize()
-        .separator()
-        .close_window()
+    let window_menu =
+        SubmenuBuilder::with_id(handle, tauri::menu::WINDOW_SUBMENU_ID, &labels.window)
+            .minimize()
+            .maximize()
+            .separator()
+            .close_window()
+            .build()?;
+    let view_menu = SubmenuBuilder::new(handle, &labels.view)
+        .fullscreen()
         .build()?;
-    let view_menu = SubmenuBuilder::new(handle, "View").fullscreen().build()?;
     let menu = MenuBuilder::new(handle)
         .items(&[&app_menu, &edit_menu, &view_menu, &window_menu])
         .build()?;
-    app.set_menu(menu)?;
+    handle.set_menu(menu)?;
     Ok(())
 }
 
@@ -134,7 +165,15 @@ pub fn run() {
             // macOS gets an About that carries the author and the links. Windows
             // and Linux keep Tauri's default menu.
             #[cfg(target_os = "macos")]
-            setup_macos_menu(app)?;
+            {
+                let language = app
+                    .state::<std::sync::Arc<sigrun_core::host::HostState>>()
+                    .store
+                    .load_settings()
+                    .map(|s| s.language)
+                    .unwrap_or_else(|_| "en".to_string());
+                setup_macos_menu(app.handle(), &language)?;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
                 window.on_window_event(move |event| {
@@ -277,5 +316,36 @@ mod tests {
         // so a config edit cannot silently drop the feature.
         assert_eq!(v["app"]["windows"][0]["titleBarStyle"], "Overlay");
         assert_eq!(v["app"]["windows"][0]["hiddenTitle"], true);
+    }
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::menu_labels;
+
+    #[test]
+    fn menu_labels_are_localized() {
+        let en = menu_labels("en");
+        assert_eq!(
+            (
+                en.edit.as_str(),
+                en.view.as_str(),
+                en.window.as_str(),
+                en.quit.as_str()
+            ),
+            ("Edit", "View", "Window", "Quit Sigrun")
+        );
+        let da = menu_labels("da");
+        assert_eq!(
+            (
+                da.edit.as_str(),
+                da.view.as_str(),
+                da.window.as_str(),
+                da.quit.as_str()
+            ),
+            ("Rediger", "Vis", "Vindue", "Afslut Sigrun")
+        );
+        // An unknown language falls back to English, like the tray.
+        assert_eq!(menu_labels("kl").edit, "Edit");
     }
 }

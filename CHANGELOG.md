@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The macOS app menu (Edit, View, Window, Quit) now follows the Language setting instead of staying English.
 - The active tab is marked with `aria-current="page"`, the no-matches message is announced to screen readers, and focused controls show a theme-aware focus ring.
 - Every dialog now takes focus when it opens, closes on Escape without ever confirming a destructive action, and returns focus to the control that opened it.
 - The connection form now refuses a host or user the launcher cannot use, says which field is wrong under that field, and allows a connection with no user.
