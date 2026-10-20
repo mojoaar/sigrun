@@ -4,13 +4,28 @@
 
 ## Why
 
-The Add/Edit connection form trusts the browser. Its only custom check is the
-duplicate-label warning; everything else is an HTML `required`, `min` and
-`max` attribute — and those do **not** block a React `onSubmit` that calls
-`preventDefault`, which is exactly what this form does. So a port of `0`, a
-port of `99999`, or a host with a space in it are all accepted, stored, and
-only surface later as a failed connect. A typo should be answered where it was
-typed.
+The Add/Edit connection form is the only place a connection is created, and it
+currently delegates its rules to the browser. Those rules are real — constraint
+validation runs before the submit event, so `required`/`min`/`max` do block a
+`preventDefault` handler — but they are the wrong shape for this app: the
+tooltip is the platform's language and wording, jsdom does not implement
+constraint validation so the test suite cannot see them, and the rules cover
+only three fields.
+
+Three fields are genuinely unprotected today:
+
+- **host** is accepted with a space, a slash or a shell metacharacter. The
+  launcher refuses it at connect time (`terminal::ssh_invocation`), so a typo
+  becomes a failed connection instead of a message under the field.
+- **user** gets the same predicate as host in the launcher — non-empty and only
+  `[A-Za-z0-9._-]` — and the form does not apply it.
+- **user** is `required` in the form although the launcher allows empty (ssh
+  then uses the local user). An imported connection with an empty user — the
+  bundle format explicitly accepts one — therefore cannot be saved from Edit:
+  the browser blocks the submit and there is nothing to type except a user the
+  connection does not have.
+
+The form should own one rule set, in one place, with one message style.
 
 ## Goal
 
@@ -33,12 +48,15 @@ stricter rules:
 | Field | Rule | Source |
 | --- | --- | --- |
 | label | non-empty after trim | `connections.label` is how the CLI resolves a connection |
-| host | non-empty after trim **and** only `[A-Za-z0-9._-]` | the check `terminal::ssh_invocation` already applies before it builds the command line |
+| host | non-empty after trim **and** only `[A-Za-z0-9._-]` | `terminal::safe_host_bytes` (`terminal.rs:39`), applied by `ssh_invocation` |
+| user | empty allowed; otherwise only `[A-Za-z0-9._-]` | `ssh_invocation` applies the same predicate to a non-empty user (`terminal.rs:54`) |
 | port | parses as an integer in `1..=65535` | `ssh -p` takes exactly that |
-| user | empty allowed | `ssh user@host` falls back to the local user |
 
 A connection the form accepts must be one the launcher would accept; that is
-the whole contract.
+the whole contract. The predicate is written twice — once in Rust for the
+launcher, once in TypeScript for the form — because the form cannot call core
+across the IPC boundary. Both are pinned by a table test, and the TypeScript
+one names `terminal.rs` in a comment.
 
 ## Behaviour
 
@@ -51,20 +69,26 @@ the whole contract.
 - The port input reads back as an empty string when it holds something that is
   not a number, so "empty" and "not a number" produce the same message.
 - Values are trimmed before saving, matching what the validation checked.
+- The browser's `required`, `min` and `max` attributes come off the three
+  fields. One rule set, one message style, and jsdom sees the same behaviour
+  the browser does.
+- The port input is `type="text"` with `inputMode="numeric"`, because the draft
+  value is a string until it is validated and then parsed.
 
 ## Interfaces
 
-- `crates/sigrun-core/src/terminal.rs` gains
-  `pub fn valid_host(host: &str) -> bool`, the existing predicate extracted from
-  `ssh_invocation` so one rule serves both the launcher and (through the
-  command that already reaches core) any future caller. `ssh_invocation` keeps
-  its behaviour exactly.
 - `apps/desktop/src/views/Connections.tsx` gains
-  `export type FieldErrors = Partial<Record<"label" | "host" | "port", string>>`
-  and `export function validateConnection(connection: Connection): FieldErrors`
+  `export type ConnectionDraft = Omit<Connection, "port"> & { port: string }`,
+  `export type FieldErrors = Partial<Record<"label" | "host" | "user" | "port", string>>`
+  (values are i18n keys, so the function stays pure) and
+  `export function validateConnection(draft: ConnectionDraft): FieldErrors`
   — a pure function, so the table above is pinned by a unit test with no DOM.
+- No Rust change: the launcher's predicate already exists and stays
+  `pub(crate)`; the form cannot reach it through IPC, so exposing it would add
+  a public function with no caller.
 - New i18n keys in both locales: `connections.invalidHost`,
-  `connections.invalidPort`, `connections.invalidLabel`.
+  `connections.invalidUser`, `connections.invalidPort`,
+  `connections.invalidLabel`.
 
 ## What is left to the builder
 
@@ -83,6 +107,7 @@ the whole contract.
 2. A host containing a space, a slash or a shell metacharacter must be refused
    before it can reach `ssh`.
 3. The Edit form must not reject a connection that is already stored and
-   valid — including a disk-discovered one whose user is empty.
+   valid — including an imported one whose user is empty.
 4. Nothing the launcher accepts may become unsavable: the form's rule must not
-   be stricter than `ssh_invocation`'s.
+   be stricter than `ssh_invocation`'s, and `shell_metacharacters_are_rejected_not_injected`
+   in `terminal.rs` is the Rust half of the same contract.
