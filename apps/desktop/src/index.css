@@ -1,2 +1,11 @@
 @import "tailwindcss";
 @import "./styles/theme.css";
+
+@layer base {
+  /* Theme tokens are rewritten on :root by applyTheme, so this follows every
+     theme and mode without per-theme rules. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

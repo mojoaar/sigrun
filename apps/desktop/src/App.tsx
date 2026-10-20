@@ -66,7 +66,7 @@ export default function App() {
         {vault === "Unlocked" && (
           <nav className="flex items-center gap-3">
             {TABS.map((n) => (
-              <button key={n} aria-current={tab === n} className={tab === n ? "text-accent" : "text-muted"} onClick={() => setTab(n)}>{t(`nav.${n}`)}</button>
+              <button key={n} aria-current={tab === n ? "page" : undefined} className={tab === n ? "text-accent" : "text-muted"} onClick={() => setTab(n)}>{t(`nav.${n}`)}</button>
             ))}
             <button className="rounded border border-danger px-2 py-1 text-danger hover:bg-danger hover:text-bg" onClick={() => vaultLock().then(refresh)}>{t("vault.lock")}</button>
           </nav>

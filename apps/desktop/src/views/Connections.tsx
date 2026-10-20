@@ -524,7 +524,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
       )}
       {conns.length === 0 && <p className="text-muted">{t("connections.empty")}</p>}
       {conns.length > 0 && query.trim() !== "" && filtered.length === 0 && (
-        <p className="text-sm text-muted">{t("connections.noMatches")}</p>
+        <p role="status" className="text-sm text-muted">{t("connections.noMatches")}</p>
       )}
       {groupTree(filtered).map(renderNode)}
       {confirmRemove && (

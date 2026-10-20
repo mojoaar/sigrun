@@ -813,6 +813,7 @@ describe("Connections", () => {
 
     fireEvent.change(screen.getByLabelText("Search connections"), { target: { value: "zzz" } });
     expect(screen.getByText("No connections match.")).toBeTruthy();
+    expect(within(screen.getByRole("status")).getByText("No connections match.")).toBeTruthy();
   });
 
   it("refuses a bad port and focuses it", async () => {

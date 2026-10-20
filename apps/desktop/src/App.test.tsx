@@ -48,6 +48,21 @@ test("styles the lock button as a danger action", async () => {
   expect(lock.className).toContain("text-danger");
 });
 
+test("marks only the active tab with aria-current", async () => {
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  render(<App />);
+  const nav = await screen.findByRole("navigation");
+  // App applies the persisted language, which this suite's settings mock sets
+  // to Danish, so match either label.
+  const connectionsTab = () => within(nav).getByRole("button", { name: /connections|forbindelser/i });
+  const keysTab = () => within(nav).getByRole("button", { name: /keys|nøgler/i });
+  expect(connectionsTab().getAttribute("aria-current")).toBe("page");
+  expect(keysTab().getAttribute("aria-current")).toBeNull();
+  fireEvent.click(keysTab());
+  expect(keysTab().getAttribute("aria-current")).toBe("page");
+  expect(connectionsTab().getAttribute("aria-current")).toBeNull();
+});
+
 test("vault-locked event re-gates the UI with a notice", async () => {
   render(<App />);
   await screen.findByRole("button", { name: /lås op|unlock/i });
