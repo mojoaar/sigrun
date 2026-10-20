@@ -141,8 +141,9 @@ Two buttons: **Import from a folder…** and **Import from a `.zip` file…**.
 
 1. Reads `export.json`. A missing or unparsable file is an error, not a panic;
    an unknown `format` is refused with a "newer Sigrun" message.
-2. Keys: any record whose id is not already present is added; existing ids are
-   skipped. `keys/*.pub` files are ignored on import — they are for the human.
+2. Keys: no key record is imported; `keys/*.pub` files are ignored on import —
+   they are for the human. A connection whose `key_id` names a key not on this
+   machine is still added and counted in `unresolved_keys`.
 3. Connections: any entry whose id is already present is skipped. Entries that
    fail validation (empty host, a host that is not a plain name, a port of 0,
    an empty label) are skipped and counted separately rather than stored.
@@ -190,7 +191,7 @@ impl HostState {
 ```
 
 Both summaries derive `Serialize`/`Deserialize` so they ride the IPC wire.
-The public helpers carry the decisions a test can pin without a disk:
+The public helpers carry the decisions a test can pin without a running host:
 `build_bundle(&DataFile, now_unix: u64) -> Bundle`, `read_bundle(&Path) ->
 Result<Bundle>`, `merge(&mut DataFile, &Bundle) -> ImportSummary`,
 `valid_connection(&Connection) -> bool` and `destination_is_allowed(&Path,

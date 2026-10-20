@@ -4,10 +4,11 @@
 
 ## Why
 
-The app is keyboard-hostile in places and silent in others. The six dialogs are
-built the same way — an inline `fixed inset-0` overlay plus a `role="dialog"`
-element with an `aria-label` — and none of them moves focus inside when it
-opens, closes on Escape, or returns focus to the control that opened it.
+The app was keyboard-hostile in places and silent in others. The six dialogs
+were built the same way — an inline `fixed inset-0` overlay plus a
+`role="dialog"` element with an `aria-label` — and none of them moved focus
+inside when it opened, closed on Escape, or returned focus to the control that
+opened it.
 `VaultGate` already focuses its passphrase field and is the page itself rather
 than a dialog, so it is not part of this pass. Before this pass, of the result
 and notice messages only "No connections match" lacked a live role: the
@@ -28,7 +29,7 @@ everything that changes on its own is announced once.
 
 This is one design with four plans, in this order:
 
-1. **Dialog focus** — the shared behaviour every dialog lacks.
+1. **Dialog focus** — the shared behaviour every dialog lacked.
 2. **Announcements** — the live regions for messages that appear on their own.
 3. **Nav and labels** — the semantics, and any control that has no name.
 4. **Native menu labels** — the macOS menu follows the Language setting.
@@ -37,8 +38,8 @@ This is one design with four plans, in this order:
 
 Six dialogs exist, all built the same way: the connection form, the provision
 panel, the trust prompt, the unreachable prompt, the connection remove
-confirmation, and the key remove confirmation (`Connections.tsx:163, 285, 496,
-509, 526`; `Keys.tsx:40`). Each gains:
+confirmation, and the key remove confirmation (`Connections.tsx:165, 288, 514,
+527, 544`; `Keys.tsx:42`). Each gains:
 
 - focus moving to the first meaningful control on open (the dialog's input, or
   its first button when it has none);
@@ -57,7 +58,7 @@ and it has no dismiss path.
 ### 2. Announcements
 
 - `connections.noMatches` gets `role="status"`. The import/export result
-  (`Settings.tsx:150`), the provisioning result (`Connections.tsx:489`) and the
+  (`Settings.tsx:166`), the provisioning result (`Connections.tsx:507`) and the
   vault-locked notice (`VaultGate.tsx:39`) already have it; nothing to change
   there.
 - The pulsing dot keeps its existing `role="img"` with an `aria-label`, and is

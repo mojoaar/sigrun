@@ -4,26 +4,26 @@
 
 ## Why
 
-The Add/Edit connection form is the only place a connection is created, and it
-currently delegates its rules to the browser. Those rules are real — constraint
-validation runs before the submit event, so `required`/`min`/`max` do block a
-`preventDefault` handler — but they are the wrong shape for this app: the
-tooltip is the platform's language and wording, jsdom does not implement
-constraint validation so the test suite cannot see them, and their rules stop
-at presence and range: nothing checks the host or user charset.
+Before this pass, the Add/Edit connection form — the only place a connection is
+created — delegated its rules to the browser. Those rules were real —
+constraint validation ran before the submit event, so `required`/`min`/`max`
+did block a `preventDefault` handler — but they were the wrong shape for this
+app: the tooltip was the platform's language and wording, jsdom does not
+implement constraint validation so the test suite could not see them, and their
+rules stopped at presence and range: nothing checked the host or user charset.
 
-Three fields are genuinely unprotected today:
+Three field rules were genuinely unprotected before this pass:
 
-- **host** is accepted with a space, a slash or a shell metacharacter. The
+- **host** was accepted with a space, a slash or a shell metacharacter. The
   launcher refuses it at connect time (`terminal::ssh_invocation`), so a typo
-  becomes a failed connection instead of a message under the field.
-- **user** gets the same predicate as host in the launcher — non-empty and only
-  `[A-Za-z0-9._-]` — and the form does not apply it.
-- **user** is `required` in the form although the launcher allows empty (ssh
+  became a failed connection instead of a message under the field.
+- **user** got the same predicate as host in the launcher — non-empty and only
+  `[A-Za-z0-9._-]` — and the form did not apply it.
+- **user** was `required` in the form although the launcher allowed empty (ssh
   then uses the local user). An imported connection with an empty user — the
-  bundle format explicitly accepts one — therefore cannot be saved from Edit:
-  the browser blocks the submit and there is nothing to type except a user the
-  connection does not have.
+  bundle format explicitly accepts one — therefore could not be saved from Edit:
+  the browser blocked the submit and there was nothing to type except a user the
+  connection did not have.
 
 The form should own one rule set, in one place, with one message style.
 
