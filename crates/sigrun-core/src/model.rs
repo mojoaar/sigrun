@@ -47,6 +47,10 @@ pub struct Connection {
     pub port: u16,
     #[serde(default)]
     pub key_id: Option<String>,
+    /// The shared identity to authenticate with. Set means the connection's own
+    /// `user`/`key_id`/`has_password` are unused.
+    #[serde(default)]
+    pub credential_id: Option<String>,
     #[serde(default)]
     pub group: Option<String>,
     #[serde(default)]
@@ -80,6 +84,7 @@ impl Connection {
             user: host.user.clone().unwrap_or_default(),
             port: host.port.unwrap_or(22),
             key_id: None,
+            credential_id: None,
             group: None,
             tags: Vec::new(),
             source: ConnectionSource::Discovered,
@@ -99,6 +104,7 @@ impl Connection {
             user: String::new(),
             port: 22,
             key_id: None,
+            credential_id: None,
             group: None,
             tags: Vec::new(),
             source: ConnectionSource::Managed,
@@ -174,6 +180,23 @@ pub struct KeyView {
     pub available: bool,
 }
 
+/// A named identity — a login name plus a key, a password, or both — that any
+/// number of connections can share. Metadata only: the password lives in the
+/// vault under this id, never here.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Credential {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub user: String,
+    #[serde(default)]
+    pub key_id: Option<String>,
+    #[serde(default)]
+    pub has_password: bool,
+}
+
 /// The whole `data.toml` document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -181,6 +204,8 @@ pub struct DataFile {
     pub version: u32,
     pub connections: Vec<Connection>,
     pub keys: Vec<KeyMetadata>,
+    #[serde(default)]
+    pub credentials: Vec<Credential>,
 }
 
 impl Default for DataFile {
@@ -189,6 +214,7 @@ impl Default for DataFile {
             version: 1,
             connections: Vec::new(),
             keys: Vec::new(),
+            credentials: Vec::new(),
         }
     }
 }

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::model::{Connection, KeyAlgorithm, KeyView};
+use crate::model::{Connection, Credential, KeyAlgorithm, KeyView};
 use crate::vault::VaultStatus;
 
 /// The largest single IPC line, in bytes. Anything longer is rejected.
@@ -65,6 +65,7 @@ pub enum Request {
         pid: u32,
     },
     KeysList,
+    CredentialsList,
     KeysGenerate {
         name: String,
         algorithm: KeyAlgorithm,
@@ -102,6 +103,7 @@ pub enum Response {
     Status(StatusInfo),
     Connections(Vec<Connection>),
     Keys(Vec<KeyView>),
+    Credentials(Vec<Credential>),
     Key(KeyView),
     Terminals(Vec<crate::terminal::TerminalInfo>),
     Command(String),
@@ -122,6 +124,7 @@ impl std::fmt::Debug for Response {
             Response::Status(v) => f.debug_tuple("Status").field(v).finish(),
             Response::Connections(v) => f.debug_tuple("Connections").field(v).finish(),
             Response::Keys(v) => f.debug_tuple("Keys").field(v).finish(),
+            Response::Credentials(v) => f.debug_tuple("Credentials").field(v).finish(),
             Response::Key(v) => f.debug_tuple("Key").field(v).finish(),
             Response::Terminals(v) => f.debug_tuple("Terminals").field(v).finish(),
             Response::Command(v) => f.debug_tuple("Command").field(v).finish(),

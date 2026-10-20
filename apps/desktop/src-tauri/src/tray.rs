@@ -457,6 +457,7 @@ mod tests {
             user: String::new(),
             port: 22,
             key_id: None,
+            credential_id: None,
             group: group.map(str::to_string),
             tags: Vec::new(),
             source,

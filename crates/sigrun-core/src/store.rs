@@ -133,6 +133,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use crate::error::Error;
+    use crate::model::{Credential, DataFile};
     use crate::paths::Paths;
     use crate::store::{Connection, Store};
 
@@ -176,6 +177,44 @@ mod tests {
         let data = store.load_data().unwrap();
         assert_eq!(data.connections.len(), 1);
         assert!(data.keys.is_empty());
+    }
+
+    #[test]
+    fn credentials_and_their_connection_reference_survive_a_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(Paths::with_roots(
+            dir.path().into(),
+            dir.path().into(),
+            dir.path().into(),
+        ));
+        let mut conn = Connection::managed("c1", "box");
+        conn.credential_id = Some("cred1".into());
+        store.upsert_connection(conn).unwrap();
+        store
+            .update_data(|data| {
+                data.credentials.push(Credential {
+                    id: "cred1".into(),
+                    label: "prod".into(),
+                    user: "me".into(),
+                    key_id: Some("k1".into()),
+                    has_password: true,
+                });
+                Ok(())
+            })
+            .unwrap();
+
+        let data = store.load_data().unwrap();
+        assert_eq!(data.credentials.len(), 1);
+        assert_eq!(data.credentials[0].label, "prod");
+        assert_eq!(data.connections[0].credential_id.as_deref(), Some("cred1"));
+    }
+
+    #[test]
+    fn an_old_data_file_without_credentials_still_loads() {
+        let parsed: DataFile =
+            toml::from_str("version = 1\nkeys = []\n\n[[connections]]\nid = \"c1\"\n").unwrap();
+        assert!(parsed.credentials.is_empty());
+        assert_eq!(parsed.connections[0].credential_id, None);
     }
 
     #[test]

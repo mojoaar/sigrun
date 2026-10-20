@@ -418,6 +418,7 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 user,
                 port: port.unwrap_or(22),
                 key_id: key,
+                credential_id: None,
                 group,
                 tags: tag,
                 source: ConnectionSource::Managed,

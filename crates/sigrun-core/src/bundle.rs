@@ -377,6 +377,7 @@ mod tests {
             version: 1,
             connections: vec![connection("c1", "one.example"), second],
             keys: vec![disk_key],
+            credentials: vec![],
         }
     }
 
@@ -560,6 +561,7 @@ mod tests {
                 version: 1,
                 connections: vec![here, missing],
                 keys: vec![],
+                credentials: vec![],
             },
             1,
         );
@@ -585,6 +587,7 @@ mod tests {
         let data = DataFile {
             version: 1,
             connections: vec![],
+            credentials: vec![],
             keys: vec![
                 key("id-a", "../nasty name", "SHA256:aaa1", "ssh-ed25519 AAAA a"),
                 key("id-b", "../nasty name", "SHA256:bbb2", "ssh-ed25519 BBBB b"),

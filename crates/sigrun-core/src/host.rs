@@ -381,6 +381,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         }
         Request::PasswordGet { id } => password_get(state, id).await,
         Request::KeysList => keys_list(state).await,
+        Request::CredentialsList => credentials_list(state).await,
         Request::KeysGenerate {
             name,
             algorithm,
@@ -470,6 +471,13 @@ async fn keys_list(state: &HostState) -> Result<Response> {
     }
     views.sort_by(|a, b| (&a.key.name, &a.key.fingerprint).cmp(&(&b.key.name, &b.key.fingerprint)));
     Ok(Response::Keys(views))
+}
+
+/// The list works while locked: `has_password` is stored metadata, not derived
+/// from the vault.
+async fn credentials_list(state: &HostState) -> Result<Response> {
+    let data = state.store.load_data()?;
+    Ok(Response::Credentials(data.credentials))
 }
 
 async fn keys_generate(

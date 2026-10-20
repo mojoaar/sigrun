@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The GitHub release page now carries the tag's changelog section and is marked a pre-release, so a downloader sees what changed without opening the repository.
+- Credentials: named identities that connections can share (model and listing; the UI follows).
 
 ## [0.2.0] - 2026-10-20
 

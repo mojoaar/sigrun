@@ -171,6 +171,7 @@ pub fn run() {
             commands::vault_unlock,
             commands::vault_lock,
             commands::list_connections,
+            commands::list_credentials,
             commands::add_connection,
             commands::update_connection,
             commands::remove_connection,

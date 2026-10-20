@@ -107,6 +107,9 @@ pub async fn provision_connection_inner(
 pub async fn list_keys_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::KeysList).await
 }
+pub async fn list_credentials_inner(state: Arc<HostState>) -> CmdResult {
+    call(state, Request::CredentialsList).await
+}
 pub async fn list_terminals_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::TerminalsList).await
 }
@@ -192,6 +195,10 @@ pub async fn vault_lock(state: St<'_>, app: tauri::AppHandle) -> CmdResult {
 #[tauri::command]
 pub async fn list_connections(state: St<'_>) -> CmdResult {
     list_connections_inner(state.inner().clone()).await
+}
+#[tauri::command]
+pub async fn list_credentials(state: St<'_>) -> CmdResult {
+    list_credentials_inner(state.inner().clone()).await
 }
 #[tauri::command]
 pub async fn list_terminals(state: St<'_>) -> CmdResult {
