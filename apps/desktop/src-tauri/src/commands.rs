@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use sigrun_core::host::{handle, HostState};
 use sigrun_core::ipc::protocol::{Request, Response};
-use sigrun_core::model::{Connection, KeyAlgorithm, Settings};
+use sigrun_core::model::{Connection, Credential, KeyAlgorithm, Settings};
 use sigrun_core::trust::{self, TrustStatus};
 #[cfg(target_os = "macos")]
 use tauri::Manager;
@@ -76,6 +76,15 @@ pub async fn set_credential_password_inner(
     password: Option<String>,
 ) -> CmdResult {
     call(state, Request::CredentialsSetPassword { id, password }).await
+}
+pub async fn add_credential_inner(state: Arc<HostState>, credential: Credential) -> CmdResult {
+    call(state, Request::CredentialsAdd { credential }).await
+}
+pub async fn update_credential_inner(state: Arc<HostState>, credential: Credential) -> CmdResult {
+    call(state, Request::CredentialsUpdate { credential }).await
+}
+pub async fn remove_credential_inner(state: Arc<HostState>, id: String) -> CmdResult {
+    call(state, Request::CredentialsRemove { id }).await
 }
 pub async fn connect_inner(
     state: Arc<HostState>,
@@ -251,6 +260,18 @@ pub async fn set_credential_password(
     password: Option<String>,
 ) -> CmdResult {
     set_credential_password_inner(state.inner().clone(), id, password).await
+}
+#[tauri::command]
+pub async fn add_credential(state: St<'_>, credential: Credential) -> CmdResult {
+    add_credential_inner(state.inner().clone(), credential).await
+}
+#[tauri::command]
+pub async fn update_credential(state: St<'_>, credential: Credential) -> CmdResult {
+    update_credential_inner(state.inner().clone(), credential).await
+}
+#[tauri::command]
+pub async fn remove_credential(state: St<'_>, id: String) -> CmdResult {
+    remove_credential_inner(state.inner().clone(), id).await
 }
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
     let mut cmd = tokio::process::Command::new("ssh-keyscan");

@@ -295,6 +295,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::ConnectionsProvision { .. }
             | Request::ConnectionsSetPassword { .. }
             | Request::CredentialsSetPassword { .. }
+            | Request::CredentialsRemove { .. }
     ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -390,6 +391,10 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         Request::CredentialsSetPassword { id, password } => {
             credentials_set_password(state, id, password).await
         }
+        // Add and update write metadata only; remove also clears the secret.
+        Request::CredentialsAdd { credential } => credentials_add(state, credential).await,
+        Request::CredentialsUpdate { credential } => credentials_update(state, credential).await,
+        Request::CredentialsRemove { id } => credentials_remove(state, id).await,
         Request::PasswordGet { id } => password_get(state, id).await,
         Request::KeysList => keys_list(state).await,
         Request::CredentialsList => credentials_list(state).await,
@@ -789,6 +794,99 @@ async fn credentials_set_password(
         if let Some(cred) = data.credentials.iter_mut().find(|c| c.id == id) {
             cred.has_password = has_password;
         }
+        Ok(())
+    })?;
+    Ok(Response::Ok)
+}
+
+/// The single refusal for a credential a caller may not store. The rules live
+/// in [`bundle::credential_valid`]; this only turns a `false` into an English
+/// error, so the CLI, the app and an import cannot drift apart.
+fn check_credential(credential: &Credential, all: &[Credential]) -> Result<()> {
+    if bundle::credential_valid(credential, all) {
+        return Ok(());
+    }
+    Err(Error::InvalidInput(format!(
+        "invalid credential '{}': a label, a user, a key or a password, and a label no other credential uses are required",
+        credential.label
+    )))
+}
+
+/// Create a credential's metadata. An empty id is assigned here, like a
+/// connection's. `has_password` is the caller's intent: the secret itself
+/// arrives in the following `CredentialsSetPassword`, which owns the flag from
+/// then on.
+async fn credentials_add(state: &HostState, mut credential: Credential) -> Result<Response> {
+    if credential.id.trim().is_empty() {
+        credential.id = uuid::Uuid::new_v4().to_string();
+    }
+    let data = state.store.load_data()?;
+    // Every lookup (a connection's reference, remove, the password) treats the
+    // id as a key, so two rows can never share one.
+    if data.credentials.iter().any(|c| c.id == credential.id) {
+        return Err(Error::AlreadyExists(format!(
+            "credential {}",
+            credential.id
+        )));
+    }
+    check_credential(&credential, &data.credentials)?;
+    state.store.update_data(|data| {
+        data.credentials.push(credential);
+        Ok(())
+    })?;
+    Ok(Response::Ok)
+}
+
+/// Replace a credential's metadata. The id is the row's, the password is not
+/// touched, and the stored flag wins: otherwise a caller could clear it while
+/// the vault still holds the secret.
+async fn credentials_update(state: &HostState, mut credential: Credential) -> Result<Response> {
+    let data = state.store.load_data()?;
+    let stored = data
+        .credentials
+        .iter()
+        .find(|c| c.id == credential.id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound(format!("credential {}", credential.id)))?;
+    credential.has_password = stored.has_password;
+    check_credential(&credential, &data.credentials)?;
+    state.store.update_data(|data| {
+        if let Some(row) = data.credentials.iter_mut().find(|c| c.id == credential.id) {
+            *row = credential;
+        }
+        Ok(())
+    })?;
+    Ok(Response::Ok)
+}
+
+/// Delete a credential and its secret. A connection that still references it
+/// refuses the delete and names the count: silently clearing the reference
+/// would turn a working connection into a different identity.
+async fn credentials_remove(state: &HostState, id: String) -> Result<Response> {
+    let data = state.store.load_data()?;
+    if !data.credentials.iter().any(|c| c.id == id) {
+        return Err(Error::NotFound(format!("credential {id}")));
+    }
+    let used_by = data
+        .connections
+        .iter()
+        .filter(|conn| conn.credential_id.as_deref() == Some(id.as_str()))
+        .count();
+    if used_by > 0 {
+        return Err(Error::InvalidInput(format!(
+            "credential {id} is used by {used_by} connections"
+        )));
+    }
+    // Clear the secret while the vault is open. Like a connection's password, a
+    // locked vault must not block removing metadata nobody can use.
+    {
+        let mut guard = state.vault.lock().await;
+        if let Some(vault) = (*guard).as_mut() {
+            vault.remove(&id)?;
+        }
+    }
+    state.store.update_data(|data| {
+        data.credentials.retain(|c| c.id != id);
         Ok(())
     })?;
     Ok(Response::Ok)
@@ -1774,6 +1872,167 @@ mod tests {
             Err(Error::NotFound(id)) => assert_eq!(id, "absent"),
             other => panic!("unexpected {other:?}"),
         }
+        state.shutdown.cancel();
+    }
+
+    /// A connection that shares `credential_id` and owns nothing else.
+    fn sharing(id: &str, credential_id: &str) -> Connection {
+        let mut conn = Connection::managed(id, id);
+        conn.credential_id = Some(credential_id.into());
+        conn
+    }
+
+    #[tokio::test]
+    async fn removing_a_credential_used_by_two_connections_names_the_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        credentials_set_password(&state, "cred1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+        for id in ["c1", "c2"] {
+            state.store.upsert_connection(sharing(id, "cred1")).unwrap();
+        }
+
+        match credentials_remove(&state, "cred1".into()).await {
+            Err(Error::InvalidInput(m)) => assert!(m.contains('2'), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        // Refused, not half-deleted: the row and its secret both survive.
+        assert_eq!(state.store.load_data().unwrap().credentials.len(), 1);
+        let guard = state.vault.lock().await;
+        assert!(guard.as_ref().unwrap().get("cred1").is_some());
+        drop(guard);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn removing_an_unused_credential_takes_its_vault_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        store_credential(&state, keyed_credential("cred1"));
+        credentials_set_password(&state, "cred1".into(), Some("s3cret".into()))
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            credentials_remove(&state, "cred1".into()).await,
+            Ok(Response::Ok)
+        ));
+        assert!(state.store.load_data().unwrap().credentials.is_empty());
+        let guard = state.vault.lock().await;
+        assert!(
+            guard.as_ref().unwrap().get("cred1").is_none(),
+            "the secret must not outlive its credential"
+        );
+        drop(guard);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn removing_an_unknown_credential_is_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        match credentials_remove(&state, "absent".into()).await {
+            Err(Error::NotFound(m)) => assert!(m.contains("absent"), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    fn new_credential(label: &str, user: &str) -> Credential {
+        Credential {
+            id: String::new(),
+            label: label.into(),
+            user: user.into(),
+            key_id: Some("k1".into()),
+            has_password: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn adding_a_credential_assigns_an_id_and_stores_metadata_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        assert!(matches!(
+            credentials_add(&state, new_credential("prod", "deploy")).await,
+            Ok(Response::Ok)
+        ));
+        let stored = state.store.load_data().unwrap().credentials;
+        assert_eq!(stored.len(), 1);
+        assert!(!stored[0].id.is_empty());
+        assert_eq!(stored[0].label, "prod");
+        assert_eq!(stored[0].user, "deploy");
+
+        // A caller cannot add a second row under the same id.
+        let mut duplicate = new_credential("other", "deploy");
+        duplicate.id = stored[0].id.clone();
+        match credentials_add(&state, duplicate).await {
+            Err(Error::AlreadyExists(m)) => assert!(m.contains(&stored[0].id), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(state.store.load_data().unwrap().credentials.len(), 1);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn the_save_path_refuses_a_duplicate_credential_label() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        assert!(matches!(
+            credentials_add(&state, new_credential("prod", "deploy")).await,
+            Ok(Response::Ok)
+        ));
+        // Second `prod`: the CLI's `--credential prod` would have two answers.
+        match credentials_add(&state, new_credential("prod", "other")).await {
+            Err(Error::InvalidInput(m)) => assert!(m.contains("prod"), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(state.store.load_data().unwrap().credentials.len(), 1);
+
+        // An edit onto an existing label is refused too, not only an add.
+        assert!(matches!(
+            credentials_add(&state, new_credential("staging", "deploy")).await,
+            Ok(Response::Ok)
+        ));
+        let staging = state.store.load_data().unwrap().credentials[1].clone();
+        let mut renamed = staging.clone();
+        renamed.label = "prod".into();
+        match credentials_update(&state, renamed).await {
+            Err(Error::InvalidInput(m)) => assert!(m.contains("prod"), "message was: {m}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        let stored = state.store.load_data().unwrap().credentials;
+        assert_eq!(stored[1].label, "staging");
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn updating_a_credential_keeps_its_stored_password_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let mut stored = new_credential("prod", "deploy");
+        stored.key_id = None;
+        stored.has_password = true;
+        store_credential(&state, stored.clone());
+        credentials_set_password(&state, stored.id.clone(), Some("s3cret".into()))
+            .await
+            .unwrap();
+
+        // The caller sends no `has_password`; the row must not lose the secret it has.
+        let mut edited = stored.clone();
+        edited.user = "deployer".into();
+        edited.has_password = false;
+        assert!(matches!(
+            credentials_update(&state, edited).await,
+            Ok(Response::Ok)
+        ));
+        let stored = state.store.load_data().unwrap().credentials;
+        assert_eq!(stored[0].user, "deployer");
+        assert!(stored[0].has_password, "the vault still holds a password");
         state.shutdown.cancel();
     }
 

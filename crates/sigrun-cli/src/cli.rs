@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use sigrun_core::ipc::{Request, Response};
-use sigrun_core::model::{Connection, ConnectionSource, KeyAlgorithm, KeySource, KeyView};
+use sigrun_core::model::{
+    Connection, ConnectionSource, Credential, KeyAlgorithm, KeySource, KeyView,
+};
 use sigrun_core::paths::Paths;
 use sigrun_core::provision::Hardening;
 use sigrun_core::vault::VaultStatus;
@@ -55,6 +57,8 @@ pub enum Command {
     Connections(ConnectionsCommand),
     #[command(subcommand)]
     Keys(KeysCommand),
+    #[command(subcommand)]
+    Credentials(CredentialsCommand),
 }
 
 #[derive(Subcommand)]
@@ -90,16 +94,21 @@ pub enum ConnectionsCommand {
         label: String,
         #[arg(long)]
         host: String,
-        #[arg(long)]
-        user: String,
+        /// The connection's own user, for a connection without a credential.
+        #[arg(long, required_unless_present = "credential")]
+        user: Option<String>,
         #[arg(long)]
         port: Option<u16>,
-        #[arg(long)]
+        #[arg(long, conflicts_with = "credential")]
         key: Option<String>,
         #[arg(long)]
         group: Option<String>,
         #[arg(long)]
         tag: Vec<String>,
+        /// Use a shared credential (id or label) instead of this connection's
+        /// own user and key.
+        #[arg(long, conflicts_with_all = ["user", "key"])]
+        credential: Option<String>,
     },
     /// Edit a connection by id.
     Edit {
@@ -196,6 +205,27 @@ pub enum KeysCommand {
     },
 }
 
+#[derive(Subcommand)]
+pub enum CredentialsCommand {
+    /// List credentials with their method and how many connections use them.
+    List,
+    /// Add a credential. The secret never appears on argv.
+    Add {
+        #[arg(long)]
+        label: String,
+        #[arg(long)]
+        user: String,
+        /// A key id from `sigrun keys list`.
+        #[arg(long)]
+        key: Option<String>,
+        /// Read a password from stdin.
+        #[arg(long)]
+        password_stdin: bool,
+    },
+    /// Remove a credential by id or label.
+    Remove { id_or_label: String },
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 pub enum KeyAlgorithmArg {
     Ed25519,
@@ -243,6 +273,7 @@ pub async fn run() -> anyhow::Result<()> {
         Command::Vault(cmd) => vault(&socket, cmd).await,
         Command::Connections(cmd) => connections(&socket, cmd).await,
         Command::Keys(cmd) => keys(&socket, cmd).await,
+        Command::Credentials(cmd) => credentials(&socket, cmd).await,
     }
 }
 
@@ -410,15 +441,22 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
             key,
             group,
             tag,
+            credential,
         } => {
+            // A credential is the whole identity, so its id is resolved before
+            // anything is stored; clap has already refused `--user`/`--key`.
+            let credential_id = match credential {
+                Some(arg) => Some(resolve_credential(&list_credentials(&addr).await?, &arg)?),
+                None => None,
+            };
             let connection = Connection {
                 id: String::new(),
                 label,
                 host,
-                user,
+                user: user.unwrap_or_default(),
                 port: port.unwrap_or(22),
                 key_id: key,
-                credential_id: None,
+                credential_id,
                 group,
                 tags: tag,
                 source: ConnectionSource::Managed,
@@ -670,6 +708,110 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
     Ok(())
 }
 
+async fn credentials(socket: &Option<PathBuf>, cmd: CredentialsCommand) -> anyhow::Result<()> {
+    let addr = resolve_addr(socket)?;
+    match cmd {
+        CredentialsCommand::List => {
+            let creds = list_credentials(&addr).await?;
+            let resp = client::request(&addr, &Request::ConnectionsList).await?;
+            let conns = match resp {
+                Response::Connections(c) => c,
+                _ => anyhow::bail!("internal: unexpected response"),
+            };
+            println!("label  user  method  used by");
+            for c in &creds {
+                let used_by = conns
+                    .iter()
+                    .filter(|conn| conn.credential_id.as_deref() == Some(c.id.as_str()))
+                    .count();
+                println!(
+                    "{}  {}  {}  {}",
+                    c.label,
+                    c.user,
+                    credential_method(c),
+                    used_by
+                );
+            }
+        }
+        CredentialsCommand::Add {
+            label,
+            user,
+            key,
+            password_stdin,
+        } => {
+            // Read the secret before any network call; argv is never used.
+            let password = if password_stdin {
+                match read_passphrase("password: ", true, false)? {
+                    Some(p) => Some(p),
+                    None => anyhow::bail!("invalid_input: password must not be empty"),
+                }
+            } else {
+                None
+            };
+            let credential = Credential {
+                id: String::new(),
+                label: label.clone(),
+                user,
+                key_id: key,
+                has_password: password.is_some(),
+            };
+            let resp = client::request(&addr, &Request::CredentialsAdd { credential }).await?;
+            match resp {
+                Response::Ok => {}
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+            // The host assigned the id, and labels are unique, so the new row is
+            // the only one carrying this label.
+            if let Some(password) = password {
+                let id = list_credentials(&addr)
+                    .await?
+                    .into_iter()
+                    .find(|c| c.label == label)
+                    .map(|c| c.id)
+                    .ok_or_else(|| anyhow::anyhow!("internal: the new credential is missing"))?;
+                let resp = client::request(
+                    &addr,
+                    &Request::CredentialsSetPassword {
+                        id,
+                        password: Some(password),
+                    },
+                )
+                .await?;
+                match resp {
+                    Response::Ok => {}
+                    _ => anyhow::bail!("internal: unexpected response"),
+                }
+            }
+            println!("credential added");
+        }
+        CredentialsCommand::Remove { id_or_label } => {
+            let id = resolve_credential(&list_credentials(&addr).await?, &id_or_label)?;
+            let resp = client::request(&addr, &Request::CredentialsRemove { id }).await?;
+            match resp {
+                Response::Ok => println!("credential removed"),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn list_credentials(addr: &std::path::Path) -> anyhow::Result<Vec<Credential>> {
+    match client::request(addr, &Request::CredentialsList).await? {
+        Response::Credentials(c) => Ok(c),
+        _ => anyhow::bail!("internal: unexpected response"),
+    }
+}
+
+fn credential_method(c: &Credential) -> &'static str {
+    match (c.key_id.is_some(), c.has_password) {
+        (true, true) => "key + password",
+        (true, false) => "key",
+        (false, true) => "password",
+        (false, false) => "-",
+    }
+}
+
 fn vault_status_str(status: VaultStatus) -> &'static str {
     match status {
         VaultStatus::Uninitialized => "uninitialized",
@@ -760,6 +902,31 @@ fn resolve_connection(conns: &[Connection], arg: &str) -> anyhow::Result<String>
     }
 }
 
+/// Resolve a credential argument: an exact id wins, otherwise a
+/// case-insensitive label. An unknown value is passed through so the host can
+/// name it in its error, exactly like [`resolve_connection`].
+fn resolve_credential(creds: &[Credential], arg: &str) -> anyhow::Result<String> {
+    if let Some(c) = creds.iter().find(|c| c.id == arg) {
+        return Ok(c.id.clone());
+    }
+    let matches: Vec<&Credential> = creds
+        .iter()
+        .filter(|c| c.label.to_lowercase() == arg.to_lowercase())
+        .collect();
+    match matches.len() {
+        1 => Ok(matches[0].id.clone()),
+        0 => Ok(arg.to_string()),
+        _ => {
+            let ids = matches
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            anyhow::bail!("invalid_input: ambiguous label '{arg}' matches: {ids}")
+        }
+    }
+}
+
 fn resolve_key(keys: &[KeyView], arg: &str) -> anyhow::Result<String> {
     if let Some(k) = keys.iter().find(|k| k.key.id == arg) {
         return Ok(k.key.id.clone());
@@ -772,5 +939,40 @@ fn resolve_key(keys: &[KeyView], arg: &str) -> anyhow::Result<String> {
         1 => Ok(matches[0].key.id.clone()),
         0 => Ok(arg.to_string()),
         _ => anyhow::bail!("invalid_input: ambiguous name '{arg}'"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn credential(id: &str, label: &str) -> Credential {
+        Credential {
+            id: id.into(),
+            label: label.into(),
+            user: "deploy".into(),
+            key_id: Some("k1".into()),
+            has_password: false,
+        }
+    }
+
+    #[test]
+    fn a_credential_argument_resolves_an_id_first_then_a_label() {
+        let creds = vec![
+            credential("cred-1", "prod"),
+            credential("cred-2", "staging"),
+        ];
+        assert_eq!(resolve_credential(&creds, "cred-2").unwrap(), "cred-2");
+        // Labels are unique, so a case-insensitive match has one answer.
+        assert_eq!(resolve_credential(&creds, "PROD").unwrap(), "cred-1");
+    }
+
+    #[test]
+    fn an_unknown_credential_labels_the_host_s_error_and_a_duplicate_is_ambiguous() {
+        // Passed through so the host can name the id it did not find.
+        assert_eq!(resolve_credential(&[], "prod").unwrap(), "prod");
+        let dup = vec![credential("a", "prod"), credential("b", "prod")];
+        let err = resolve_credential(&dup, "prod").unwrap_err();
+        assert!(err.to_string().contains("ambiguous"), "{err}");
     }
 }

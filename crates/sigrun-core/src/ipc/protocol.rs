@@ -34,6 +34,20 @@ pub enum Request {
         id: String,
         password: Option<String>,
     },
+    /// Create a credential from its metadata. An empty id is assigned here; the
+    /// password, if any, is a separate `CredentialsSetPassword`.
+    CredentialsAdd {
+        credential: Credential,
+    },
+    /// Replace a credential's metadata, keeping its id and its stored password.
+    CredentialsUpdate {
+        credential: Credential,
+    },
+    /// Delete an unused credential and its secret. Refused while a connection
+    /// still references it.
+    CredentialsRemove {
+        id: String,
+    },
     CredentialsSetPassword {
         id: String,
         password: Option<String>,

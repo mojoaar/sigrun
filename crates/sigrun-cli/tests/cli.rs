@@ -221,6 +221,84 @@ fn askpass_fails_on_an_empty_password_and_on_a_host_error() {
     }
 }
 
+// A credential is the identity source, so `--user` (and `--key`) cannot ride
+// along: the host would refuse the hybrid, and clap should say so first.
+#[test]
+fn connections_add_refuses_a_credential_together_with_its_own_identity() {
+    for own in [["--user", "deploy"], ["--key", "k1"]] {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .args([
+                "connections",
+                "add",
+                "--label",
+                "web",
+                "--host",
+                "example.com",
+                "--credential",
+                "prod",
+            ])
+            .args(own)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("cannot be used with"));
+    }
+}
+
+// With `--credential` the user is not required, and the argument is resolved
+// against the credential list before any save.
+#[test]
+fn connections_add_accepts_a_credential_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args([
+            "connections",
+            "add",
+            "--label",
+            "web",
+            "--host",
+            "example.com",
+            "--credential",
+            "prod",
+        ])
+        .assert()
+        .failure()
+        // It got as far as talking to the host, which is the parse proof.
+        .stderr(predicate::str::contains("sigrun host"));
+}
+
+// `sigrun credentials add` reads the secret from stdin, never argv.
+#[test]
+fn credentials_add_rejects_an_empty_password_before_contacting_the_host() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("sigrun")
+        .unwrap()
+        .env("SIGRUN_CONFIG_DIR", dir.path())
+        .env("SIGRUN_DATA_DIR", dir.path())
+        .arg("--socket")
+        .arg(dir.path().join("missing.sock"))
+        .args([
+            "credentials",
+            "add",
+            "--label",
+            "prod",
+            "--user",
+            "deploy",
+            "--password-stdin",
+        ])
+        .write_stdin("\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("password must not be empty"))
+        .stderr(predicate::str::contains("sigrun host").not());
+}
+
 #[test]
 fn provision_rejects_an_empty_password() {
     Command::cargo_bin("sigrun")
