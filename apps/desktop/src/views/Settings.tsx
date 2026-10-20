@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { exportBundle, getSettings, importBundle, saveSettings, setWindowTheme, listTerminals, type CommandError, type Settings as S, type TerminalInfo } from "../api";
@@ -11,7 +11,11 @@ const btn = "h-9 shrink-0 rounded bg-accent px-3 text-bg";
 // for a tab, so a missing entry means false.
 const canOpenTabs = (list: TerminalInfo[], id: string | null) =>
   list.find((t) => t.id === (id ?? ""))?.tabs ?? false;
-export default function Settings() {
+export default function Settings({ transferRequest, onTransferDone }: {
+  // A one-shot request from the macOS menu, acknowledged through onTransferDone.
+  transferRequest?: "import" | "export" | null;
+  onTransferDone?: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const [s, setS] = useState<S | null>(null);
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
@@ -34,19 +38,6 @@ export default function Settings() {
       })
       .catch(() => {});
   }, []);
-  if (!s) return <p className="text-muted">{t("common.loading")}</p>;
-
-  const update = (patch: Partial<S>) => {
-    const next = { ...s, ...patch };
-    setS(next);
-    saveSettings(next).catch((err) => console.warn("sigrun: could not save settings", err));
-  };
-  const applyMode = (m: Mode | "system") => {
-    setMode(m);
-    writeModeOverride(m === "system" ? null : m);
-    applyTheme(s.theme as ThemeName, resolveMode(m === "system" ? null : m));
-    setWindowTheme(m).catch((err) => console.warn("sigrun: could not set the window theme", err));
-  };
   const da = i18n.language === "da";
   const zipFilter = { name: t("settings.transferZipFilter"), extensions: ["zip"] };
   // A cancelled picker resolves to null and must do nothing at all.
@@ -78,6 +69,31 @@ export default function Settings() {
       added: done.added, skipped: done.skipped, invalid: done.invalid, unresolved: done.unresolved_keys,
     });
   });
+  // The menu hands over a one-shot request; the refs keep the latest handlers
+  // out of the effect's dependencies so it runs on the request edge only.
+  const runTransfer = useRef<(what: "import" | "export") => void>(() => {});
+  const transferDone = useRef(onTransferDone);
+  transferDone.current = onTransferDone;
+  runTransfer.current = (what) => (what === "export" ? exportTo(true) : importFrom(true));
+  useEffect(() => {
+    // Wait for the settings load: the handlers exist, but the pane is not ready.
+    if (!transferRequest || !s) return;
+    runTransfer.current(transferRequest);
+    transferDone.current?.();
+  }, [transferRequest, s]);
+  if (!s) return <p className="text-muted">{t("common.loading")}</p>;
+
+  const update = (patch: Partial<S>) => {
+    const next = { ...s, ...patch };
+    setS(next);
+    saveSettings(next).catch((err) => console.warn("sigrun: could not save settings", err));
+  };
+  const applyMode = (m: Mode | "system") => {
+    setMode(m);
+    writeModeOverride(m === "system" ? null : m);
+    applyTheme(s.theme as ThemeName, resolveMode(m === "system" ? null : m));
+    setWindowTheme(m).catch((err) => console.warn("sigrun: could not set the window theme", err));
+  };
 
   return (
     <section className="flex max-w-sm flex-col gap-3">

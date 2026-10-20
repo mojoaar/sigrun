@@ -334,17 +334,25 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   );
 }
 
-export default function Connections({ onVaultLocked, onGoToKeys, connectionError, onConnectionErrorHandled }: {
+export default function Connections({ onVaultLocked, onGoToKeys, connectionError, onConnectionErrorHandled, openNew, onNewOpened }: {
   onVaultLocked: () => void;
   onGoToKeys: () => void;
   connectionError?: ConnectionError | null;
   onConnectionErrorHandled?: () => void;
+  // A one-shot request from the macOS menu, acknowledged through onNewOpened.
+  openNew?: boolean;
+  onNewOpened?: () => void;
 }) {
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
   const [query, setQuery] = useState("");
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
+  useEffect(() => {
+    if (!openNew) return;
+    setForm({ edit: null });
+    onNewOpened?.();
+  }, [openNew]);
   const [provision, setProvision] = useState<Connection | null>(null);
   const [provisioned, setProvisioned] = useState<ProvisionOutcome | null>(null);
   const [error, setError] = useState(false);

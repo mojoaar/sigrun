@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
@@ -25,6 +25,12 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("connections");
   const [notice, setNotice] = useState(false);
   const [connectionError, setConnectionError] = useState<ConnectionError | null>(null);
+  const [newConnection, setNewConnection] = useState(false);
+  const [transfer, setTransfer] = useState<"import" | "export" | null>(null);
+  // The menu listener is registered once; the ref lets it see the current gate
+  // state instead of the value captured on mount.
+  const vaultRef = useRef(vault);
+  vaultRef.current = vault;
 
   const refresh = useCallback(async () => {
     try {
@@ -41,6 +47,7 @@ export default function App() {
   useEffect(() => {
     let unLocked: (() => void) | undefined;
     let unError: (() => void) | undefined;
+    let unMenu: (() => void) | undefined;
     let gone = false;
     try {
       listen("vault-locked", () => { setNotice(true); setVault("Locked"); })
@@ -49,8 +56,20 @@ export default function App() {
       listen<ConnectionError>("connection-error", (e) => { setConnectionError(e.payload); setTab("connections"); })
         .then((f) => { if (gone) f(); else unError = f; })
         .catch((err) => console.warn("sigrun: could not listen for connection-error", err));
+      // A menu action is inert while locked: no view behind VaultGate can open.
+      listen<string>("menu", (e) => {
+        if (vaultRef.current !== "Unlocked") return;
+        switch (e.payload) {
+          case "new-connection": setTab("connections"); setNewConnection(true); break;
+          case "settings": setTab("settings"); break;
+          case "import": setTab("settings"); setTransfer("import"); break;
+          case "export": setTab("settings"); setTransfer("export"); break;
+        }
+      })
+        .then((f) => { if (gone) f(); else unMenu = f; })
+        .catch((err) => console.warn("sigrun: could not listen for menu actions", err));
     } catch { /* not running under Tauri */ }
-    return () => { gone = true; unLocked?.(); unError?.(); };
+    return () => { gone = true; unLocked?.(); unError?.(); unMenu?.(); };
   }, []);
 
   const locked = () => { setNotice(true); void refresh(); };
@@ -77,13 +96,13 @@ export default function App() {
         {vault === "Uninitialized" && <VaultGate mode="create" onDone={done} />}
         {vault === "Locked" && <VaultGate notice={notice} onDone={done} />}
         {vault === "Unlocked" && tab === "connections" && (
-          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} onGoToKeys={() => setTab("keys")} connectionError={connectionError} onConnectionErrorHandled={() => setConnectionError(null)} /></ErrorBoundary>
+          <ErrorBoundary key="connections"><Connections onVaultLocked={locked} onGoToKeys={() => setTab("keys")} connectionError={connectionError} onConnectionErrorHandled={() => setConnectionError(null)} openNew={newConnection} onNewOpened={() => setNewConnection(false)} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "keys" && (
           <ErrorBoundary key="keys"><Keys onVaultLocked={locked} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "settings" && (
-          <ErrorBoundary key="settings"><Settings /></ErrorBoundary>
+          <ErrorBoundary key="settings"><Settings transferRequest={transfer} onTransferDone={() => setTransfer(null)} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "help" && (
           <ErrorBoundary key="help"><Help /></ErrorBoundary>

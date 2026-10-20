@@ -876,4 +876,11 @@ describe("Connections", () => {
     expect(typeof call.port).toBe("number");
     expect(call.port).toBe(22);
   });
+
+  it("opens the add form when the menu asks for a new connection", async () => {
+    const opened = vi.fn();
+    render(<Connections openNew onNewOpened={opened} onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findByRole("dialog", { name: "Add connection" })).toBeTruthy();
+    expect(opened).toHaveBeenCalled();
+  });
 });

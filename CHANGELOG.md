@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The macOS menu gained a File menu (New Connection ⌘N, Import…, Export…) and a Settings… item (⌘,); both follow the Language setting.
+
 ### Fixed
 
 - The macOS app menu (Edit, View, Window, Quit) now follows the Language setting instead of staying English.

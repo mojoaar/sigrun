@@ -176,6 +176,30 @@ describe("Settings import and export", () => {
     expect(screen.getByRole("status").textContent).toBe("");
   });
 
+  it("runs the export from a menu request", async () => {
+    saveMock.mockResolvedValueOnce("/tmp/out.zip");
+    vi.mocked(api.exportBundle).mockResolvedValueOnce({ path: "/tmp/out.zip", connections: 2, keys: 1 });
+    const done = vi.fn();
+    render(<Settings transferRequest="export" onTransferDone={done} />);
+    await waitFor(() => expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: "sigrun-export.zip" })));
+    expect(api.exportBundle).toHaveBeenCalledWith("/tmp/out.zip", true);
+    expect(done).toHaveBeenCalled();
+  });
+
+  it("runs the import from a menu request", async () => {
+    openMock.mockResolvedValueOnce("/tmp/in.zip");
+    vi.mocked(api.importBundle).mockResolvedValueOnce({ added: 1, skipped: 0, invalid: 0, unresolved_keys: 0 });
+    const done = vi.fn();
+    render(<Settings transferRequest="import" onTransferDone={done} />);
+    await waitFor(() =>
+      expect(openMock).toHaveBeenCalledWith(
+        expect.objectContaining({ filters: [expect.objectContaining({ extensions: ["zip"] })] }),
+      ),
+    );
+    expect(api.importBundle).toHaveBeenCalledWith("/tmp/in.zip");
+    expect(done).toHaveBeenCalled();
+  });
+
   it("shows an error when the command refuses", async () => {
     openMock.mockResolvedValue("/root/.ssh");
     vi.mocked(api.exportBundle).mockRejectedValue({ code: "invalid_input", message: "cannot export inside the SSH directory" });

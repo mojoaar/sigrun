@@ -72,6 +72,26 @@ test("vault-locked event re-gates the UI with a notice", async () => {
   expect(await screen.findByRole("status")).toBeTruthy();
 });
 
+const menuHandler = () =>
+  vi.mocked(listen).mock.calls.filter(([e]) => e === "menu").at(-1)![1] as (e: { payload: string }) => void;
+
+test("a menu action does nothing while the vault is locked", async () => {
+  render(<App />);
+  await screen.findByRole("button", { name: /lås op|unlock/i });
+  act(() => menuHandler()({ payload: "new-connection" }));
+  act(() => menuHandler()({ payload: "export" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("heading", { name: /settings|indstillinger/i })).toBeNull();
+});
+
+test("the menu opens the add form when unlocked", async () => {
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  render(<App />);
+  await screen.findByRole("navigation");
+  act(() => menuHandler()({ payload: "new-connection" }));
+  expect(await screen.findByRole("dialog", { name: /add connection|tilføj forbindelse/i })).toBeTruthy();
+});
+
 test("a tray connection error brings the connections tab forward with its trust dialog", async () => {
   vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
   vi.mocked(getSettings).mockResolvedValueOnce({ theme: "ravn", language: "en", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 });

@@ -2,7 +2,7 @@ mod commands;
 mod host;
 mod tray;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// The native About panel's metadata. Pure, so its fields are unit-testable
 /// without a Tauri runtime.
@@ -36,6 +36,11 @@ pub struct MenuLabels {
     pub view: String,
     pub window: String,
     pub quit: String,
+    pub file: String,
+    pub new_connection: String,
+    pub import: String,
+    pub export: String,
+    pub settings: String,
 }
 
 pub fn menu_labels(language: &str) -> MenuLabels {
@@ -45,12 +50,22 @@ pub fn menu_labels(language: &str) -> MenuLabels {
             view: "Vis".into(),
             window: "Vindue".into(),
             quit: "Afslut Sigrun".into(),
+            file: "Filer".into(),
+            new_connection: "Ny forbindelse".into(),
+            import: "Importér…".into(),
+            export: "Eksportér…".into(),
+            settings: "Indstillinger…".into(),
         },
         _ => MenuLabels {
             edit: "Edit".into(),
             view: "View".into(),
             window: "Window".into(),
             quit: "Quit Sigrun".into(),
+            file: "File".into(),
+            new_connection: "New Connection".into(),
+            import: "Import…".into(),
+            export: "Export…".into(),
+            settings: "Settings…".into(),
         },
     }
 }
@@ -87,8 +102,25 @@ pub(crate) fn setup_macos_menu(handle: &tauri::AppHandle, language: &str) -> tau
         // The predefined Quit would have carried ⌘Q; a custom one must ask.
         .accelerator("CmdOrCtrl+Q")
         .build(handle)?;
+    // A `menu:` prefix keeps these ids clear of the tray's own items; the
+    // app-level handler strips it before the id reaches the webview.
+    let new_connection = MenuItemBuilder::with_id("menu:new-connection", &labels.new_connection)
+        .accelerator("CmdOrCtrl+N")
+        .build(handle)?;
+    let import = MenuItemBuilder::with_id("menu:import", &labels.import).build(handle)?;
+    let export = MenuItemBuilder::with_id("menu:export", &labels.export).build(handle)?;
+    let file_menu = SubmenuBuilder::new(handle, &labels.file)
+        .item(&new_connection)
+        .separator()
+        .item(&import)
+        .item(&export)
+        .build()?;
+    let settings = MenuItemBuilder::with_id("menu:settings", &labels.settings)
+        .accelerator("CmdOrCtrl+,")
+        .build(handle)?;
     let app_menu = SubmenuBuilder::new(handle, "Sigrun")
         .about(Some(about_metadata()))
+        .item(&settings)
         .separator()
         .services()
         .separator()
@@ -118,7 +150,7 @@ pub(crate) fn setup_macos_menu(handle: &tauri::AppHandle, language: &str) -> tau
         .fullscreen()
         .build()?;
     let menu = MenuBuilder::new(handle)
-        .items(&[&app_menu, &edit_menu, &view_menu, &window_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
         .build()?;
     handle.set_menu(menu)?;
     Ok(())
@@ -158,6 +190,14 @@ pub fn run() {
             commands::export_bundle,
             commands::import_bundle,
         ])
+        // The app menu is Rust-side; the webview owns the views, so the action
+        // travels as one event and App decides what it means.
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            if let Some(action) = id.strip_prefix("menu:") {
+                let _ = app.emit("menu", action);
+            }
+        })
         .setup(|app| {
             let paths = sigrun_core::paths::Paths::resolve()?;
             let state = tauri::async_runtime::block_on(host::start_host(paths))?;
@@ -199,7 +239,6 @@ pub fn run() {
             // Tell the UI when the idle auto-lock fires, so it re-gates, and keep
             // the tray menu in step with the vault state (the CLI can change it).
             {
-                use tauri::Emitter;
                 let handle = app.handle().clone();
                 let st = state.clone();
                 tauri::async_runtime::spawn(async move {
@@ -347,5 +386,37 @@ mod menu_tests {
         );
         // An unknown language falls back to English, like the tray.
         assert_eq!(menu_labels("kl").edit, "Edit");
+    }
+
+    #[test]
+    fn menu_labels_name_the_file_menu() {
+        let en = menu_labels("en");
+        assert_eq!(
+            (
+                en.file.as_str(),
+                en.new_connection.as_str(),
+                en.import.as_str(),
+                en.export.as_str(),
+                en.settings.as_str()
+            ),
+            ("File", "New Connection", "Import…", "Export…", "Settings…")
+        );
+        let da = menu_labels("da");
+        assert_eq!(
+            (
+                da.file.as_str(),
+                da.new_connection.as_str(),
+                da.import.as_str(),
+                da.export.as_str(),
+                da.settings.as_str()
+            ),
+            (
+                "Filer",
+                "Ny forbindelse",
+                "Importér…",
+                "Eksportér…",
+                "Indstillinger…"
+            )
+        );
     }
 }
