@@ -10,6 +10,7 @@ export type Connection = {
   user: string;
   port: number;
   key_id: string | null;
+  credential_id: string | null;
   group: string | null;
   tags: string[];
   source: "managed" | "discovered";

@@ -16,6 +16,7 @@ vi.mock("./api", () => ({
   getSettings: vi.fn().mockResolvedValue({ theme: "ravn", language: "da", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 }),
   listConnections: vi.fn().mockResolvedValue([]),
   listKeys: vi.fn().mockResolvedValue([]),
+  listCredentials: vi.fn().mockResolvedValue([]),
   listTerminals: vi.fn().mockResolvedValue([]),
   exportBundle: vi.fn(),
   saveSettings: vi.fn().mockResolvedValue(undefined),
@@ -69,6 +70,17 @@ test("marks only the active tab with aria-current", async () => {
   fireEvent.click(keysTab());
   expect(keysTab().getAttribute("aria-current")).toBe("page");
   expect(connectionsTab().getAttribute("aria-current")).toBeNull();
+});
+
+test("places the Credentials tab right after Keys", async () => {
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  render(<App />);
+  const nav = await screen.findByRole("navigation");
+  // The suite renders Danish, so match either label.
+  const keysTab = within(nav).getByRole("button", { name: /keys|nøgler/i });
+  const credentialsTab = within(nav).getByRole("button", { name: /credentials|login/i });
+  expect(keysTab.compareDocumentPosition(credentialsTab) & Node.DOCUMENT_POSITION_FOLLOWING)
+    .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 
 test("vault-locked event re-gates the UI with a notice", async () => {

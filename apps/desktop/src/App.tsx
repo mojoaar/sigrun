@@ -5,14 +5,15 @@ import { getSettings, getStatus, vaultLock, type VaultState } from "./api";
 import i18n from "./i18n";
 import { applyTheme, DEFAULT_THEME, readModeOverride, resolveMode, type ThemeName } from "./themes";
 import Connections, { type ConnectionError } from "./views/Connections";
+import Credentials from "./views/Credentials";
 import Help from "./views/Help";
 import Keys from "./views/Keys";
 import Settings from "./views/Settings";
 import VaultGate from "./views/VaultGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-type Tab = "connections" | "keys" | "settings" | "help";
-const TABS: Tab[] = ["connections", "keys", "settings", "help"];
+type Tab = "connections" | "keys" | "credentials" | "settings" | "help";
+const TABS: Tab[] = ["connections", "keys", "credentials", "settings", "help"];
 
 /** The overlay title bar is macOS-only, so only macOS gets the traffic-light inset. */
 export function isMacTitlebar(): boolean {
@@ -100,6 +101,9 @@ export default function App() {
         )}
         {vault === "Unlocked" && tab === "keys" && (
           <ErrorBoundary key="keys"><Keys onVaultLocked={locked} /></ErrorBoundary>
+        )}
+        {vault === "Unlocked" && tab === "credentials" && (
+          <ErrorBoundary key="credentials"><Credentials onVaultLocked={locked} /></ErrorBoundary>
         )}
         {vault === "Unlocked" && tab === "settings" && (
           <ErrorBoundary key="settings"><Settings transferRequest={transfer} onTransferDone={() => setTransfer(null)} /></ErrorBoundary>

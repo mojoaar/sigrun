@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
-import { addConnection, connectForce, connectGuarded, importKey, listConnections, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectForce, connectGuarded, importKey, listConnections, listCredentials, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type Credential, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 import { useDialogFocus } from "../useDialogFocus";
 
@@ -87,15 +87,17 @@ export function validateConnection(draft: ConnectionDraft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.label.trim() === "") errors.label = "connections.invalidLabel";
   if (!SSH_TOKEN.test(draft.host.trim())) errors.host = "connections.invalidHost";
-  if (draft.user.trim() !== "" && !SSH_TOKEN.test(draft.user.trim())) errors.user = "connections.invalidUser";
+  // A credential is the login name, so the form's own user is moot in that mode.
+  if (!draft.credential_id && draft.user.trim() !== "" && !SSH_TOKEN.test(draft.user.trim())) errors.user = "connections.invalidUser";
   const port = draft.port.trim();
   if (!PORT.test(port) || Number(port) < 1 || Number(port) > 65535) errors.port = "connections.invalidPort";
   return errors;
 }
 
-function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
+function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, onProvision, bindProvisioned, onGoToKeys, onVaultLocked }: {
   initial: Connection | null;
   keys: KeyView[];
+  credentials: Credential[];
   groups: string[];
   labels: string[];
   onClose: () => void;
@@ -108,7 +110,8 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   onVaultLocked: () => void;
 }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState<ConnectionDraft>(() => initial ? { ...initial, port: String(initial.port) } : { id: crypto.randomUUID(), label: "", host: "", user: "", port: "22", key_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false });
+  const [draft, setDraft] = useState<ConnectionDraft>(() => initial ? { ...initial, port: String(initial.port) } : { id: crypto.randomUUID(), label: "", host: "", user: "", port: "22", key_id: null, credential_id: null, group: null, tags: [], source: "managed", disable_password_auth: false, has_password: false, active: false });
+  const [source, setSource] = useState<"own" | "credential">(initial?.credential_id ? "credential" : "own");
   // Only ever the freshly typed value: the stored password is never read back.
   const [password, setPassword] = useState("");
   const [removePassword, setRemovePassword] = useState(false);
@@ -116,6 +119,8 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const formRef = useRef<HTMLFormElement>(null);
   const canProvision = keys.some((k) => k.available);
+  // A reference the host no longer holds: shown by id, never silently repointed.
+  const missingCredential = source === "credential" && draft.credential_id !== null && !credentials.some((c) => c.id === draft.credential_id);
   // Non-blocking: two connections sharing a label make `connections connect
   // <label>` resolve to whichever the host lists first.
   const duplicateLabel = draft.label.trim() !== "" && labels.includes(draft.label.trim());
@@ -133,25 +138,42 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
     onClose();
   };
   const dialogRef = useDialogFocus(true, close);
+  const useOwn = () => {
+    setSource("own");
+    setDraft((prev) => ({ ...prev, credential_id: null }));
+  };
+  const useCredential = () => {
+    setSource("credential");
+    setPassword("");
+    setRemovePassword(false);
+    setDraft((prev) => ({ ...prev, credential_id: prev.credential_id ?? credentials[0]?.id ?? null, user: "", key_id: null, has_password: false }));
+  };
   async function submit(e: FormEvent) {
     e.preventDefault();
     const found = validateConnection(draft);
     setFieldErrors(found);
     if (Object.keys(found).length > 0) return;
+    const own = source === "own";
     // The launcher takes a number; validation already proved the string parses.
     const connection: Connection = {
       ...draft,
       label: draft.label.trim(),
       host: draft.host.trim(),
-      user: draft.user.trim(),
+      user: own ? draft.user.trim() : "",
       port: Number(draft.port),
+      credential_id: own ? null : draft.credential_id,
     };
     try {
+      // The host refuses a credential while the connection still holds its own
+      // password, and clearing it is this explicit switch, not a silent repair.
+      if (!own && initial?.has_password) await setConnectionPassword(connection.id, null);
       // The connection must exist before its password: the id is generated here
       // (`ConnectionsAdd` never returns one).
       await (initial ? updateConnection(connection) : addConnection(connection));
-      if (password) await setConnectionPassword(connection.id, password);
-      else if (removePassword) await setConnectionPassword(connection.id, null);
+      if (own) {
+        if (password) await setConnectionPassword(connection.id, password);
+        else if (removePassword) await setConnectionPassword(connection.id, null);
+      }
       setPassword("");
       setRemovePassword(false);
       onSaved();
@@ -164,31 +186,60 @@ function Form({ initial, keys, groups, labels, onClose, onSaved, onProvision, bi
   return (
     <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50">
       <form ref={formRef} onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
+        <fieldset className="flex flex-col gap-1">
+          <legend>{t("connections.source")}</legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="source" checked={source === "own"} onChange={useOwn} />
+            {t("connections.sourceOwn")}
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="source" checked={source === "credential"} onChange={useCredential} disabled={credentials.length === 0 && draft.credential_id === null} />
+            {t("connections.sourceCredential")}
+          </label>
+        </fieldset>
         <label>{t("connections.label")}<input className={fieldErrors.label ? `${field} border-danger!` : field} aria-invalid={fieldErrors.label ? true : undefined} aria-describedby={fieldErrors.label ? "err-label" : undefined} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></label>
         {fieldErrors.label && <p id="err-label" className="text-xs text-danger">{t(fieldErrors.label)}</p>}
         {duplicateLabel && <p role="alert" className="text-xs text-danger">{t("connections.duplicateLabel")}</p>}
         <label>{t("connections.host")}<input className={fieldErrors.host ? `${field} border-danger!` : field} aria-invalid={fieldErrors.host ? true : undefined} aria-describedby={fieldErrors.host ? "err-host" : undefined} value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} /></label>
         {fieldErrors.host && <p id="err-host" className="text-xs text-danger">{t(fieldErrors.host)}</p>}
-        <label>{t("connections.user")}<input className={fieldErrors.user ? `${field} border-danger!` : field} aria-invalid={fieldErrors.user ? true : undefined} aria-describedby={fieldErrors.user ? "err-user" : undefined} value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} /></label>
-        {fieldErrors.user && <p id="err-user" className="text-xs text-danger">{t(fieldErrors.user)}</p>}
+        {source === "own" ? (
+          <>
+            <label>{t("connections.user")}<input className={fieldErrors.user ? `${field} border-danger!` : field} aria-invalid={fieldErrors.user ? true : undefined} aria-describedby={fieldErrors.user ? "err-user" : undefined} value={draft.user} onChange={(e) => setDraft({ ...draft, user: e.target.value })} /></label>
+            {fieldErrors.user && <p id="err-user" className="text-xs text-danger">{t(fieldErrors.user)}</p>}
+          </>
+        ) : (
+          <>
+            <label>{t("connections.credential")}
+              <select className={field} value={draft.credential_id ?? ""} onChange={(e) => setDraft({ ...draft, credential_id: e.target.value || null, user: "", key_id: null, has_password: false })}>
+                {missingCredential && draft.credential_id && <option value={draft.credential_id} disabled>{draft.credential_id} — {t("credentials.missing")}</option>}
+                {credentials.map((c) => <option key={c.id} value={c.id}>{c.label} ({c.user})</option>)}
+              </select>
+            </label>
+            {missingCredential && <p role="alert" className="text-xs text-danger">{t("connections.missingCredential", { id: draft.credential_id })}</p>}
+          </>
+        )}
         <label>{t("connections.port")}<input inputMode="numeric" className={fieldErrors.port ? `${field} border-danger!` : field} aria-invalid={fieldErrors.port ? true : undefined} aria-describedby={fieldErrors.port ? "err-port" : undefined} value={draft.port} onChange={(e) => setDraft((prev) => ({ ...prev, port: e.target.value }))} /></label>
         {fieldErrors.port && <p id="err-port" className="text-xs text-danger">{t(fieldErrors.port)}</p>}
         <label>{t("connections.group")}<input className={field} list="sigrun-groups" value={draft.group ?? ""} onChange={(e) => setDraft({ ...draft, group: e.target.value || null })} />
           <datalist id="sigrun-groups">{groups.map((path) => <option value={path} key={path} />)}</datalist>
         </label>
-        <label>{t("connections.key")}
-          <select className={field} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
-            <option value=""></option>
-            {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
-          </select>
-        </label>
-        <label>{t("connections.password")}<input type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <p className="text-sm text-muted">{t("connections.passwordHint")}</p>
-        {initial?.has_password && (
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={removePassword} onChange={(e) => setRemovePassword(e.target.checked)} />
-            {t("connections.removeSavedPassword")}
-          </label>
+        {source === "own" && (
+          <>
+            <label>{t("connections.key")}
+              <select className={field} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
+                <option value=""></option>
+                {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
+              </select>
+            </label>
+            <label>{t("connections.password")}<input type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+            <p className="text-sm text-muted">{t("connections.passwordHint")}</p>
+            {initial?.has_password && (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={removePassword} onChange={(e) => setRemovePassword(e.target.checked)} />
+                {t("connections.removeSavedPassword")}
+              </label>
+            )}
+          </>
         )}
         {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
@@ -347,6 +398,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const [conns, setConns] = useState<Connection[]>([]);
   const [query, setQuery] = useState("");
   const [keys, setKeys] = useState<KeyView[]>([]);
+  const [credentials, setCredentials] = useState<Credential[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
   const [provision, setProvision] = useState<Connection | null>(null);
   const [provisioned, setProvisioned] = useState<ProvisionOutcome | null>(null);
@@ -380,6 +432,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const refresh = useCallback(() => {
     listConnections().then(setConns).catch(handle);
     listKeys().then(setKeys).catch(handle);
+    listCredentials().then(setCredentials).catch(handle);
   }, [handle]);
   useEffect(refresh, [refresh]);
 
@@ -559,7 +612,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           </div>
         </div>
       )}
-      {form && <Form key={form.edit?.id ?? "new"} initial={form.edit} keys={keys} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label.trim())} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
+      {form && <Form key={form.edit?.id ?? "new"} initial={form.edit} keys={keys} credentials={credentials} groups={groupPaths(conns)} labels={conns.filter((x) => x.id !== form.edit?.id).map((x) => x.label.trim())} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} onProvision={openProvision} bindProvisioned={bindProvisioned} onGoToKeys={onGoToKeys} onVaultLocked={onVaultLocked} />}
       {provision && (
         <ProvisionPanel
           conn={provision}

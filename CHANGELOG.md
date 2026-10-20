@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Credentials: named identities that connections can share (model and listing; the UI follows).
 - Credential passwords live in the vault and every connection, agent session, askpass prompt and provisioning run resolves the same identity.
 - Manage credentials from the CLI, and point a connection at one.
+- A Credentials tab, and a connection form that can use one instead of its own details.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 {
   "app": { "title": "Sigrun", "tagline": "Dine SSH-nøgler og forbindelser samlet ét sted." },
-  "nav": { "connections": "Forbindelser", "keys": "Nøgler", "settings": "Indstillinger", "help": "Hjælp" },
+  "nav": { "connections": "Forbindelser", "keys": "Nøgler", "credentials": "Login", "settings": "Indstillinger", "help": "Hjælp" },
   "vault": {
     "uninitialized": {
       "title": "Opret dit pengeskab",
@@ -40,6 +40,11 @@
     "user": "Bruger",
     "port": "Port",
     "key": "Nøgle",
+    "credential": "Login",
+    "source": "Loginoplysninger",
+    "sourceOwn": "Indtast mine egne",
+    "sourceCredential": "Brug et login",
+    "missingCredential": "Denne forbindelse bruger et login, der ikke findes her: {{id}}. Vælg et andet, eller indtast dine egne oplysninger.",
     "group": "Gruppe",
     "password": "Adgangskode",
     "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
@@ -63,6 +68,26 @@
     "source": { "vault": "Pengeskab", "disk": "På disken" },
     "passphrase": "Nøglens adgangssætning",
     "removeConfirm": "Vil du fjerne denne nøgle? Det kan ikke fortrydes."
+  },
+  "credentials": {
+    "title": "Logins",
+    "empty": "Ingen logins endnu. Tilføj et for at dele en identitet mellem forbindelser.",
+    "add": "Tilføj login",
+    "edit": "Rediger login",
+    "label": "Navn",
+    "user": "Bruger",
+    "key": "Nøgle",
+    "password": "Adgangskode",
+    "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
+    "removeSavedPassword": "Fjern den gemte adgangskode",
+    "method": { "key": "Nøgle", "password": "Adgangskode", "keyPassword": "Nøgle + adgangskode" },
+    "usedBy": "Bruges af {{count}}",
+    "inUse_one": "Dette login bruges af én forbindelse. Flyt den først.",
+    "inUse_other": "Dette login bruges af {{count}} forbindelser. Flyt dem først.",
+    "missing": "Login mangler",
+    "invalidLabel": "Et navn er påkrævet.",
+    "invalidUser": "En bruger er påkrævet.",
+    "removeConfirm": "Vil du fjerne dette login? Det kan ikke fortrydes."
   },
   "provision": {
     "title": "Installér SSH-nøgle",
