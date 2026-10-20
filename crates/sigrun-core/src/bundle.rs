@@ -843,18 +843,18 @@ mod tests {
     #[test]
     fn an_export_carries_the_credential_reference_and_none_of_its_secret() {
         let dir = tempfile::tempdir().unwrap();
-        let bundle = build_bundle(&data_with_one_credentialed_connection(), 1);
-        write_folder(&bundle, dir.path()).unwrap();
-        let conn = &bundle.connections[0];
-        assert_eq!(conn.credential_id.as_deref(), Some("cred1"));
-        // Only the id travels: the credential's user, key and password stay home.
-        assert!(conn.user.is_empty());
-        assert_eq!(conn.key_id, None);
-        assert!(!conn.has_password);
+        write_folder(
+            &build_bundle(&data_with_one_credentialed_connection(), 1),
+            dir.path(),
+        )
+        .unwrap();
         let json = std::fs::read_to_string(dir.path().join(EXPORT_FILE)).unwrap();
-        assert!(!json.contains("credentials"), "{json}");
-        assert!(!json.contains("prod-only-label"), "{json}");
-        assert!(!json.contains("deployer"), "{json}");
+        // The reference is on the wire, with the real value…
+        assert!(json.contains(r#""credential_id": "cred1""#), "{json}");
+        // …and neither the credential list nor anything it holds is.
+        for leaked in ["credentials", "prod-only-label", "deployer", r#""k1""#] {
+            assert!(!json.contains(leaked), "{leaked} leaked: {json}");
+        }
     }
 
     #[test]
@@ -871,7 +871,14 @@ mod tests {
 
     #[test]
     fn an_imported_connection_keeps_a_dangling_credential_reference() {
-        let bundle = build_bundle(&data_with_one_credentialed_connection(), 1);
+        let dir = tempfile::tempdir().unwrap();
+        write_folder(
+            &build_bundle(&data_with_one_credentialed_connection(), 1),
+            dir.path(),
+        )
+        .unwrap();
+        // Through the file, so a field skipped in serde could not pass.
+        let bundle = read_bundle(dir.path()).unwrap();
         let mut data = DataFile::default();
         let summary = merge(&mut data, &bundle);
         assert_eq!(summary.added, 1);

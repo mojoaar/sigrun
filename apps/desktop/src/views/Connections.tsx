@@ -500,6 +500,10 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
           return connectForce(id).catch(handle);
         },
       });
+    } else {
+      // Any other refusal (a dangling credential, say) has no dialog of its
+      // own, but the reason must still reach the user.
+      handle(connectionError);
     }
     onConnectionErrorHandled?.();
   }, [connectionError, onConnectionErrorHandled, handle]);

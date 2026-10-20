@@ -181,6 +181,13 @@ describe("Connections", () => {
     await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("1"));
   });
 
+  it("shows a tray error that has no dedicated dialog", async () => {
+    const handled = vi.fn();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "invalid_input", message: "connection old uses credential gone, which is not stored", host: "h", port: 22 }} onConnectionErrorHandled={handled} />);
+    expect(await screen.findByText(/uses credential gone, which is not stored/)).toBeTruthy();
+    expect(handled).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the trust dialog from a tray error", async () => {
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "host_key_unknown", message: "SHA256:x ssh-ed25519 AAAA", host: "h", port: 22 }} onConnectionErrorHandled={() => {}} />);
     const dialog = await screen.findByRole("dialog");
