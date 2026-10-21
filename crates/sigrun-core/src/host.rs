@@ -305,7 +305,7 @@ fn parent_of(pid: u32) -> Option<u32> {
         .ok()
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
 fn parent_of(_pid: u32) -> Option<u32> {
     None
 }
