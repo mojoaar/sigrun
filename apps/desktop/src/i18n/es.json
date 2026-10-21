@@ -1,0 +1,220 @@
+{
+  "app": { "title": "Sigrun", "tagline": "Tus claves y conexiones SSH, en un solo lugar." },
+  "nav": { "connections": "Conexiones", "keys": "Claves", "credentials": "Credenciales", "settings": "Ajustes", "help": "Ayuda" },
+  "vault": {
+    "uninitialized": {
+      "title": "Crear la bóveda",
+      "body": "Elegir una frase de contraseña para cifrar las claves. No se puede recuperar si se olvida."
+    },
+    "locked": {
+      "title": "Bóveda bloqueada",
+      "body": "Introducir la frase de contraseña para desbloquear las claves y las conexiones."
+    },
+    "unlock": "Desbloquear",
+    "create": "Crear bóveda",
+    "lock": "Bloquear",
+    "unlocking": "Desbloqueando…",
+    "passphrase": "Frase de contraseña",
+    "passphraseConfirm": "Confirmar frase de contraseña",
+    "passphraseMismatch": "Las frases de contraseña no coinciden.",
+    "passphraseRequired": "Se requiere una frase de contraseña.",
+    "wrongPassphrase": "Frase de contraseña incorrecta. Volver a intentarlo."
+  },
+  "connections": {
+    "title": "Conexiones",
+    "empty": "Aún no hay conexiones. Añadir una para empezar.",
+    "add": "Añadir conexión",
+    "edit": "Editar conexión",
+    "remove": "Eliminar conexión",
+    "connect": "Conectar",
+    "unreachable": "El host no es accesible",
+    "connectAnyway": "Conectar de todos modos",
+    "active": "Conectada",
+    "label": "Etiqueta",
+    "duplicateLabel": "Otra conexión ya usa esta etiqueta.",
+    "invalidLabel": "Se requiere una etiqueta.",
+    "invalidHost": "Usar solo letras, dígitos, puntos, guiones bajos y guiones.",
+    "invalidUser": "Usar solo letras, dígitos, puntos, guiones bajos y guiones, o dejar el campo vacío.",
+    "invalidPort": "Introducir un puerto entre 1 y 65535.",
+    "host": "Host",
+    "user": "Usuario",
+    "port": "Puerto",
+    "key": "Clave",
+    "credential": "Credencial",
+    "source": "Datos de inicio de sesión",
+    "sourceOwn": "Introducir manualmente",
+    "sourceCredential": "Usar una credencial",
+    "missingCredential": "Esta conexión usa una credencial que no está aquí: {{id}}. Elegir otra o introducir los datos propios.",
+    "chooseCredential": "Elegir una credencial o introducir los datos propios.",
+    "keylessCredential": "Esta credencial no tiene clave y esta conexión no permite el inicio de sesión con contraseña. Añadir una clave a la credencial o permitir contraseñas en la conexión.",
+    "passwordRemoved": "Se eliminó la contraseña guardada en esta conexión; ahora la credencial gestiona el inicio de sesión.",
+    "group": "Grupo",
+    "password": "Contraseña",
+    "passwordHint": "La contraseña del servidor, almacenada cifrada en la bóveda de Sigrun. No es la frase de contraseña de la bóveda.",
+    "removeSavedPassword": "Eliminar la contraseña guardada",
+    "hasPassword": "Contraseña guardada",
+    "search": "Buscar conexiones",
+    "noMatches": "Ninguna conexión coincide.",
+    "discovered": "Descubierta en ~/.ssh/config",
+    "removeConfirm": "¿Eliminar esta conexión? Esta acción no se puede deshacer."
+  },
+  "keys": {
+    "title": "Claves",
+    "empty": "Aún no hay claves. Generar o importar una.",
+    "generate": "Generar clave",
+    "import": "Importar clave",
+    "remove": "Eliminar clave",
+    "name": "Nombre",
+    "path": "Ruta",
+    "algorithm": "Algoritmo",
+    "fingerprint": "Huella",
+    "source": { "vault": "Bóveda", "disk": "En el disco" },
+    "passphrase": "Frase de contraseña de la clave",
+    "removeConfirm": "¿Eliminar esta clave? Esta acción no se puede deshacer."
+  },
+  "credentials": {
+    "title": "Credenciales",
+    "empty": "Aún no hay credenciales. Añadir una para compartir una identidad entre conexiones.",
+    "add": "Añadir credencial",
+    "edit": "Editar credencial",
+    "label": "Etiqueta",
+    "user": "Usuario",
+    "key": "Clave",
+    "password": "Contraseña",
+    "passwordHint": "La contraseña del servidor, almacenada cifrada en la bóveda de Sigrun. No es la frase de contraseña de la bóveda.",
+    "removeSavedPassword": "Eliminar la contraseña guardada",
+    "method": { "key": "Clave", "password": "Contraseña", "keyPassword": "Clave + contraseña" },
+    "usedBy": "Usada por {{count}}",
+    "inUse_one": "Esta credencial la usa una conexión. Apuntar esa conexión a otra antes de eliminarla.",
+    "inUse_other": "Esta credencial la usan {{count}} conexiones. Apuntarlas a otra antes de eliminarla.",
+    "missing": "Credencial ausente",
+    "invalidLabel": "Se requiere una etiqueta.",
+    "invalidUser": "Se requiere un usuario.",
+    "invalidKey": "Se requiere una clave a menos que haya una contraseña guardada.",
+    "removeConfirm": "¿Eliminar esta credencial? Esta acción no se puede deshacer."
+  },
+  "provision": {
+    "title": "Instalar clave SSH",
+    "body": "Instalar una clave de la bóveda o del disco en este servidor usando su contraseña.",
+    "password": "Contraseña",
+    "selectKeys": "Claves para instalar",
+    "diskKeys": "Claves en el disco",
+    "keyPassphrase": "Frase de contraseña de la clave",
+    "importKey": "Importar una clave",
+    "disablePasswordAuth": "Desactivar la autenticación por contraseña",
+    "lockoutWarning": "Esto bloqueará el acceso si falla el inicio de sesión con clave. Asegurarse primero de poder iniciar sesión con una clave.",
+    "install": "Instalar clave SSH…",
+    "installed": "Instaladas: {{installed}} — verificadas: {{verified}}",
+    "skipped": "La autenticación por contraseña sigue activada: {{reason}}"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "theme": "Tema",
+    "language": "Idioma",
+    "mode": "Apariencia",
+    "modeSystem": "Sistema",
+    "modeLight": "Claro",
+    "modeDark": "Oscuro",
+    "terminal": "Terminal",
+    "terminalDefault": "Valor predeterminado del sistema",
+    "openIn": "Abrir en",
+    "openInWindow": "Nueva ventana",
+    "openInTab": "Nueva pestaña",
+    "openInUnavailable": "Este terminal no puede abrir una pestaña.",
+    "startMinimized": "Iniciar minimizado en la bandeja",
+    "autoLock": "Bloquear la bóveda automáticamente",
+    "autoLockNever": "Nunca",
+    "autoLockMinutes": "Tras {{count}} min de inactividad",
+    "transferTitle": "Importar y exportar",
+    "transferBody": "Exportar todas las conexiones y las claves públicas a una carpeta o a un archivo .zip, e importarlas de nuevo. Es una transferencia, no una copia de seguridad: las claves privadas y las contraseñas guardadas nunca se incluyen.",
+    "transferExportFolder": "Exportar a una carpeta…",
+    "transferExportZip": "Exportar a un archivo .zip…",
+    "transferImportFolder": "Importar desde una carpeta…",
+    "transferImportZip": "Importar desde un archivo .zip…",
+    "transferZipFilter": "Archivo Zip",
+    "transferExported": "Se exportaron {{connections}} conexiones y {{keys}} claves.",
+    "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver."
+  },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
+  "trust": {
+    "title": "¿Confiar en este host?",
+    "body": "Es la primera vez que se conecta a este host. Verificar la huella antes de continuar.",
+    "fingerprint": "Huella del host",
+    "accept": "Confiar y conectar",
+    "cancel": "Cancelar",
+    "mismatch": "Advertencia: la huella del host ha cambiado. Podría tratarse de un ataque de tipo man-in-the-middle."
+  },
+  "tray": {
+    "open": "Abrir Sigrun",
+    "quit": "Salir",
+    "unlock": "Desbloquear Sigrun…",
+    "discovered": "Descubiertas"
+  },
+  "help": {
+    "title": "Ayuda",
+    "intro": "Sigrun reúne las claves SSH y las conexiones en un solo lugar. El nombre viene de Sigrún: sigr significa victoria y rún significa secreto — victoria sobre el caos de las claves.",
+    "quickStart": {
+      "title": "Inicio rápido",
+      "vault": "Crear o desbloquear la bóveda con la frase de contraseña.",
+      "key": "Importar una clave del disco o generar una nueva.",
+      "connection": "Añadir una conexión: etiqueta, host, usuario y puerto — o apuntarla a una credencial que lleve los datos de inicio de sesión.",
+      "connect": "Conectar — Sigrun abre el terminal ejecutando ssh.",
+      "provision": "En un servidor que solo acepta contraseñas, usar «Instalar clave SSH…» para instalar una clave de la bóveda con la contraseña del servidor."
+    },
+    "groups": {
+      "title": "Conexiones y grupos",
+      "nesting": "Los grupos se anidan con «/». Una conexión en PVE/Folder 1 aparece bajo Folder 1 dentro de PVE.",
+      "tray": "Clic izquierdo en el icono de la bandeja: con la bóveda bloqueada se abre la ventana para desbloquearla; con la bóveda desbloqueada se abre el menú de conexiones, agrupado de la misma forma."
+    },
+    "keys": {
+      "title": "Claves",
+      "vault": "Las claves de la bóveda viven cifradas en Sigrun y las sirve su agente SSH — ningún archivo de clave en el disco.",
+      "disk": "Las claves en disco se quedan donde están. Sigrun pasa -i <ruta> a ssh y nunca toca ~/.ssh."
+    },
+    "credentials": {
+      "title": "Credenciales",
+      "summary": "Una credencial es un nombre de usuario y la forma de iniciar sesión con él: una clave, una contraseña o ambas. Existe una sola vez en Credenciales, y cualquier número de conexiones puede usarla, así que rotar una contraseña es una sola edición en lugar de una por host.",
+      "oneSource": "Una conexión toma sus datos de inicio de sesión de una sola fuente: una credencial, o su propio usuario, clave y contraseña. Nunca se mezclan las dos.",
+      "vault": "La etiqueta, el usuario y el id de la clave viven en el archivo de datos de Sigrun, así que la lista funciona con la bóveda bloqueada; la contraseña está sellada en la bóveda. Una credencial sin clave no puede perder su contraseña — eliminar la credencial en su lugar. La eliminación se rechaza mientras haya conexiones que la usen.",
+      "export": "Las credenciales nunca viajan en una exportación. Una conexión importada conserva su referencia y muestra «Credencial ausente» hasta que se cree o se elija una; una conexión se rechaza con el id en lugar de recurrir a las claves propias."
+    },
+    "settings": {
+      "title": "Ajustes",
+      "summary": "Tema y apariencia, idioma, el terminal que se lanza, dónde se abre una conexión, el bloqueo automático tras inactividad y el inicio minimizado en la bandeja."
+    },
+    "cli": {
+      "title": "Línea de comandos",
+      "host": { "cmd": "sigrun host", "desc": "Ejecutar el host en primer plano." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Desbloquear la bóveda." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Añadir una conexión." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Abrir una conexión en el terminal." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Guardar la contraseña de una conexión." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Listar las credenciales y cuántas conexiones usa cada una." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Añadir una credencial; la contraseña se lee de stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Eliminar una credencial que ninguna conexión usa." }
+    },
+    "data": {
+      "title": "Dónde viven los datos",
+      "dir": "Los datos viven en el directorio de datos de cada usuario: ~/Library/Application Support/Sigrun en macOS, ~/.local/share/sigrun en Linux y %APPDATA%\\Sigrun en Windows.",
+      "ssh": "Sigrun nunca modifica ~/.ssh."
+    },
+    "about": {
+      "title": "Acerca de",
+      "tagline": "Conexiones y claves SSH en una bóveda cifrada local, servidas a ssh mediante un agente integrado.",
+      "version": "Versión {{version}}",
+      "author": "Creado por mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Con licencia MIT."
+    }
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "loading": "Cargando…",
+    "error": "Se ha producido un error."
+  }
+}

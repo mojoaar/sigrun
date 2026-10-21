@@ -5,6 +5,7 @@ import en from "./en.json";
 import da from "./da.json";
 import de from "./de.json";
 import fr from "./fr.json";
+import es from "./es.json";
 
 export type Language = "en" | "da" | "de" | "fr" | "es" | "sv" | "nb";
 
@@ -14,6 +15,7 @@ export const LANGUAGES: { code: Language; name: string }[] = [
   { code: "da", name: "Dansk" },
   { code: "de", name: "Deutsch" },
   { code: "fr", name: "Français" },
+  { code: "es", name: "Español" },
 ];
 
 export function isLanguage(value: string): value is Language {
@@ -26,6 +28,7 @@ i18n.use(initReactI18next).init({
     da: { translation: da },
     de: { translation: de },
     fr: { translation: fr },
+    es: { translation: es },
   },
   lng: "en",
   fallbackLng: "en",
