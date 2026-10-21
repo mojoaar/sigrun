@@ -292,6 +292,45 @@ pub fn launch_reports(
     })
 }
 
+/// macOS starts a Finder-launched app with a bare `PATH`, so a Homebrew or
+/// app-bundle terminal that works in a shell is invisible to it. Look in the
+/// usual places before falling back to the bare name, which `Command::new`
+/// then searches on `PATH` as before.
+fn resolve_program(program: &str) -> String {
+    resolve_among(program, &program_candidates(program))
+}
+fn program_candidates(program: &str) -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let mut capitalised = program.to_string();
+    if let Some(first) = capitalised.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    let mut candidates = vec![
+        PathBuf::from("/opt/homebrew/bin").join(program),
+        PathBuf::from("/usr/local/bin").join(program),
+    ];
+    for app in [capitalised.as_str(), program] {
+        candidates.push(PathBuf::from(format!(
+            "/Applications/{app}.app/Contents/MacOS/{program}"
+        )));
+        if let Some(home) = std::env::var_os("HOME") {
+            candidates.push(
+                PathBuf::from(home)
+                    .join("Applications")
+                    .join(format!("{app}.app/Contents/MacOS/{program}")),
+            );
+        }
+    }
+    candidates
+}
+fn resolve_among(program: &str, candidates: &[std::path::PathBuf]) -> String {
+    candidates
+        .iter()
+        .find(|path| path.is_file())
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|| program.to_string())
+}
+
 /// Candidate terminal launch specs for this platform, in fallback order.
 /// `open_in` is the user's "window" | "tab" preference; only the terminals that
 /// expose a tab API act on it, and anything that is not `"tab"` means a window.
@@ -336,7 +375,7 @@ pub fn terminal_launch_specs(
                 Some("ghostty") => {
                     if open_in != "tab" {
                         return Ok(vec![LaunchSpec {
-                            program: "ghostty".into(),
+                            program: resolve_program("ghostty"),
                             args: vec![
                                 "-e".into(),
                                 "/bin/sh".into(),
@@ -375,13 +414,13 @@ end tell"#
                 }
                 Some("kitty") => {
                     return Ok(vec![LaunchSpec {
-                        program: "kitty".into(),
+                        program: resolve_program("kitty"),
                         args: vec!["/bin/sh".into(), "-c".into(), keep_open.clone()],
                     }]);
                 }
                 Some("alacritty") => {
                     return Ok(vec![LaunchSpec {
-                        program: "alacritty".into(),
+                        program: resolve_program("alacritty"),
                         args: vec![
                             "-e".into(),
                             "/bin/sh".into(),
@@ -392,7 +431,7 @@ end tell"#
                 }
                 Some("wezterm") => {
                     return Ok(vec![LaunchSpec {
-                        program: "wezterm".into(),
+                        program: resolve_program("wezterm"),
                         args: vec![
                             "start".into(),
                             "--".into(),
@@ -404,7 +443,11 @@ end tell"#
                 }
                 _ => {}
             }
-            let cmd = applescript_escape(&keep_open);
+            // AppleScript terminals run the line in an interactive shell, which
+            // echoes it first — a screenful of trap wiring above every session.
+            // `clear` runs in that same shell before the command, so the echo is
+            // wiped and only the session's own output stays.
+            let cmd = applescript_escape(&format!("clear; {keep_open}"));
             let (app, script) = if configured == Some("iterm") {
                 // A window when asked; otherwise a tab in the current window and
                 // a window when none is open, so the first launch is not a
@@ -818,6 +861,36 @@ mod tests {
         assert_eq!(shell_escape("plain-host"), "plain-host");
         assert_eq!(shell_escape("a b"), "'a b'");
         assert_eq!(shell_escape("a'b"), "'a'\\''b'");
+    }
+
+    #[test]
+    fn a_bundled_terminal_is_found_without_a_path_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir
+            .path()
+            .join("Alacritty.app")
+            .join("Contents")
+            .join("MacOS")
+            .join("alacritty");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        let found = resolve_among("alacritty", &[dir.path().join("nope"), exe.clone()]);
+        assert_eq!(found, exe.to_string_lossy());
+        // Nothing found anywhere leaves the bare name, so `PATH` still decides.
+        assert_eq!(
+            resolve_among("alacritty", &[dir.path().join("nope")]),
+            "alacritty"
+        );
+        // The bundle name is capitalised for Alacritty/Ghostty and kept as-is
+        // for kitty, which ships `kitty.app`.
+        let candidates = program_candidates("alacritty");
+        assert!(candidates
+            .iter()
+            .any(|p| p.ends_with("Alacritty.app/Contents/MacOS/alacritty")));
+        let candidates = program_candidates("kitty");
+        assert!(candidates
+            .iter()
+            .any(|p| p.ends_with("kitty.app/Contents/MacOS/kitty")));
     }
 
     #[test]
@@ -1273,7 +1346,15 @@ mod tests {
             "window",
         )
         .unwrap();
-        assert_eq!(specs[0].program, "ghostty");
+        // Resolved to the app bundle when one is installed, otherwise the bare
+        // name for `PATH` to search.
+        assert!(
+            std::path::Path::new(&specs[0].program)
+                .file_name()
+                .is_some_and(|n| n == "ghostty"),
+            "program was {}",
+            specs[0].program
+        );
         assert_eq!(
             specs[0].args[..3],
             ["-e".to_string(), "/bin/sh".to_string(), "-c".to_string()]
