@@ -97,6 +97,7 @@
     "title": "Instalar clave SSH",
     "body": "Instalar una clave de la bóveda o del disco en este servidor usando su contraseña.",
     "password": "Contraseña",
+    "passwordHint": "Déjalo vacío para usar la contraseña guardada en esta conexión o en su credencial.",
     "selectKeys": "Claves para instalar",
     "diskKeys": "Claves en el disco",
     "keyPassphrase": "Frase de contraseña de la clave",

@@ -394,7 +394,8 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
           </fieldset>
         )}
         {needsKeyPassphrase && <label>{t("provision.keyPassphrase")}<input type="password" autoComplete="off" className={field} value={keyPassphrase} onChange={(e) => setKeyPassphrase(e.target.value)} /></label>}
-        <label>{t("provision.password")}<input required type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <label>{t("provision.password")}<input type="password" autoComplete="off" className={field} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <p className="text-sm text-muted">{t("provision.passwordHint")}</p>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} />
           {t("provision.disablePasswordAuth")}

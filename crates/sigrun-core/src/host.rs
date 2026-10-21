@@ -1112,11 +1112,29 @@ async fn connections_provision(
         }
     }
 
+    // An empty password means "use the one already saved": provisioning logs in
+    // with the server account password, and a connection or credential may hold
+    // it in the vault already. Never read it back to the UI — only used here.
+    let password = if password.is_empty() {
+        let guard = state.vault.lock().await;
+        let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
+        match auth.password_key.as_deref().and_then(|key| vault.get(key)) {
+            Some(Secret::Password { password }) => password.clone(),
+            _ => {
+                return Err(Error::InvalidInput(
+                    "no password given and none saved for this connection".into(),
+                ))
+            }
+        }
+    } else {
+        password
+    };
+
     let opts = ProvisionOptions {
         host: conn.host,
         port: conn.port,
-        // The identity is the resolved one; `password` is the one the caller
-        // supplied for this run, exactly as before.
+        // The identity is the resolved one; the password is the one the caller
+        // supplied for this run, or the saved one when they supplied none.
         user: auth.user,
         password,
         known_hosts: state.paths.data_dir.join("known_hosts"),
@@ -1284,6 +1302,73 @@ mod tests {
             Response::Ok
         ));
         state
+    }
+
+    /// Generate a vault key and hand back its id.
+    async fn vault_key(state: &HostState) -> String {
+        match keys_generate(state, "seed".into(), KeyAlgorithm::Ed25519, None)
+            .await
+            .unwrap()
+        {
+            Response::Key(view) => view.key.id,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn provisioning_without_a_password_uses_the_saved_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let key_id = vault_key(&state).await;
+
+        let mut conn = usable("c1", "127.0.0.1");
+        conn.port = 1;
+        conn.has_password = true;
+        state.store.upsert_connection(conn.clone()).unwrap();
+        state
+            .vault
+            .lock()
+            .await
+            .as_mut()
+            .unwrap()
+            .put(
+                &conn.id,
+                Secret::Password {
+                    password: "server-pw".into(),
+                },
+            )
+            .unwrap();
+
+        // Nobody is listening on port 1, so reaching ssh at all proves the saved
+        // password was used instead of being reported missing.
+        match connections_provision(&state, "c1".into(), String::new(), vec![key_id], false).await {
+            Err(Error::Unreachable(m)) => {
+                assert!(m.contains("127.0.0.1:1"), "message was {m:?}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn provisioning_without_any_password_is_invalid_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let key_id = vault_key(&state).await;
+
+        let mut conn = usable("c1", "127.0.0.1");
+        conn.port = 1;
+        state.store.upsert_connection(conn).unwrap();
+
+        match connections_provision(&state, "c1".into(), String::new(), vec![key_id], false).await {
+            Err(Error::InvalidInput(m)) => {
+                assert_eq!(m, "no password given and none saved for this connection")
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
     }
 
     #[tokio::test]

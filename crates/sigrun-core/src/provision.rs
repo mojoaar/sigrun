@@ -78,7 +78,16 @@ pub async fn authenticate(opts: &ProvisionOptions) -> Result<Handle<Gate>> {
     );
     let mut handle = tokio::time::timeout(Duration::from_secs(20), connect)
         .await
-        .map_err(|_| Error::Config("ssh connection timed out".into()))??;
+        .map_err(|_| Error::Config("ssh connection timed out".into()))?
+        .map_err(|e| match e {
+            // Trust failures drive the prompt in the UI, so they keep their code.
+            // Everything else here is "could not get a connection", and the bare
+            // russh text ("ssh error: No route to host") names no host.
+            Error::HostKeyUnknown(_) | Error::HostKeyMismatch(_) => e,
+            other => {
+                Error::Unreachable(format!("cannot reach {}:{}: {other}", opts.host, opts.port))
+            }
+        })?;
     match handle
         .authenticate_password(opts.user.as_str(), opts.password.as_str())
         .await?

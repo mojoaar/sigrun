@@ -97,6 +97,7 @@
     "title": "Installer SSH-nøkkel",
     "body": "Installer en av nøklene i hvelvet eller på disken på denne serveren ved hjelp av serverens passord.",
     "password": "Passord",
+    "passwordHint": "La stå tomt for å bruke passordet som er lagret på tilkoblingen eller påloggingen.",
     "selectKeys": "Nøkler som skal installeres",
     "diskKeys": "Nøkler på disk",
     "keyPassphrase": "Nøkkelens passfrase",

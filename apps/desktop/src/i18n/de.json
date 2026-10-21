@@ -97,6 +97,7 @@
     "title": "SSH-Schlüssel installieren",
     "body": "Einen Schlüssel aus dem Tresor oder vom Datenträger mit dem Passwort des Servers auf diesem Server installieren.",
     "password": "Passwort",
+    "passwordHint": "Leer lassen, um das auf dieser Verbindung oder ihren Zugangsdaten gespeicherte Passwort zu verwenden.",
     "selectKeys": "Zu installierende Schlüssel",
     "diskKeys": "Schlüssel auf dem Datenträger",
     "keyPassphrase": "Schlüssel-Passphrase",

@@ -268,6 +268,23 @@ describe("Connections", () => {
     expect(screen.queryByRole("dialog", { name: /install ssh key/i })).toBeNull();
   });
 
+  it("installs with the saved password when the field is left empty", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { id: "c1", label: "web", host: "h", user: "u", port: 22, credential_id: null, key_id: "k1", group: null, tags: [], source: "managed", disable_password_auth: false, has_password: true, active: false },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.provisionConnection).mockResolvedValue({ installed: ["work"], verified: ["work"], hardening: "applied" });
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /install ssh key/i }));
+    const dialog = await screen.findByRole("dialog", { name: /install ssh key/i });
+    // Empty is a valid answer: the host falls back to the saved password.
+    expect(within(dialog).getByLabelText(/^password$/i).hasAttribute("required")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: /install ssh key/i }));
+
+    await waitFor(() => expect(api.provisionConnection).toHaveBeenCalledWith("c1", "", ["k1"], false));
+  });
+
   it("retries provisioning after trusting an unknown host key", async () => {
     vi.mocked(api.provisionConnection).mockClear();
     vi.mocked(api.listConnections).mockResolvedValue([

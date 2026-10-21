@@ -97,6 +97,7 @@
     "title": "Installér SSH-nøgle",
     "body": "Installér en af dine nøgler fra pengeskabet eller disken på denne server ved hjælp af dens adgangskode.",
     "password": "Adgangskode",
+    "passwordHint": "Lad feltet være tomt for at bruge den adgangskode, der er gemt på forbindelsen eller dens login.",
     "selectKeys": "Nøgler at installere",
     "diskKeys": "Nøgler på disken",
     "keyPassphrase": "Adgangssætning til nøglen",

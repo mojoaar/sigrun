@@ -97,6 +97,7 @@
     "title": "Install SSH key",
     "body": "Install one of your vault or disk keys on this server using its password.",
     "password": "Password",
+    "passwordHint": "Leave empty to use the password saved on this connection or its credential.",
     "selectKeys": "Keys to install",
     "diskKeys": "Keys on disk",
     "keyPassphrase": "Key passphrase",

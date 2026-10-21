@@ -97,6 +97,7 @@
     "title": "Installera SSH-nyckel",
     "body": "Installera en av nycklarna i valvet eller på disken på den här servern med hjälp av serverns lösenord.",
     "password": "Lösenord",
+    "passwordHint": "Lämna tomt för att använda lösenordet som är sparat på anslutningen eller dess inloggning.",
     "selectKeys": "Nycklar att installera",
     "diskKeys": "Nycklar på disk",
     "keyPassphrase": "Nyckelns lösenfras",
