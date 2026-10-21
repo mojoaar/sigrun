@@ -977,6 +977,8 @@ mod tests {
         }
     }
 
+    // `agent_prefix` is empty on Windows by design.
+    #[cfg(not(windows))]
     #[test]
     fn the_launch_line_carries_the_askpass_env_and_survives_every_terminal() {
         let mut conn = Connection::managed("c1", "web");
@@ -1071,6 +1073,8 @@ mod tests {
         assert!(!plain[0].args.join(" ").contains("SSH_ASKPASS="));
     }
 
+    // `agent_prefix` is empty on Windows by design.
+    #[cfg(not(windows))]
     #[test]
     fn the_agent_socket_travels_inside_the_command_string() {
         // An AppleScript launch starts Terminal.app's own login shell, so the
