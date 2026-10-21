@@ -1,0 +1,220 @@
+{
+  "app": { "title": "Sigrun", "tagline": "SSH-nycklar och anslutningar på ett ställe." },
+  "nav": { "connections": "Anslutningar", "keys": "Nycklar", "credentials": "Inloggningar", "settings": "Inställningar", "help": "Hjälp" },
+  "vault": {
+    "uninitialized": {
+      "title": "Skapa valvet",
+      "body": "Välj en lösenfras för att kryptera nycklarna. Den kan inte återställas om den glöms bort."
+    },
+    "locked": {
+      "title": "Valvet är låst",
+      "body": "Ange lösenfrasen för att låsa upp nycklarna och anslutningarna."
+    },
+    "unlock": "Lås upp",
+    "create": "Skapa valv",
+    "lock": "Lås",
+    "unlocking": "Låser upp…",
+    "passphrase": "Lösenfras",
+    "passphraseConfirm": "Bekräfta lösenfrasen",
+    "passphraseMismatch": "Lösenfraserna stämmer inte överens.",
+    "passphraseRequired": "En lösenfras krävs.",
+    "wrongPassphrase": "Fel lösenfras. Försök igen."
+  },
+  "connections": {
+    "title": "Anslutningar",
+    "empty": "Inga anslutningar ännu. Lägg till en för att komma igång.",
+    "add": "Lägg till anslutning",
+    "edit": "Redigera anslutning",
+    "remove": "Ta bort anslutning",
+    "connect": "Anslut",
+    "unreachable": "Värden går inte att nå",
+    "connectAnyway": "Anslut ändå",
+    "active": "Ansluten",
+    "label": "Etikett",
+    "duplicateLabel": "En annan anslutning använder redan den här etiketten.",
+    "invalidLabel": "En etikett krävs.",
+    "invalidHost": "Endast bokstäver, siffror, punkter, understreck och bindestreck.",
+    "invalidUser": "Endast bokstäver, siffror, punkter, understreck och bindestreck, eller lämna fältet tomt.",
+    "invalidPort": "Ange en port mellan 1 och 65535.",
+    "host": "Värd",
+    "user": "Användare",
+    "port": "Port",
+    "key": "Nyckel",
+    "credential": "Inloggning",
+    "source": "Inloggningsuppgifter",
+    "sourceOwn": "Ange egna uppgifter",
+    "sourceCredential": "Använd en inloggning",
+    "missingCredential": "Den här anslutningen använder en inloggning som inte finns här: {{id}}. Välj en annan eller ange egna uppgifter.",
+    "chooseCredential": "Välj en inloggning eller ange egna uppgifter.",
+    "keylessCredential": "Den här inloggningen har ingen nyckel, och den här anslutningen tillåter inte inloggning med lösenord. Lägg till en nyckel i inloggningen eller tillåt lösenord på anslutningen.",
+    "passwordRemoved": "Lösenordet som sparades på den här anslutningen togs bort; inloggningen används nu för att logga in.",
+    "group": "Grupp",
+    "password": "Lösenord",
+    "passwordHint": "Serverns lösenord, lagrat krypterat i Sigruns valv. Det är inte valvets lösenfras.",
+    "removeSavedPassword": "Ta bort det sparade lösenordet",
+    "hasPassword": "Lösenord sparat",
+    "search": "Sök anslutningar",
+    "noMatches": "Inga anslutningar matchar.",
+    "discovered": "Hittad i ~/.ssh/config",
+    "removeConfirm": "Ta bort den här anslutningen? Det går inte att ångra."
+  },
+  "keys": {
+    "title": "Nycklar",
+    "empty": "Inga nycklar ännu. Generera eller importera en.",
+    "generate": "Generera nyckel",
+    "import": "Importera nyckel",
+    "remove": "Ta bort nyckel",
+    "name": "Namn",
+    "path": "Sökväg",
+    "algorithm": "Algoritm",
+    "fingerprint": "Fingeravtryck",
+    "source": { "vault": "Valv", "disk": "På disk" },
+    "passphrase": "Nyckelns lösenfras",
+    "removeConfirm": "Ta bort den här nyckeln? Det går inte att ångra."
+  },
+  "credentials": {
+    "title": "Inloggningar",
+    "empty": "Inga inloggningar ännu. Lägg till en för att dela en identitet mellan anslutningar.",
+    "add": "Lägg till inloggning",
+    "edit": "Redigera inloggning",
+    "label": "Etikett",
+    "user": "Användare",
+    "key": "Nyckel",
+    "password": "Lösenord",
+    "passwordHint": "Serverns lösenord, lagrat krypterat i Sigruns valv. Det är inte valvets lösenfras.",
+    "removeSavedPassword": "Ta bort det sparade lösenordet",
+    "method": { "key": "Nyckel", "password": "Lösenord", "keyPassword": "Nyckel + lösenord" },
+    "usedBy": "Används av {{count}}",
+    "inUse_one": "Den här inloggningen används av en anslutning. Peka om anslutningen innan inloggningen tas bort.",
+    "inUse_other": "Den här inloggningen används av {{count}} anslutningar. Peka om dem innan inloggningen tas bort.",
+    "missing": "Inloggning saknas",
+    "invalidLabel": "En etikett krävs.",
+    "invalidUser": "En användare krävs.",
+    "invalidKey": "En nyckel krävs om inget lösenord är sparat.",
+    "removeConfirm": "Ta bort den här inloggningen? Det går inte att ångra."
+  },
+  "provision": {
+    "title": "Installera SSH-nyckel",
+    "body": "Installera en av nycklarna i valvet eller på disken på den här servern med hjälp av serverns lösenord.",
+    "password": "Lösenord",
+    "selectKeys": "Nycklar att installera",
+    "diskKeys": "Nycklar på disk",
+    "keyPassphrase": "Nyckelns lösenfras",
+    "importKey": "Importera en nyckel",
+    "disablePasswordAuth": "Inaktivera lösenordsautentisering",
+    "lockoutWarning": "Åtkomsten förloras om nyckelinloggning misslyckas. Kontrollera först att inloggning med nyckel fungerar.",
+    "install": "Installera SSH-nyckel…",
+    "installed": "Installerade: {{installed}} — verifierade: {{verified}}",
+    "skipped": "Lösenordsautentisering lämnades aktiverad: {{reason}}"
+  },
+  "settings": {
+    "title": "Inställningar",
+    "theme": "Tema",
+    "language": "Språk",
+    "mode": "Utseende",
+    "modeSystem": "System",
+    "modeLight": "Ljust",
+    "modeDark": "Mörkt",
+    "terminal": "Terminal",
+    "terminalDefault": "Systemstandard",
+    "openIn": "Öppna i",
+    "openInWindow": "Nytt fönster",
+    "openInTab": "Ny flik",
+    "openInUnavailable": "Den här terminalen kan inte öppna en flik.",
+    "startMinimized": "Starta minimerad i systemfältet",
+    "autoLock": "Lås valvet automatiskt",
+    "autoLockNever": "Aldrig",
+    "autoLockMinutes": "Efter {{count}} min inaktivitet",
+    "transferTitle": "Import och export",
+    "transferBody": "Exportera alla anslutningar och offentliga nycklar till en mapp eller en .zip-fil och importera dem igen. Det här är en överföring, inte en säkerhetskopia: privata nycklar och sparade lösenord följer aldrig med.",
+    "transferExportFolder": "Exportera till en mapp…",
+    "transferExportZip": "Exportera till en .zip-fil…",
+    "transferImportFolder": "Importera från en mapp…",
+    "transferImportZip": "Importera från en .zip-fil…",
+    "transferZipFilter": "Zip-arkiv",
+    "transferExported": "Exporterade {{connections}} anslutningar och {{keys}} nycklar.",
+    "transferImported": "Importerade: {{added}} tillagda, {{skipped}} överhoppade, {{invalid}} ogiltiga, {{unresolved}} olösta nycklar."
+  },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
+  "trust": {
+    "title": "Lita på den här värden?",
+    "body": "Det är första gången en anslutning görs till den här värden. Kontrollera fingeravtrycket innan anslutningen fortsätter.",
+    "fingerprint": "Värdens fingeravtryck",
+    "accept": "Lita på och anslut",
+    "cancel": "Avbryt",
+    "mismatch": "Varning: värdens fingeravtryck har ändrats. Det kan vara en man-in-the-middle-attack."
+  },
+  "tray": {
+    "open": "Öppna Sigrun",
+    "quit": "Avsluta",
+    "unlock": "Lås upp Sigrun…",
+    "discovered": "Hittade automatiskt"
+  },
+  "help": {
+    "title": "Hjälp",
+    "intro": "Sigrun samlar SSH-nycklar och anslutningar på ett ställe. Namnet kommer från Sigrún: sigr betyder seger och rún betyder hemlighet — seger över nyckelkaos.",
+    "quickStart": {
+      "title": "Snabbstart",
+      "vault": "Skapa eller lås upp valvet med lösenfrasen.",
+      "key": "Importera en nyckel från disken eller generera en ny.",
+      "connection": "Lägg till en anslutning: etikett, värd, användare och port — eller peka den mot en inloggning som bär inloggningsuppgifterna.",
+      "connect": "Anslut — Sigrun öppnar terminalen med ssh.",
+      "provision": "På en server som bara accepterar lösenord går det att använda ”Installera SSH-nyckel…” för att installera en nyckel från valvet med serverns lösenord."
+    },
+    "groups": {
+      "title": "Anslutningar och grupper",
+      "nesting": "Grupper nästlas med ”/”. En anslutning i PVE/Folder 1 visas under Folder 1 inuti PVE.",
+      "tray": "Ett vänsterklick på ikonen i systemfältet: med valvet låst öppnas fönstret så att valvet kan låsas upp; med valvet upplåst öppnas anslutningsmenyn, grupperad på samma sätt."
+    },
+    "keys": {
+      "title": "Nycklar",
+      "vault": "Nycklar i valvet ligger krypterade i Sigrun och tillhandahålls av dess SSH-agent — ingen nyckelfil på disken.",
+      "disk": "Nycklar på disk ligger kvar där de är. Sigrun skickar -i <sökväg> till ssh och rör aldrig ~/.ssh."
+    },
+    "credentials": {
+      "title": "Inloggningar",
+      "summary": "En inloggning är ett användarnamn och sättet att logga in som det: en nyckel, ett lösenord eller båda. Den finns en gång under Inloggningar, och hur många anslutningar som helst kan använda den, så att byta lösenord är en enda ändring i stället för en per värd.",
+      "oneSource": "En anslutning hämtar sina inloggningsuppgifter från en enda källa: antingen en inloggning eller sin egen användare, nyckel och lösenord. De två blandas aldrig.",
+      "vault": "Etikett, användare och nyckel-id ligger i Sigruns datafil, så listan fungerar medan valvet är låst; lösenordet är förseglat i valvet. En inloggning utan nyckel kan inte förlora sitt lösenord — ta bort inloggningen i stället. Borttagning nekas så länge anslutningar använder den.",
+      "export": "Inloggningar följer aldrig med i en export. En importerad anslutning behåller sin referens och visar ”Inloggning saknas” tills en inloggning skapas eller väljs; ett anslutningsförsök nekas med id:t i stället för att falla tillbaka på egna nycklar."
+    },
+    "settings": {
+      "title": "Inställningar",
+      "summary": "Tema och utseende, språk, vilken terminal som startas, var en anslutning öppnas, automatiskt lås efter inaktivitet och start minimerad i systemfältet."
+    },
+    "cli": {
+      "title": "Kommandorad",
+      "host": { "cmd": "sigrun host", "desc": "Kör värden i förgrunden." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås upp valvet." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Lägg till en anslutning." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Öppna en anslutning i terminalen." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Spara en anslutnings lösenord." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lista inloggningar och hur många anslutningar som använder varje." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Lägg till en inloggning; ett lösenord läses från stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Ta bort en inloggning som ingen anslutning använder." }
+    },
+    "data": {
+      "title": "Var data ligger",
+      "dir": "Data ligger i användarens datamapp: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux och %APPDATA%\\Sigrun på Windows.",
+      "ssh": "Sigrun ändrar aldrig ~/.ssh."
+    },
+    "about": {
+      "title": "Om",
+      "tagline": "SSH-anslutningar och nycklar i ett lokalt krypterat valv, tillhandahållna till ssh via en inbyggd agent.",
+      "version": "Version {{version}}",
+      "author": "Skapad av mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Licensierad under MIT-licensen."
+    }
+  },
+  "common": {
+    "save": "Spara",
+    "cancel": "Avbryt",
+    "delete": "Ta bort",
+    "close": "Stäng",
+    "confirm": "Bekräfta",
+    "loading": "Läser in…",
+    "error": "Något gick fel."
+  }
+}

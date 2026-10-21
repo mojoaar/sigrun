@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - German (Deutsch) in the interface, the tray and the macOS menu.
 - French (Français) in the interface, the tray and the macOS menu.
 - Spanish (Español) in the interface, the tray and the macOS menu.
+- Swedish (Svenska) in the interface, the tray and the macOS menu.
 
 ### Changed
 
