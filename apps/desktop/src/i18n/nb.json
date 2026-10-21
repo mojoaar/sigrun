@@ -40,6 +40,7 @@
     "user": "Bruker",
     "port": "Port",
     "key": "Nøkkel",
+    "noKey": "Ingen nøkkel",
     "credential": "Pålogging",
     "source": "Påloggingsdetaljer",
     "sourceOwn": "Angi egne opplysninger",

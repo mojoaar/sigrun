@@ -40,6 +40,7 @@
     "user": "Benutzer",
     "port": "Port",
     "key": "Schlüssel",
+    "noKey": "Kein Schlüssel",
     "credential": "Zugangsdaten",
     "source": "Anmeldedaten",
     "sourceOwn": "Eigene eingeben",

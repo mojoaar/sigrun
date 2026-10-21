@@ -251,7 +251,7 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
           <>
             <label>{t("connections.key")}
               <select className={field} value={draft.key_id ?? ""} onChange={(e) => setDraft({ ...draft, key_id: e.target.value || null })}>
-                <option value=""></option>
+                <option value="">{t("connections.noKey")}</option>
                 {keys.map((k) => <option key={k.key.id} value={k.key.id}>{k.key.name}</option>)}
               </select>
             </label>

@@ -40,6 +40,7 @@
     "user": "User",
     "port": "Port",
     "key": "Key",
+    "noKey": "No key",
     "credential": "Credential",
     "source": "Sign-in details",
     "sourceOwn": "Enter my own",

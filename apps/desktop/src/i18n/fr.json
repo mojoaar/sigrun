@@ -40,6 +40,7 @@
     "user": "Utilisateur",
     "port": "Port",
     "key": "Clé",
+    "noKey": "Aucune clé",
     "credential": "Identifiant",
     "source": "Informations de connexion",
     "sourceOwn": "Saisir manuellement",

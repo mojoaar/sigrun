@@ -40,6 +40,7 @@
     "user": "Användare",
     "port": "Port",
     "key": "Nyckel",
+    "noKey": "Ingen nyckel",
     "credential": "Inloggning",
     "source": "Inloggningsuppgifter",
     "sourceOwn": "Ange egna uppgifter",
