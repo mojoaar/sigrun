@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launching Terminal.app or iTerm opens the connection's window only, without the blank default window in front of it, and a terminal that cannot be started is named in the error (`could not launch ghostty: …`) instead of being called "a terminal".
 - A cold launch of Terminal.app typed the connection into the window it opens on startup instead of adding a second, blank one; a Terminal that is already running still gets a new window.
 - iTerm runs AppleScript `command` directly instead of through a shell, so a connection opened in iTerm died instantly; the line is typed into the session now, the same way Terminal.app receives it.
+- Ghostty's "open in a new window" opens a window, not a tab: the line is handed over by AppleScript the way the tab setting already was, instead of through the CLI.
 - iTerm opens the connection's window only on a cold start, without a blank startup window in front of it, the way Terminal.app already did.
 - A terminal installed as an app bundle (Alacritty, Ghostty, kitty and WezTerm in `/Applications`) is found without being on `PATH`, and the AppleScript terminals clear the echoed command line so a session no longer opens with the trap wiring on screen.
 - Closing a connection's terminal window no longer leaves it hanging: the keep-open shell is skipped when ssh dies from a signal, so the window closes instead of needing Force Quit.

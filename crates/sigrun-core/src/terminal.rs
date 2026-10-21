@@ -377,40 +377,35 @@ pub fn terminal_launch_specs(
             // CLI terminals run the command directly; the two GUI apps use AppleScript.
             match configured {
                 Some("ghostty") => {
-                    if open_in != "tab" {
-                        return Ok(vec![LaunchSpec {
-                            program: resolve_program("ghostty"),
-                            args: vec![
-                                "-e".into(),
-                                "/bin/sh".into(),
-                                "-c".into(),
-                                keep_open.clone(),
-                            ],
-                        }]);
-                    }
-                    // Ghostty's AppleScript API. `input text` does not execute in
-                    // a tab this script creates (verified against Ghostty 1.3.1),
-                    // so the tab is created with the line as its process
-                    // instead, and `wait after command` is Ghostty's own
-                    // keep-open, the equivalent of the shell chain elsewhere.
-                    // The line goes through `/bin/sh -c` for the same
-                    // single-parse reason as the other terminals, and it must
-                    // arrive there as one single-quoted literal: Ghostty parses
-                    // this `command` with its own shell first, so a `"…"`
-                    // wrapper is expanded *there* and `$?`, `$rc` and
-                    // `${SHELL}` never reach our shell intact (verified against
-                    // Ghostty 1.3.1).
+                    // `-e` hands the line to a running Ghostty, which chooses the
+                    // surface itself, so "new window" could arrive as a tab.
+                    // AppleScript says which one it wants. `input text` does not
+                    // execute in a surface this script creates (verified against
+                    // Ghostty 1.3.1), so the line is created as that surface's
+                    // process and `wait after command` is Ghostty's keep-open,
+                    // the equivalent of the shell chain elsewhere. The line goes
+                    // through `/bin/sh -c` for the same single-parse reason as the
+                    // other terminals, and it must arrive there as one
+                    // single-quoted literal: Ghostty parses this `command` with
+                    // its own shell first, so a `"…"` wrapper is expanded *there*
+                    // and `$?`, `$rc` and `${SHELL}` never reach our shell intact
+                    // (verified against Ghostty 1.3.1).
                     let command =
                         applescript_escape(&format!("/bin/sh -c {}", shell_escape(&keep_open)));
-                    let script = format!(
-                        r#"tell application "Ghostty"
-  if (count of windows) is 0 then
+                    let target = if open_in == "tab" {
+                        format!(
+                            r#"if (count of windows) is 0 then
     new window with configuration {{command:"{command}", wait after command:true}}
   else
     new tab in front window with configuration {{command:"{command}", wait after command:true}}
-  end if
-end tell"#
-                    );
+  end if"#
+                        )
+                    } else {
+                        format!(
+                            "new window with configuration {{command:\"{command}\", wait after command:true}}"
+                        )
+                    };
+                    let script = format!("tell application \"Ghostty\"\n  {target}\nend tell");
                     return Ok(vec![LaunchSpec {
                         program: "osascript".into(),
                         args: vec!["-e".into(), script],
@@ -1009,26 +1004,22 @@ mod tests {
             assert!(prefix_at < keep_open_at, "{label}: {line}");
         };
 
-        for configured in [None, Some("iterm")] {
+        for configured in [None, Some("iterm"), Some("ghostty")] {
             let specs =
                 terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None, "window")
                     .unwrap();
             let line = specs[0].args.join(" ");
             prefix_first(&line, &format!("macos {configured:?}"));
-            // The AppleScript `do script` string ends with the command chain.
+            // Every AppleScript arm ends with the command chain; Ghostty's is
+            // single-quoted inside `command`, the other two close a `do script`.
             assert!(
-                line.contains("|| exec ${SHELL:-/bin/sh}\""),
+                line.contains("|| exec ${SHELL:-/bin/sh}"),
                 "macos {configured:?}: {line}"
             );
         }
         // Every `-e /bin/sh -c` and `sh -c` path carries it too, and the
         // keep-open suffix is the last thing the shell sees.
-        for configured in [
-            Some("ghostty"),
-            Some("kitty"),
-            Some("alacritty"),
-            Some("wezterm"),
-        ] {
+        for configured in [Some("kitty"), Some("alacritty"), Some("wezterm")] {
             let specs =
                 terminal_launch_specs(Platform::MacOs, configured, &argv, &prefix, None, "window")
                     .unwrap();
@@ -1068,8 +1059,10 @@ mod tests {
         let prefix_at = line.find(&prefix).expect("the askpass env is still there");
         let ssh_at = line.find("ssh deploy@example.com").expect("ssh runs");
         assert!(prefix_at < ssh_at, "{line}");
+        // Ghostty wraps the line in its `command` argument, so the chain is no
+        // longer the last thing on the script text.
         assert!(
-            line.ends_with("[ $rc -ne 0 ] && [ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
+            line.contains("[ $rc -ne 0 ] && [ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
             "{line}"
         );
         // No stored password: the line is unchanged and ssh prompts as before.
@@ -1340,7 +1333,7 @@ mod tests {
     }
 
     #[test]
-    fn macos_ghostty_keeps_the_command_line_launch_by_default() {
+    fn macos_ghostty_opens_a_window_when_the_setting_says_so() {
         let specs = terminal_launch_specs(
             Platform::MacOs,
             Some("ghostty"),
@@ -1350,28 +1343,23 @@ mod tests {
             "window",
         )
         .unwrap();
-        // Resolved to the app bundle when one is installed, otherwise the bare
-        // name for `PATH` to search.
+        // The CLI hands the line to a running Ghostty, which decides the surface
+        // itself, so a window request could arrive as a tab. AppleScript says
+        // which one, the same way it already does for the tab setting.
+        assert_eq!(specs.len(), 1);
+        assert_eq!(specs[0].program, "osascript");
+        let script = specs[0].args.join(" ");
         assert!(
-            std::path::Path::new(&specs[0].program)
-                .file_name()
-                .is_some_and(|n| n == "ghostty"),
-            "program was {}",
-            specs[0].program
+            script.contains("new window with configuration"),
+            "{script:?}"
         );
-        assert_eq!(
-            specs[0].args[..3],
-            ["-e".to_string(), "/bin/sh".to_string(), "-c".to_string()]
-        );
+        assert!(!script.contains("new tab"), "{script:?}");
+        assert!(script.contains("wait after command:true"), "{script:?}");
+        assert!(script.contains("/bin/sh -c '"), "{script:?}");
         assert!(
-            specs[0]
-                .args
-                .join(" ")
-                .contains("ssh u@h || exec ${SHELL:-/bin/sh}"),
-            "{:?}",
-            specs[0].args
+            script.contains("ssh u@h || exec ${SHELL:-/bin/sh}"),
+            "{script:?}"
         );
-        assert!(!specs.iter().any(|s| s.program == "osascript"));
     }
 
     #[test]
