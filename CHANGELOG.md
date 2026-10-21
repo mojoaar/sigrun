@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Add/Edit connection and Install-key dialogs scroll inside the window instead of being clipped when the window is short, and the window opens taller (820px) by default.
 - Removing the saved password from a credential with no key is refused by the app and the host, so a connection can no longer resolve to an identity with neither a key nor a password.
 - `sigrun connections add --credential` refuses a value that matches no credential instead of storing the typed text as a dangling id.
 - The `--key` help now points at `sigrun keys list --json`, which prints the ids it asks for.

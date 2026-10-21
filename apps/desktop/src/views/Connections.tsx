@@ -208,8 +208,8 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
     }
   }
   return (
-    <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50">
-      <form ref={formRef} onSubmit={submit} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
+    <div role="dialog" aria-label={t(initial ? "connections.edit" : "connections.add")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50 p-4">
+      <form ref={formRef} onSubmit={submit} className="flex max-h-full w-96 flex-col gap-2 overflow-y-auto rounded border border-border bg-surface p-4">
         <fieldset className="flex flex-col gap-1">
           <legend>{t("connections.source")}</legend>
           <label className="flex items-center gap-2">
@@ -361,8 +361,8 @@ function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onCl
   }
 
   return (
-    <div role="dialog" aria-label={t("provision.title")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50">
-      <form onSubmit={(e) => { e.preventDefault(); void run(); }} className="flex w-96 flex-col gap-2 rounded border border-border bg-surface p-4">
+    <div role="dialog" aria-label={t("provision.title")} ref={dialogRef} className="fixed inset-0 flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={(e) => { e.preventDefault(); void run(); }} className="flex max-h-full w-96 flex-col gap-2 overflow-y-auto rounded border border-border bg-surface p-4">
         <h3 className="font-semibold">{t("provision.title")}</h3>
         <p className="text-sm text-muted">{t("provision.body")}</p>
         <fieldset className="flex flex-col gap-1">
