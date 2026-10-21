@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { act } from "@testing-library/react";
 import i18n from "./i18n";
 import App from "./App";
-import { exportBundle, getSettings, getStatus } from "./api";
+import { exportBundle, getSettings, getStatus, vaultLock } from "./api";
 
 const { openMock, saveMock } = vi.hoisted(() => ({ openMock: vi.fn(), saveMock: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock, save: saveMock }));
@@ -171,4 +171,15 @@ it("keeps the header inset off Windows and Linux", () => {
   const header = document.querySelector("header") as HTMLElement;
   expect(header.className).toContain("p-3");
   expect(header.className).not.toContain("pl-20");
+});
+
+test("locks the vault on Cmd+L", async () => {
+  vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
+  vi.mocked(vaultLock).mockClear().mockResolvedValue(undefined);
+  render(<App />);
+  await screen.findByRole("button", { name: /^(lås|lock)$/i });
+
+  fireEvent.keyDown(window, { key: "l", metaKey: true });
+
+  await waitFor(() => expect(vaultLock).toHaveBeenCalledTimes(1));
 });

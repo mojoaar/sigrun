@@ -45,6 +45,17 @@ export default function App() {
     }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  // Cmd+L locks the vault, the same action as the header button.
+  useEffect(() => {
+    const lock = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "l") return;
+      if (vaultRef.current !== "Unlocked") return;
+      e.preventDefault();
+      void vaultLock().then(refresh);
+    };
+    window.addEventListener("keydown", lock);
+    return () => window.removeEventListener("keydown", lock);
+  }, [refresh]);
   useEffect(() => {
     let unLocked: (() => void) | undefined;
     let unError: (() => void) | undefined;
