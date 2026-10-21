@@ -1116,9 +1116,19 @@ async fn connections_provision(
     // with the server account password, and a connection or credential may hold
     // it in the vault already. Never read it back to the UI — only used here.
     let password = if password.is_empty() {
+        // `has_password` is host-filled when a list is rendered, so a row read back
+        // from the store says false; a connection with no credential is therefore
+        // asked for its own secret by id, not through the resolved identity.
+        let saved_key = auth.password_key.clone().or_else(|| {
+            conn.credential_id
+                .as_deref()
+                .filter(|id| !id.is_empty())
+                .is_none()
+                .then(|| conn.id.clone())
+        });
         let guard = state.vault.lock().await;
         let vault = (*guard).as_ref().ok_or(Error::VaultLocked)?;
-        match auth.password_key.as_deref().and_then(|key| vault.get(key)) {
+        match saved_key.as_deref().and_then(|key| vault.get(key)) {
             Some(Secret::Password { password }) => password.clone(),
             _ => {
                 return Err(Error::InvalidInput(
@@ -1342,6 +1352,42 @@ mod tests {
 
         // Nobody is listening on port 1, so reaching ssh at all proves the saved
         // password was used instead of being reported missing.
+        match connections_provision(&state, "c1".into(), String::new(), vec![key_id], false).await {
+            Err(Error::Unreachable(m)) => {
+                assert!(m.contains("127.0.0.1:1"), "message was {m:?}");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn provisioning_reads_a_connection_password_the_stored_row_does_not_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let key_id = vault_key(&state).await;
+
+        // The row as it comes back from disk: `has_password` is false because the
+        // host only fills it in when it lists, so the secret must be found by id.
+        let mut conn = usable("c1", "127.0.0.1");
+        conn.port = 1;
+        assert!(!conn.has_password);
+        state.store.upsert_connection(conn.clone()).unwrap();
+        state
+            .vault
+            .lock()
+            .await
+            .as_mut()
+            .unwrap()
+            .put(
+                &conn.id,
+                Secret::Password {
+                    password: "server-pw".into(),
+                },
+            )
+            .unwrap();
+
         match connections_provision(&state, "c1".into(), String::new(), vec![key_id], false).await {
             Err(Error::Unreachable(m)) => {
                 assert!(m.contains("127.0.0.1:1"), "message was {m:?}");
