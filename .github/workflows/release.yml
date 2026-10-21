@@ -73,4 +73,4 @@ jobs:
           ' CHANGELOG.md > notes.md
           # An empty body is the bug this job exists to prevent; fail the release instead.
           test -s notes.md
-          gh release edit "$TAG" --title "Sigrun ${TAG#v}" --notes-file notes.md --prerelease
+          gh release edit "$TAG" --title "Sigrun ${TAG#v}" --notes-file notes.md
