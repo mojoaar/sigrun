@@ -408,24 +408,25 @@ end tell"#
             let (app, script) = if configured == Some("iterm") {
                 // A window when asked; otherwise a tab in the current window and
                 // a window when none is open, so the first launch is not a
-                // silent no-op.
-                let script = if open_in == "tab" {
-                    format!(
-                        r#"tell application "iTerm"
-  if (count of windows) is 0 then
-    create window with default profile command "{cmd}"
+                // silent no-op. `command` on iTerm is exec'd directly rather than
+                // run through a shell, so a `trap …; ssh …` line dies instantly;
+                // `write text` types it into the session's shell, as `do script`
+                // does for Terminal.
+                let open = if open_in == "tab" {
+                    r#"if (count of windows) is 0 then
+    create window with default profile
   else
-    tell current window to create tab with default profile command "{cmd}"
-  end if
-end tell"#
-                    )
+    tell current window to create tab with default profile
+  end if"#
                 } else {
-                    format!(
-                        r#"tell application "iTerm"
-  create window with default profile command "{cmd}"
-end tell"#
-                    )
+                    "create window with default profile"
                 };
+                let script = format!(
+                    r#"tell application "iTerm"
+  {open}
+  tell current session of current window to write text "{cmd}"
+end tell"#
+                );
                 ("iTerm", script)
             } else {
                 (
@@ -1150,9 +1151,13 @@ mod tests {
         assert_eq!(specs[0].program, "osascript");
         let script = &specs[0].args[1];
         assert!(
-            script.contains("create window with default profile command"),
+            script.contains("create window with default profile"),
             "script was {script:?}"
         );
+        // `command` is exec'd by iTerm, not run through a shell; the line must
+        // be typed into the session instead.
+        assert!(script.contains("write text \""), "script was {script:?}");
+        assert!(!script.contains("profile command"), "script was {script:?}");
         assert!(!script.contains("create tab"), "script was {script:?}");
     }
 
@@ -1177,6 +1182,7 @@ mod tests {
             script.contains("(count of windows) is 0"),
             "script was {script:?}"
         );
+        assert!(script.contains("write text \""), "script was {script:?}");
     }
 
     #[test]
