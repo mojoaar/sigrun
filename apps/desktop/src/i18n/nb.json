@@ -1,0 +1,220 @@
+{
+  "app": { "title": "Sigrun", "tagline": "SSH-nøkler og tilkoblinger samlet på ett sted." },
+  "nav": { "connections": "Tilkoblinger", "keys": "Nøkler", "credentials": "Pålogginger", "settings": "Innstillinger", "help": "Hjelp" },
+  "vault": {
+    "uninitialized": {
+      "title": "Opprett hvelvet",
+      "body": "Velg en passfrase for å kryptere nøklene. Den kan ikke gjenopprettes hvis den glemmes."
+    },
+    "locked": {
+      "title": "Hvelvet er låst",
+      "body": "Angi passfrasen for å låse opp nøklene og tilkoblingene."
+    },
+    "unlock": "Lås opp",
+    "create": "Opprett hvelv",
+    "lock": "Lås",
+    "unlocking": "Låser opp…",
+    "passphrase": "Passfrase",
+    "passphraseConfirm": "Bekreft passfrasen",
+    "passphraseMismatch": "Passfrasene er ikke like.",
+    "passphraseRequired": "En passfrase kreves.",
+    "wrongPassphrase": "Feil passfrase. Prøv igjen."
+  },
+  "connections": {
+    "title": "Tilkoblinger",
+    "empty": "Ingen tilkoblinger ennå. Legg til en for å komme i gang.",
+    "add": "Legg til tilkobling",
+    "edit": "Rediger tilkobling",
+    "remove": "Fjern tilkobling",
+    "connect": "Koble til",
+    "unreachable": "Verten kan ikke nås",
+    "connectAnyway": "Koble til likevel",
+    "active": "Tilkoblet",
+    "label": "Etikett",
+    "duplicateLabel": "En annen tilkobling bruker allerede denne etiketten.",
+    "invalidLabel": "En etikett kreves.",
+    "invalidHost": "Bruk bare bokstaver, tall, punktum, understrek og bindestrek.",
+    "invalidUser": "Bruk bare bokstaver, tall, punktum, understrek og bindestrek, eller la feltet stå tomt.",
+    "invalidPort": "Angi en port mellom 1 og 65535.",
+    "host": "Vert",
+    "user": "Bruker",
+    "port": "Port",
+    "key": "Nøkkel",
+    "credential": "Pålogging",
+    "source": "Påloggingsdetaljer",
+    "sourceOwn": "Angi egne opplysninger",
+    "sourceCredential": "Bruk en pålogging",
+    "missingCredential": "Denne tilkoblingen bruker en pålogging som ikke finnes her: {{id}}. Velg en annen, eller angi egne opplysninger.",
+    "chooseCredential": "Velg en pålogging, eller angi egne opplysninger.",
+    "keylessCredential": "Denne påloggingen har ingen nøkkel, og denne tilkoblingen tillater ikke passord. Legg til en nøkkel på påloggingen, eller tillat passord på tilkoblingen.",
+    "passwordRemoved": "Passordet som var lagret på denne tilkoblingen, ble fjernet; påloggingen brukes nå til å logge inn.",
+    "group": "Gruppe",
+    "password": "Passord",
+    "passwordHint": "Serverens passord, lagret kryptert i Sigruns hvelv. Det er ikke passfrasen til hvelvet.",
+    "removeSavedPassword": "Fjern det lagrede passordet",
+    "hasPassword": "Passord lagret",
+    "search": "Søk i tilkoblinger",
+    "noMatches": "Ingen tilkoblinger samsvarer.",
+    "discovered": "Funnet i ~/.ssh/config",
+    "removeConfirm": "Fjerne denne tilkoblingen? Det kan ikke angres."
+  },
+  "keys": {
+    "title": "Nøkler",
+    "empty": "Ingen nøkler ennå. Generer eller importer en.",
+    "generate": "Generer nøkkel",
+    "import": "Importer nøkkel",
+    "remove": "Fjern nøkkel",
+    "name": "Navn",
+    "path": "Sti",
+    "algorithm": "Algoritme",
+    "fingerprint": "Fingeravtrykk",
+    "source": { "vault": "Hvelv", "disk": "På disk" },
+    "passphrase": "Nøkkelens passfrase",
+    "removeConfirm": "Fjerne denne nøkkelen? Det kan ikke angres."
+  },
+  "credentials": {
+    "title": "Pålogginger",
+    "empty": "Ingen pålogginger ennå. Legg til en for å dele en identitet mellom tilkoblinger.",
+    "add": "Legg til pålogging",
+    "edit": "Rediger pålogging",
+    "label": "Etikett",
+    "user": "Bruker",
+    "key": "Nøkkel",
+    "password": "Passord",
+    "passwordHint": "Serverens passord, lagret kryptert i Sigruns hvelv. Det er ikke passfrasen til hvelvet.",
+    "removeSavedPassword": "Fjern det lagrede passordet",
+    "method": { "key": "Nøkkel", "password": "Passord", "keyPassword": "Nøkkel + passord" },
+    "usedBy": "Brukes av {{count}}",
+    "inUse_one": "Denne påloggingen brukes av én tilkobling. Pek den om før påloggingen fjernes.",
+    "inUse_other": "Denne påloggingen brukes av {{count}} tilkoblinger. Pek dem om før påloggingen fjernes.",
+    "missing": "Pålogging mangler",
+    "invalidLabel": "En etikett kreves.",
+    "invalidUser": "En bruker kreves.",
+    "invalidKey": "En nøkkel kreves med mindre et passord er lagret.",
+    "removeConfirm": "Fjerne denne påloggingen? Det kan ikke angres."
+  },
+  "provision": {
+    "title": "Installer SSH-nøkkel",
+    "body": "Installer en av nøklene i hvelvet eller på disken på denne serveren ved hjelp av serverens passord.",
+    "password": "Passord",
+    "selectKeys": "Nøkler som skal installeres",
+    "diskKeys": "Nøkler på disk",
+    "keyPassphrase": "Nøkkelens passfrase",
+    "importKey": "Importer en nøkkel",
+    "disablePasswordAuth": "Slå av passordautentisering",
+    "lockoutWarning": "Tilgangen går tapt hvis pålogging med nøkkel mislykkes. Kontroller først at det går an å logge inn med en nøkkel.",
+    "install": "Installer SSH-nøkkel…",
+    "installed": "Installert: {{installed}} — verifisert: {{verified}}",
+    "skipped": "Passordautentisering ble stående på: {{reason}}"
+  },
+  "settings": {
+    "title": "Innstillinger",
+    "theme": "Tema",
+    "language": "Språk",
+    "mode": "Utseende",
+    "modeSystem": "System",
+    "modeLight": "Lyst",
+    "modeDark": "Mørkt",
+    "terminal": "Terminal",
+    "terminalDefault": "Systemstandard",
+    "openIn": "Åpne i",
+    "openInWindow": "Nytt vindu",
+    "openInTab": "Ny fane",
+    "openInUnavailable": "Denne terminalen kan ikke åpne en fane.",
+    "startMinimized": "Start minimert i systemfeltet",
+    "autoLock": "Lås hvelvet automatisk",
+    "autoLockNever": "Aldri",
+    "autoLockMinutes": "Etter {{count}} min uten aktivitet",
+    "transferTitle": "Import og eksport",
+    "transferBody": "Eksporter alle tilkoblinger og offentlige nøkler til en mappe eller en .zip-fil, og importer dem igjen. Dette er en overføring, ikke en sikkerhetskopi: private nøkler og lagrede passord følger aldri med.",
+    "transferExportFolder": "Eksporter til en mappe…",
+    "transferExportZip": "Eksporter til en .zip-fil…",
+    "transferImportFolder": "Importer fra en mappe…",
+    "transferImportZip": "Importer fra en .zip-fil…",
+    "transferZipFilter": "Zip-arkiv",
+    "transferExported": "Eksporterte {{connections}} tilkoblinger og {{keys}} nøkler.",
+    "transferImported": "Importerte: {{added}} lagt til, {{skipped}} hoppet over, {{invalid}} ugyldige, {{unresolved}} uløste nøkler."
+  },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
+  "trust": {
+    "title": "Stole på denne verten?",
+    "body": "Det er første gang det kobles til denne verten. Kontroller fingeravtrykket før tilkoblingen fortsetter.",
+    "fingerprint": "Vertens fingeravtrykk",
+    "accept": "Stol på og koble til",
+    "cancel": "Avbryt",
+    "mismatch": "Advarsel: vertens fingeravtrykk er endret. Det kan være et man-in-the-middle-angrep."
+  },
+  "tray": {
+    "open": "Åpne Sigrun",
+    "quit": "Avslutt",
+    "unlock": "Lås opp Sigrun…",
+    "discovered": "Funnet automatisk"
+  },
+  "help": {
+    "title": "Hjelp",
+    "intro": "Sigrun samler SSH-nøkler og tilkoblinger på ett sted. Navnet kommer fra Sigrún: sigr betyr seier og rún betyr hemmelighet — seier over nøkkelkaos.",
+    "quickStart": {
+      "title": "Hurtigstart",
+      "vault": "Opprett eller lås opp hvelvet med passfrasen.",
+      "key": "Importer en nøkkel fra disken, eller generer en ny.",
+      "connection": "Legg til en tilkobling: etikett, vert, bruker og port — eller pek den mot en pålogging som har påloggingsdetaljene.",
+      "connect": "Koble til — Sigrun åpner terminalen med ssh.",
+      "provision": "På en server som bare godtar passord, kan «Installer SSH-nøkkel…» brukes til å installere en nøkkel fra hvelvet med serverens passord."
+    },
+    "groups": {
+      "title": "Tilkoblinger og grupper",
+      "nesting": "Grupper nestes med «/». En tilkobling i PVE/Folder 1 vises under Folder 1 inne i PVE.",
+      "tray": "Et venstreklikk på ikonet i systemfeltet: er hvelvet låst, åpnes vinduet så hvelvet kan låses opp; er hvelvet opplåst, åpnes tilkoblingsmenyen, gruppert på samme måte."
+    },
+    "keys": {
+      "title": "Nøkler",
+      "vault": "Nøkler i hvelvet ligger kryptert i Sigrun og leveres av Sigruns SSH-agent — ingen nøkkelfil på disken.",
+      "disk": "Nøkler på disk blir liggende der de er. Sigrun sender -i <sti> til ssh og rører aldri ~/.ssh."
+    },
+    "credentials": {
+      "title": "Pålogginger",
+      "summary": "En pålogging er et brukernavn og måten å logge inn som det: en nøkkel, et passord eller begge. Den finnes én gang under Pålogginger, og så mange tilkoblinger som helst kan bruke den, så å bytte passord er én endring i stedet for én per vert.",
+      "oneSource": "En tilkobling henter påloggingsdetaljene fra én kilde: enten en pålogging eller sin egen bruker, nøkkel og passord. De to blandes aldri.",
+      "vault": "Etikett, bruker og nøkkel-id ligger i Sigruns datafil, så listen virker mens hvelvet er låst; passordet ligger forseglet i hvelvet. En pålogging uten nøkkel kan ikke miste passordet — fjern påloggingen i stedet. Fjerning avvises så lenge tilkoblinger bruker den.",
+      "export": "Pålogginger følger aldri med i en eksport. En importert tilkobling beholder referansen og viser «Pålogging mangler» til en pålogging opprettes eller velges; en tilkobling avvises med id-en i stedet for å falle tilbake på egne nøkler."
+    },
+    "settings": {
+      "title": "Innstillinger",
+      "summary": "Tema og utseende, språk, hvilken terminal som startes, hvor en tilkobling åpnes, automatisk låsing etter inaktivitet og start minimert i systemfeltet."
+    },
+    "cli": {
+      "title": "Kommandolinje",
+      "host": { "cmd": "sigrun host", "desc": "Kjør verten i forgrunnen." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås opp hvelvet." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Legg til en tilkobling." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åpne en tilkobling i terminalen." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Lagre passordet til en tilkobling." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis pålogginger og hvor mange tilkoblinger som bruker hver." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Legg til en pålogging; et passord leses fra stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern en pålogging som ingen tilkobling bruker." }
+    },
+    "data": {
+      "title": "Hvor dataene ligger",
+      "dir": "Dataene ligger i brukerens datamappe: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux og %APPDATA%\\Sigrun på Windows.",
+      "ssh": "Sigrun endrer aldri ~/.ssh."
+    },
+    "about": {
+      "title": "Om",
+      "tagline": "SSH-tilkoblinger og nøkler i et lokalt kryptert hvelv, levert til ssh via en innebygd agent.",
+      "version": "Versjon {{version}}",
+      "author": "Laget av mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Utgitt under MIT-lisensen."
+    }
+  },
+  "common": {
+    "save": "Lagre",
+    "cancel": "Avbryt",
+    "delete": "Fjern",
+    "close": "Lukk",
+    "confirm": "Bekreft",
+    "loading": "Laster inn…",
+    "error": "Noe gikk galt."
+  }
+}

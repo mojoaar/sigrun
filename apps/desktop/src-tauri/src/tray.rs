@@ -58,6 +58,12 @@ pub fn labels(language: &str) -> TrayLabels {
             unlock: "Lås upp Sigrun…".into(),
             discovered: "Hittade automatiskt".into(),
         },
+        "nb" => TrayLabels {
+            open: "Åpne Sigrun".into(),
+            quit: "Avslutt".into(),
+            unlock: "Lås opp Sigrun…".into(),
+            discovered: "Funnet automatisk".into(),
+        },
         _ => TrayLabels {
             open: "Open Sigrun".into(),
             quit: "Quit".into(),
@@ -667,6 +673,10 @@ mod tests {
         assert_eq!(labels("sv").open, "Öppna Sigrun");
         assert_eq!(labels("sv").unlock, "Lås upp Sigrun…");
         assert_eq!(labels("sv").discovered, "Hittade automatiskt");
+        assert_eq!(labels("nb").quit, "Avslutt");
+        assert_eq!(labels("nb").open, "Åpne Sigrun");
+        assert_eq!(labels("nb").unlock, "Lås opp Sigrun…");
+        assert_eq!(labels("nb").discovered, "Funnet automatisk");
         // An unknown language falls back to English.
         assert_eq!(labels("kl"), labels("en"));
     }
@@ -682,6 +692,7 @@ mod tests {
             ("fr", include_str!("../../src/i18n/fr.json")),
             ("es", include_str!("../../src/i18n/es.json")),
             ("sv", include_str!("../../src/i18n/sv.json")),
+            ("nb", include_str!("../../src/i18n/nb.json")),
         ] {
             let v: serde_json::Value = serde_json::from_str(json).unwrap();
             let tray = &v["tray"];

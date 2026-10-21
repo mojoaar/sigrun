@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - French (Français) in the interface, the tray and the macOS menu.
 - Spanish (Español) in the interface, the tray and the macOS menu.
 - Swedish (Svenska) in the interface, the tray and the macOS menu.
+- Norwegian Bokmål (Norsk bokmål) in the interface, the tray and the macOS menu.
 
 ### Changed
 

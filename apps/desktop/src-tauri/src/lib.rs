@@ -100,6 +100,17 @@ pub fn menu_labels(language: &str) -> MenuLabels {
             export: "Exportera…".into(),
             settings: "Inställningar…".into(),
         },
+        "nb" => MenuLabels {
+            edit: "Rediger".into(),
+            view: "Visning".into(),
+            window: "Vindu".into(),
+            quit: "Avslutt Sigrun".into(),
+            file: "Arkiv".into(),
+            new_connection: "Ny tilkobling".into(),
+            import: "Importer…".into(),
+            export: "Eksporter…".into(),
+            settings: "Innstillinger…".into(),
+        },
         _ => MenuLabels {
             edit: "Edit".into(),
             view: "View".into(),
@@ -473,6 +484,16 @@ mod menu_tests {
             ),
             ("Redigera", "Visa", "Fönster", "Avsluta Sigrun")
         );
+        let nb = menu_labels("nb");
+        assert_eq!(
+            (
+                nb.edit.as_str(),
+                nb.view.as_str(),
+                nb.window.as_str(),
+                nb.quit.as_str()
+            ),
+            ("Rediger", "Visning", "Vindu", "Avslutt Sigrun")
+        );
         // An unknown language falls back to English, like the tray.
         assert_eq!(menu_labels("kl").edit, "Edit");
     }
@@ -573,6 +594,23 @@ mod menu_tests {
                 "Importera…",
                 "Exportera…",
                 "Inställningar…"
+            )
+        );
+        let nb = menu_labels("nb");
+        assert_eq!(
+            (
+                nb.file.as_str(),
+                nb.new_connection.as_str(),
+                nb.import.as_str(),
+                nb.export.as_str(),
+                nb.settings.as_str()
+            ),
+            (
+                "Arkiv",
+                "Ny tilkobling",
+                "Importer…",
+                "Eksporter…",
+                "Innstillinger…"
             )
         );
     }
