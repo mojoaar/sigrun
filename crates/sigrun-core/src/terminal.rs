@@ -435,9 +435,10 @@ end tell"#
             };
             Ok(vec![LaunchSpec {
                 program: "osascript".into(),
+                // `do script` / `create window … command` first: an `activate`
+                // ahead of it launches the app with its default blank window,
+                // and the command then opens a second one.
                 args: vec![
-                    "-e".into(),
-                    format!("tell application \"{app}\" to activate"),
                     "-e".into(),
                     script,
                     "-e".into(),
@@ -652,7 +653,11 @@ pub fn launch_first(specs: &[LaunchSpec], agent_socket: Option<&Path>) -> Result
     let err = last_error.unwrap_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::NotFound, "no terminal candidates")
     });
-    Err(Error::Config(format!("could not launch a terminal: {err}")))
+    let program = specs
+        .last()
+        .map(|spec| spec.program.as_str())
+        .unwrap_or("a terminal");
+    Err(Error::Config(format!("could not launch {program}: {err}")))
 }
 #[cfg(test)]
 mod tests {
@@ -805,6 +810,13 @@ mod tests {
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
         assert!(specs[0].args.iter().any(|a| a.contains("Terminal")));
+        // The command comes first: activating Terminal ahead of `do script`
+        // leaves its default blank window behind the connection.
+        assert!(
+            specs[0].args[1].contains("do script"),
+            "script was {:?}",
+            specs[0].args[1]
+        );
     }
 
     #[test]
@@ -1136,7 +1148,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
-        let script = &specs[0].args[3];
+        let script = &specs[0].args[1];
         assert!(
             script.contains("create window with default profile command"),
             "script was {script:?}"
@@ -1156,7 +1168,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(specs[0].program, "osascript");
-        let script = &specs[0].args[3];
+        let script = &specs[0].args[1];
         assert!(
             script.contains("create tab with default profile"),
             "script was {script:?}"
@@ -1314,6 +1326,16 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn the_launch_error_names_the_program_it_could_not_start() {
+        let bad = LaunchSpec {
+            program: "sigrun-no-such-terminal".into(),
+            args: Vec::new(),
+        };
+        let message = launch_first(&[bad], None).unwrap_err().to_string();
+        assert!(message.contains("sigrun-no-such-terminal"), "{message}");
+    }
+
     #[test]
     fn launch_first_falls_back_to_next_spec() {
         let specs = vec![
