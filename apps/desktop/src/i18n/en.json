@@ -62,6 +62,7 @@
     "removeConfirm": "Remove this connection? This cannot be undone."
   },
   "keys": {
+    "saveToDisk": "Save to disk…",
     "addToVault": "Add to vault",
     "title": "Keys",
     "empty": "No keys yet. Generate or import one.",

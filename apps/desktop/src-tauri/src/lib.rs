@@ -242,6 +242,7 @@ pub fn run() {
             commands::generate_key,
             commands::import_key,
             commands::remove_key,
+            commands::export_key,
             commands::get_settings,
             commands::save_settings,
             commands::set_window_theme,

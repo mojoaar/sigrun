@@ -62,6 +62,7 @@
     "removeConfirm": "Supprimer cette connexion ? Cette action est irréversible."
   },
   "keys": {
+    "saveToDisk": "Enregistrer sur le disque…",
     "addToVault": "Ajouter au coffre",
     "title": "Clés",
     "empty": "Aucune clé pour l'instant. En générer une ou en importer une.",

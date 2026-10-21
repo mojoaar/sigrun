@@ -1,14 +1,17 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import "../i18n";
 import Keys from "./Keys";
 import * as api from "../api";
 
+const { saveMock } = vi.hoisted(() => ({ saveMock: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: saveMock }));
 vi.mock("../api", () => ({
   listKeys: vi.fn(),
   removeKey: vi.fn(),
   generateKey: vi.fn(),
   importKey: vi.fn(),
+  exportKey: vi.fn(),
 }));
 
 const vaultKey = {
@@ -48,6 +51,19 @@ describe("Keys", () => {
 
     expect(api.importKey).toHaveBeenCalledWith("/Users/x/.ssh/id_ed25519", "homelab", "s3cret");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("writes a vault key to the path chosen in the save dialog", async () => {
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.exportKey).mockResolvedValueOnce(undefined as never);
+    saveMock.mockResolvedValueOnce("/Users/x/Downloads/work.pem");
+    render(<Keys onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Save to disk…" }));
+
+    await waitFor(() =>
+      expect(api.exportKey).toHaveBeenCalledWith("k1", "/Users/x/Downloads/work.pem"),
+    );
   });
 
   it("offers no add button for a key already in the vault", async () => {

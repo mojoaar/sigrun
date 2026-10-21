@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { generateKey, importKey, listKeys, removeKey, type CommandError, type KeyAlgorithm, type KeyView } from "../api";
+import { save } from "@tauri-apps/plugin-dialog";
+import { exportKey, generateKey, importKey, listKeys, removeKey, type CommandError, type KeyAlgorithm, type KeyView } from "../api";
 import KeyCard from "../components/KeyCard";
 import { useDialogFocus } from "../useDialogFocus";
 
@@ -30,6 +31,14 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const run = (p: Promise<unknown>) => { setError(false); p.then(refresh).catch(handle); };
   const onGen = (e: FormEvent) => { e.preventDefault(); run(generateKey(gen.name, gen.algorithm, gen.passphrase).then(() => setGen({ ...gen, name: "", passphrase: "" }))); };
   const onImp = (e: FormEvent) => { e.preventDefault(); run(importKey(imp.path, imp.name, imp.passphrase).then(() => setImp({ path: "", name: "", passphrase: "" }))); };
+  const saveToDisk = async (k: KeyView) => {
+    try {
+      const path = await save({ defaultPath: `${k.key.name}.pem` });
+      if (path) run(exportKey(k.key.id, path));
+    } catch {
+      setError(true);
+    }
+  };
 
   return (
     <section className="flex flex-col gap-4">
@@ -43,6 +52,7 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
             view={k}
             onRemove={() => setConfirmRemove(k)}
             onAdd={k.key.source === "disk" && k.key.disk_path ? () => setAdding(k) : undefined}
+            onSave={k.key.source === "vault" ? () => void saveToDisk(k) : undefined}
           />
         ))}
       </ul>

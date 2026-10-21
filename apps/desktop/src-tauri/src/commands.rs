@@ -175,6 +175,9 @@ pub async fn import_key_inner(
 pub async fn remove_key_inner(state: Arc<HostState>, id: String) -> CmdResult {
     call(state, Request::KeysRemove { id }).await
 }
+pub async fn export_key_inner(state: Arc<HostState>, id: String, path: String) -> CmdResult {
+    call(state, Request::KeysExport { id, path }).await
+}
 pub async fn export_bundle_inner(state: Arc<HostState>, path: String, zipped: bool) -> CmdResult {
     call(state, Request::ExportBundle { path, zipped }).await
 }
@@ -446,6 +449,10 @@ pub async fn import_key(
 #[tauri::command]
 pub async fn remove_key(state: St<'_>, id: String) -> CmdResult {
     remove_key_inner(state.inner().clone(), id).await
+}
+#[tauri::command]
+pub async fn export_key(state: St<'_>, id: String, path: String) -> CmdResult {
+    export_key_inner(state.inner().clone(), id, path).await
 }
 #[tauri::command]
 pub async fn export_bundle(state: St<'_>, path: String, zipped: bool) -> CmdResult {

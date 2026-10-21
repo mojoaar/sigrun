@@ -357,6 +357,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             | Request::KeysGenerate { .. }
             | Request::KeysImport { .. }
             | Request::KeysRemove { .. }
+            | Request::KeysExport { .. }
             | Request::ConnectionsConnect { .. }
             | Request::ConnectionsProvision { .. }
             | Request::ConnectionsSetPassword { .. }
@@ -478,6 +479,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             passphrase,
         } => keys_import(state, path, name, passphrase).await,
         Request::KeysRemove { id } => keys_remove(state, id).await,
+        Request::KeysExport { id, path } => keys_export(state, id, path).await,
         Request::TerminalsList => Ok(Response::Terminals(crate::terminal::detect_terminals(
             crate::terminal::Platform::current(),
         ))),
@@ -750,6 +752,54 @@ async fn keys_remove(state: &HostState, id: String) -> Result<Response> {
 
     state.store.remove_key(&id)?;
     reload_agent(state).await?;
+    Ok(Response::Ok)
+}
+
+/// Write a vault key's private half to disk, mode `0600`. Refused inside
+/// `~/.ssh`, where Sigrun only reads, and when the file already exists.
+async fn keys_export(state: &HostState, id: String, path: String) -> Result<Response> {
+    let data = state.store.load_data()?;
+    let meta = data
+        .keys
+        .iter()
+        .find(|k| k.id == id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound(id.clone()))?;
+    if meta.source != KeySource::Vault {
+        return Err(Error::InvalidInput(format!(
+            "key {} is on disk already",
+            meta.name
+        )));
+    }
+
+    let dest = std::path::PathBuf::from(&path);
+    if !bundle::destination_is_allowed(&dest, &state.paths.ssh_dir) {
+        return Err(Error::InvalidInput(
+            "a key cannot be written into ~/.ssh".into(),
+        ));
+    }
+
+    let pem = {
+        let mut guard = state.vault.lock().await;
+        let vault = (*guard).as_mut().ok_or(Error::VaultLocked)?;
+        match vault.get(&id) {
+            Some(Secret::PrivateKey { pem, .. }) => pem.clone(),
+            _ => return Err(Error::NotFound(id.clone())),
+        }
+    };
+
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&dest).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => Error::AlreadyExists(path.clone()),
+        _ => Error::Io(e),
+    })?;
+    std::io::Write::write_all(&mut file, pem.as_bytes())?;
     Ok(Response::Ok)
 }
 
@@ -1396,6 +1446,42 @@ mod tests {
             Response::Key(view) => view.key.id,
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_vault_key_can_be_written_to_disk_but_not_into_ssh() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let key_id = vault_key(&state).await;
+
+        let out = dir.path().join("copy.pem");
+        keys_export(&state, key_id.clone(), out.to_string_lossy().into_owned())
+            .await
+            .unwrap();
+        let written = std::fs::read_to_string(&out).unwrap();
+        assert!(written.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"), "{written}");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&out).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+
+        // A second write never clobbers the first.
+        assert!(matches!(
+            keys_export(&state, key_id.clone(), out.to_string_lossy().into_owned()).await,
+            Err(Error::AlreadyExists(_))
+        ));
+
+        // `~/.ssh` is read-only for Sigrun, however the path is spelled.
+        let inside = state.paths.ssh_dir.join("exported");
+        std::fs::create_dir_all(&state.paths.ssh_dir).unwrap();
+        assert!(matches!(
+            keys_export(&state, key_id.clone(), inside.to_string_lossy().into_owned()).await,
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(!inside.exists());
     }
 
     #[tokio::test]

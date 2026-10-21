@@ -62,6 +62,7 @@
     "removeConfirm": "¿Eliminar esta conexión? Esta acción no se puede deshacer."
   },
   "keys": {
+    "saveToDisk": "Guardar en el disco…",
     "addToVault": "Añadir a la bóveda",
     "title": "Claves",
     "empty": "Aún no hay claves. Generar o importar una.",

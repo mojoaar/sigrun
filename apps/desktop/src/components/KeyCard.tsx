@@ -1,7 +1,17 @@
 import { useTranslation } from "react-i18next";
 import type { KeyView } from "../api";
 
-export default function KeyCard({ view, onRemove, onAdd }: { view: KeyView; onRemove: () => void; onAdd?: () => void }) {
+export default function KeyCard({
+  view,
+  onRemove,
+  onAdd,
+  onSave,
+}: {
+  view: KeyView;
+  onRemove: () => void;
+  onAdd?: () => void;
+  onSave?: () => void;
+}) {
   const { t } = useTranslation();
   const k = view.key;
   return (
@@ -13,6 +23,7 @@ export default function KeyCard({ view, onRemove, onAdd }: { view: KeyView; onRe
       </div>
       <div className="flex shrink-0 gap-2">
         {onAdd && <button className="rounded border border-border px-2 py-1 hover:text-accent" onClick={onAdd}>{t("keys.addToVault")}</button>}
+        {onSave && <button className="rounded border border-border px-2 py-1 hover:text-accent" onClick={onSave}>{t("keys.saveToDisk")}</button>}
         <button className="rounded border border-border px-2 py-1 text-danger" onClick={onRemove}>{t("common.delete")}</button>
       </div>
     </li>

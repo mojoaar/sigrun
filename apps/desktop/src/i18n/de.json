@@ -62,6 +62,7 @@
     "removeConfirm": "Diese Verbindung entfernen? Dies kann nicht rückgängig gemacht werden."
   },
   "keys": {
+    "saveToDisk": "Auf Datenträger speichern…",
     "addToVault": "In den Tresor übernehmen",
     "title": "Schlüssel",
     "empty": "Noch keine Schlüssel. Einen generieren oder importieren.",

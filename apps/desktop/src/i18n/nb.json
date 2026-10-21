@@ -62,6 +62,7 @@
     "removeConfirm": "Fjerne denne tilkoblingen? Det kan ikke angres."
   },
   "keys": {
+    "saveToDisk": "Lagre på disk…",
     "addToVault": "Legg til i hvelvet",
     "title": "Nøkler",
     "empty": "Ingen nøkler ennå. Generer eller importer en.",

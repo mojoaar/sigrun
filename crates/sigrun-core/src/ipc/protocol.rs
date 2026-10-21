@@ -99,6 +99,12 @@ pub enum Request {
     KeysRemove {
         id: String,
     },
+    /// Write a vault key's private half to `path`, mode `0600`. Refused inside
+    /// `~/.ssh` and when the file already exists.
+    KeysExport {
+        id: String,
+        path: String,
+    },
     TerminalsList,
     /// Write every connection and public key metadata to `path`, as a folder or
     /// a `.zip`. Reads only `data.toml`: no vault, no secret.
