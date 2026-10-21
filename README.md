@@ -81,8 +81,9 @@ use **Install SSH key…** — see
 - **Keep keys in an encrypted vault.** Generate Ed25519, RSA, or ECDSA keys,
   import or discover the ones already in `~/.ssh`, and let an in-process
   OpenSSH agent serve vault keys to `ssh`.
-- **Reach password-only servers.** Store a per-connection password in the vault,
-  or install a key on a server with **Install SSH key…** using the password once.
+- **Reach password-only servers.** Store a password on the connection or in a
+  credential, or install a key on a server with **Install SSH key…** using the
+  password once.
 - **Share sign-in details.** A credential holds one user name plus its key, a
   password, or both; point any number of connections at it, so rotating a
   password is one edit instead of one per host.
@@ -193,7 +194,8 @@ A failed connection keeps its window or tab open, with the error.
 
 ## Password connections
 
-A connection can carry a password instead of, or alongside, a key. It lives
+A connection can carry its own password, or take one from the credential it
+uses, instead of or alongside a key. It lives
 only in the encrypted vault; on connect Sigrun writes the askpass variables
 into the launched command line, so `ssh` fetches the password through Sigrun's
 askpass helper and it is never typed into the terminal. Because the variables
@@ -206,7 +208,9 @@ askpass variables and a stored password falls back to `ssh`'s own prompt. The
 vault must be unlocked when the connection opens,
 and deleting the connection removes the stored password once the vault is
 unlocked; while the vault is locked the vault entry stays until the next
-unlock. Set or clear it in the connection's edit form, or from the CLI:
+unlock. Set or clear a connection's own password in its edit form or from the
+CLI, and a credential's password in the Credentials tab. For a connection's own
+password:
 
 ```bash
 sigrun connections password web                    # prompt (never argv)
@@ -374,6 +378,9 @@ you select into the vault first.
   and Ghostty tabs via AppleScript — do not inherit it (the Ghostty tab is
   created by the long-lived app, not by the `osascript` Sigrun spawns), so a
   connect that way does not see the agent.
+- The CLI can create a credential and attach it to a connection, but rotating a
+  credential's saved password is done in the Credentials tab; `sigrun
+  credentials` offers `list`, `add` and `remove` only.
 - RSA agent signing always uses SHA-256: ssh-key 0.6 cannot emit a legacy
   `ssh-rsa`/SHA-1 signature, so a client that only offers SHA-1 will reject
   Sigrun's signatures.

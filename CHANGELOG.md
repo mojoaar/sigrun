@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
 ### Added
 
 - The GitHub release page now carries the tag's changelog section, so a downloader sees what changed without opening the repository.
-- Credentials: named identities that connections can share (model and listing; the UI follows).
+- Credentials: named identities a connection can reference instead of repeating a user, key and password.
 - Credential passwords live in the vault and every connection, agent session, askpass prompt and provisioning run resolves the same identity.
 - Manage credentials from the CLI, and point a connection at one.
 - A Credentials tab, and a connection form that can use one instead of its own details.
@@ -20,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Theme names come from the interface language files, and the language picker is driven by one table.
+- `sigrun credentials add` stores the credential and seals its password in one step.
+- Export carries the credential reference, never the credential; an imported connection shows a missing-credential badge until it is repaired.
 - GitHub releases are published as normal releases rather than pre-releases.
 
 ### Fixed
@@ -35,10 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A connection can no longer mix a credential with its own user or secret.
 - The README, the in-app Help view and AGENTS.md now document credentials: the tab, one sign-in source per connection, the vault split, the CLI commands, and that credentials never travel in an export.
 
-### Changed
+### Notes
 
-- `sigrun credentials add` stores the credential and seals its password in one step.
-- Export carries the credential reference, never the credential; an imported connection shows a missing-credential badge until it is repaired.
+- The five new translations have not been read by native speakers yet; corrections are welcome.
+- On Windows there is no askpass helper and sessions are not tracked, so a stored password falls back to `ssh`'s own prompt and no live dot appears.
+- A bundle is not a backup: it restores connections only, and never a private key, a stored password or a credential. The vault file plus its passphrase is what restores those.
 
 ## [0.2.0] - 2026-10-20
 
