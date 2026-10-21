@@ -16,8 +16,8 @@ use crate::paths::{ensure_private_dir, Paths};
 use crate::ssh_config::parse_ssh_config;
 use crate::store::Store;
 use crate::terminal::{
-    env_prefix, launch_first, launch_reports, probe_reachable, render_command, ssh_invocation,
-    terminal_launch_specs, Platform,
+    agent_prefix, env_prefix, launch_first, launch_reports, probe_reachable, render_command,
+    ssh_invocation, terminal_launch_specs, Platform,
 };
 use crate::vault::{Secret, UnlockedVault, Vault, VaultStatus};
 use zeroize::Zeroizing;
@@ -1019,7 +1019,14 @@ async fn connections_connect(
         return Ok(Response::Command(render_command(&argv)));
     }
 
-    let prefix = askpass_prefix(&auth, Path::new(&state.ipc_addr), &conn.id).unwrap_or_default();
+    // The agent socket and the askpass helper both have to travel inside the
+    // command string: an AppleScript launch starts its own login shell, which
+    // inherits nothing from this process's environment.
+    let prefix = format!(
+        "{}{}",
+        agent_prefix(&state.paths.agent_socket()),
+        askpass_prefix(&auth, Path::new(&state.ipc_addr), &conn.id).unwrap_or_default()
+    );
 
     // Windows keeps `cmd.exe /k` with no way to chain a report, so the flag is
     // only set where the launched line can clear it again.

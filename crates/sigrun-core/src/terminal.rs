@@ -240,6 +240,20 @@ pub fn env_prefix(socket: &Path, connection_id: &str) -> String {
     )
 }
 
+/// The environment assignment that points ssh at Sigrun's in-process agent. A
+/// vault key is not written to disk, so it reaches ssh only through this socket;
+/// it belongs in the command string because a terminal started by AppleScript
+/// runs its own login shell and inherits nothing from this process.
+pub fn agent_prefix(socket: &Path) -> String {
+    if cfg!(windows) {
+        // Windows has no Unix socket to hand to ssh, and `cmd.exe` takes no
+        // POSIX assignment, so the prefix stays empty there.
+        String::new()
+    } else {
+        format!("SSH_AUTH_SOCK={} ", shell_escape(&socket.to_string_lossy()))
+    }
+}
+
 /// The `<exe> --socket <socket>` prefix both session reports share. Carries no
 /// secret — only the running binary and the socket path.
 fn report_prefix(socket: &Path) -> String {
@@ -945,6 +959,28 @@ mod tests {
         let plain =
             terminal_launch_specs(Platform::MacOs, None, &argv, "", None, "window").unwrap();
         assert!(!plain[0].args.join(" ").contains("SSH_ASKPASS="));
+    }
+
+    #[test]
+    fn the_agent_socket_travels_inside_the_command_string() {
+        // An AppleScript launch starts Terminal.app's own login shell, so the
+        // process environment never reaches ssh: the socket must be in the line.
+        let prefix = agent_prefix(Path::new("/tmp/agent.sock"));
+        let specs = terminal_launch_specs(
+            Platform::MacOs,
+            None,
+            &["ssh".into(), "u@h".into()],
+            &prefix,
+            None,
+            "window",
+        )
+        .unwrap();
+        let script = specs[0].args.join(" ");
+        assert!(script.contains("do script"), "{script}");
+        assert!(script.contains("SSH_AUTH_SOCK=/tmp/agent.sock"), "{script}");
+        let socket_at = script.find("SSH_AUTH_SOCK=").expect("socket is exported");
+        let ssh_at = script.find("ssh u").expect("ssh runs");
+        assert!(socket_at < ssh_at, "{script}");
     }
 
     #[test]
