@@ -136,9 +136,13 @@ impl HostState {
     pub fn sweep_dead_sessions(&self) -> bool {
         let mut changed = false;
         self.session_map().retain(|id, pid| {
-            if pid_is_alive(*pid) {
+            if pid_is_alive(*pid) && !session_is_orphaned(*pid) {
                 return true;
             }
+            // A shell reparented to init lost the terminal that launched it, but
+            // no hangup reached it, so it would sit there with an unreachable
+            // ssh under it for good. Signal its group: the trap reports the end.
+            end_orphaned_session(*pid);
             if self.is_active(id) {
                 self.clear_active(id);
                 changed = true;
@@ -269,6 +273,68 @@ fn pid_is_alive(pid: u32) -> bool {
 fn pid_is_alive(_pid: u32) -> bool {
     true
 }
+
+/// The parent pid of `pid`, when the platform can be asked.
+#[cfg(target_os = "macos")]
+fn parent_of(pid: u32) -> Option<u32> {
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    // SAFETY: `info` is a zeroed buffer of exactly the size we pass, and the
+    // call fills it in when it recognises the flavour.
+    let read = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            std::ptr::addr_of_mut!(info).cast(),
+            size,
+        )
+    };
+    (read == size).then_some(info.pbi_ppid)
+}
+
+#[cfg(target_os = "linux")]
+fn parent_of(pid: u32) -> Option<u32> {
+    // Field 4 of /proc/<pid>/stat, after the command name in parentheses.
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    stat.rsplit_once(')')?
+        .1
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn parent_of(_pid: u32) -> Option<u32> {
+    None
+}
+
+/// Whether the shell that reported this session has been reparented to init,
+/// meaning the terminal that launched it is gone but sent no hangup.
+#[cfg(unix)]
+fn session_is_orphaned(pid: u32) -> bool {
+    matches!(parent_of(pid), Some(parent) if parent <= 1)
+}
+
+#[cfg(not(unix))]
+fn session_is_orphaned(_pid: u32) -> bool {
+    false
+}
+
+/// End a session whose terminal is gone but whose shell never got a hangup.
+#[cfg(unix)]
+fn end_orphaned_session(pid: u32) {
+    // SAFETY: the pid came from our own launch line, which makes it a session
+    // leader; a negative pid targets its process group so the ssh under it goes
+    // too. The trap that runs on SIGHUP reports the end over IPC.
+    unsafe {
+        libc::kill(-(pid as libc::pid_t), libc::SIGHUP);
+    }
+}
+
+#[cfg(not(unix))]
+fn end_orphaned_session(_pid: u32) {}
 
 /// Dispatch a request, mapping any internal error to a safe `Error` response.
 pub async fn handle(state: &HostState, req: Request) -> Response {
@@ -2500,6 +2566,18 @@ mod tests {
         assert!(!state.sweep_dead_sessions());
         assert!(state.is_active("c1"));
         state.shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_watched_shell_knows_whether_it_still_has_a_parent() {
+        let me = std::process::id();
+        // SAFETY: getppid takes no arguments and cannot fail.
+        let parent = unsafe { libc::getppid() } as u32;
+        assert_eq!(parent_of(me), Some(parent));
+        // The test runner's parent is the harness, not init: it is not an
+        // orphan, so a live session must survive the sweep.
+        assert!(!session_is_orphaned(me));
     }
 
     #[tokio::test]
