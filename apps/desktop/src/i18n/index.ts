@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import en from "./en.json";
 import da from "./da.json";
+import de from "./de.json";
 
 export type Language = "en" | "da" | "de" | "fr" | "es" | "sv" | "nb";
 
@@ -10,6 +11,7 @@ export type Language = "en" | "da" | "de" | "fr" | "es" | "sv" | "nb";
 export const LANGUAGES: { code: Language; name: string }[] = [
   { code: "en", name: "English" },
   { code: "da", name: "Dansk" },
+  { code: "de", name: "Deutsch" },
 ];
 
 export function isLanguage(value: string): value is Language {
@@ -17,7 +19,11 @@ export function isLanguage(value: string): value is Language {
 }
 
 i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, da: { translation: da } },
+  resources: {
+    en: { translation: en },
+    da: { translation: da },
+    de: { translation: de },
+  },
   lng: "en",
   fallbackLng: "en",
   interpolation: { escapeValue: false },

@@ -1,0 +1,220 @@
+{
+  "app": { "title": "Sigrun", "tagline": "SSH-Schlüssel und Verbindungen an einem Ort." },
+  "nav": { "connections": "Verbindungen", "keys": "Schlüssel", "credentials": "Zugangsdaten", "settings": "Einstellungen", "help": "Hilfe" },
+  "vault": {
+    "uninitialized": {
+      "title": "Tresor erstellen",
+      "body": "Eine Passphrase zum Verschlüsseln der Schlüssel wählen. Sie kann nicht wiederhergestellt werden, wenn sie vergessen wird."
+    },
+    "locked": {
+      "title": "Tresor gesperrt",
+      "body": "Passphrase eingeben, um Schlüssel und Verbindungen zu entsperren."
+    },
+    "unlock": "Entsperren",
+    "create": "Tresor erstellen",
+    "lock": "Sperren",
+    "unlocking": "Wird entsperrt…",
+    "passphrase": "Passphrase",
+    "passphraseConfirm": "Passphrase bestätigen",
+    "passphraseMismatch": "Die Passphrasen stimmen nicht überein.",
+    "passphraseRequired": "Eine Passphrase ist erforderlich.",
+    "wrongPassphrase": "Falsche Passphrase. Bitte erneut versuchen."
+  },
+  "connections": {
+    "title": "Verbindungen",
+    "empty": "Noch keine Verbindungen vorhanden. Verbindung hinzufügen, um zu beginnen.",
+    "add": "Verbindung hinzufügen",
+    "edit": "Verbindung bearbeiten",
+    "remove": "Verbindung entfernen",
+    "connect": "Verbinden",
+    "unreachable": "Host ist nicht erreichbar",
+    "connectAnyway": "Trotzdem verbinden",
+    "active": "Verbunden",
+    "label": "Bezeichnung",
+    "duplicateLabel": "Eine andere Verbindung verwendet diese Bezeichnung bereits.",
+    "invalidLabel": "Eine Bezeichnung ist erforderlich.",
+    "invalidHost": "Nur Buchstaben, Ziffern, Punkte, Unterstriche und Bindestriche verwenden.",
+    "invalidUser": "Nur Buchstaben, Ziffern, Punkte, Unterstriche und Bindestriche verwenden oder das Feld leer lassen.",
+    "invalidPort": "Einen Port zwischen 1 und 65535 eingeben.",
+    "host": "Host",
+    "user": "Benutzer",
+    "port": "Port",
+    "key": "Schlüssel",
+    "credential": "Zugangsdaten",
+    "source": "Anmeldedaten",
+    "sourceOwn": "Eigene eingeben",
+    "sourceCredential": "Zugangsdaten verwenden",
+    "missingCredential": "Diese Verbindung verwendet Zugangsdaten, die hier nicht vorhanden sind: {{id}}. Andere auswählen oder eigene Daten eingeben.",
+    "chooseCredential": "Zugangsdaten auswählen oder eigene Daten eingeben.",
+    "keylessCredential": "Diese Zugangsdaten enthalten keinen Schlüssel, und diese Verbindung erlaubt keine Anmeldung mit Passwort. Den Zugangsdaten einen Schlüssel hinzufügen oder Passwörter für die Verbindung erlauben.",
+    "passwordRemoved": "Das für diese Verbindung gespeicherte Passwort wurde entfernt; die Anmeldung erfolgt jetzt über die Zugangsdaten.",
+    "group": "Gruppe",
+    "password": "Passwort",
+    "passwordHint": "Das Passwort des Servers, verschlüsselt im Tresor von Sigrun gespeichert. Dies ist nicht die Passphrase des Tresors.",
+    "removeSavedPassword": "Gespeichertes Passwort entfernen",
+    "hasPassword": "Passwort gespeichert",
+    "search": "Verbindungen durchsuchen",
+    "noMatches": "Keine Verbindungen gefunden.",
+    "discovered": "In ~/.ssh/config gefunden",
+    "removeConfirm": "Diese Verbindung entfernen? Dies kann nicht rückgängig gemacht werden."
+  },
+  "keys": {
+    "title": "Schlüssel",
+    "empty": "Noch keine Schlüssel. Einen generieren oder importieren.",
+    "generate": "Schlüssel generieren",
+    "import": "Schlüssel importieren",
+    "remove": "Schlüssel entfernen",
+    "name": "Name",
+    "path": "Pfad",
+    "algorithm": "Algorithmus",
+    "fingerprint": "Fingerabdruck",
+    "source": { "vault": "Tresor", "disk": "Auf dem Datenträger" },
+    "passphrase": "Schlüssel-Passphrase",
+    "removeConfirm": "Diesen Schlüssel entfernen? Dies kann nicht rückgängig gemacht werden."
+  },
+  "credentials": {
+    "title": "Zugangsdaten",
+    "empty": "Noch keine Zugangsdaten vorhanden. Zugangsdaten hinzufügen, um eine Identität zwischen Verbindungen zu teilen.",
+    "add": "Zugangsdaten hinzufügen",
+    "edit": "Zugangsdaten bearbeiten",
+    "label": "Bezeichnung",
+    "user": "Benutzer",
+    "key": "Schlüssel",
+    "password": "Passwort",
+    "passwordHint": "Das Passwort des Servers, verschlüsselt im Tresor von Sigrun gespeichert. Dies ist nicht die Passphrase des Tresors.",
+    "removeSavedPassword": "Gespeichertes Passwort entfernen",
+    "method": { "key": "Schlüssel", "password": "Passwort", "keyPassword": "Schlüssel + Passwort" },
+    "usedBy": "Verwendet von {{count}}",
+    "inUse_one": "Diese Zugangsdaten werden von genau einer Verbindung verwendet. Vor dem Löschen auf eine andere verweisen.",
+    "inUse_other": "Diese Zugangsdaten werden von {{count}} Verbindungen verwendet. Vor dem Löschen auf andere verweisen.",
+    "missing": "Zugangsdaten fehlen",
+    "invalidLabel": "Eine Bezeichnung ist erforderlich.",
+    "invalidUser": "Ein Benutzer ist erforderlich.",
+    "invalidKey": "Ein Schlüssel ist erforderlich, sofern kein Passwort gespeichert ist.",
+    "removeConfirm": "Diese Zugangsdaten entfernen? Dies kann nicht rückgängig gemacht werden."
+  },
+  "provision": {
+    "title": "SSH-Schlüssel installieren",
+    "body": "Einen Schlüssel aus dem Tresor oder vom Datenträger mit dem Passwort des Servers auf diesem Server installieren.",
+    "password": "Passwort",
+    "selectKeys": "Zu installierende Schlüssel",
+    "diskKeys": "Schlüssel auf dem Datenträger",
+    "keyPassphrase": "Schlüssel-Passphrase",
+    "importKey": "Schlüssel importieren",
+    "disablePasswordAuth": "Passwort-Authentifizierung deaktivieren",
+    "lockoutWarning": "Dies sperrt den Zugang, falls die Anmeldung mit Schlüssel fehlschlägt. Zuvor sicherstellen, dass die Anmeldung mit einem Schlüssel funktioniert.",
+    "install": "SSH-Schlüssel installieren…",
+    "installed": "Installiert: {{installed}} — verifiziert: {{verified}}",
+    "skipped": "Passwort-Authentifizierung wurde aktiviert gelassen: {{reason}}"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "theme": "Design",
+    "language": "Sprache",
+    "mode": "Darstellung",
+    "modeSystem": "System",
+    "modeLight": "Hell",
+    "modeDark": "Dunkel",
+    "terminal": "Terminal",
+    "terminalDefault": "Systemstandard",
+    "openIn": "Öffnen in",
+    "openInWindow": "Neues Fenster",
+    "openInTab": "Neuer Tab",
+    "openInUnavailable": "Dieses Terminal kann keinen Tab öffnen.",
+    "startMinimized": "Minimiert im Infobereich starten",
+    "autoLock": "Tresor automatisch sperren",
+    "autoLockNever": "Nie",
+    "autoLockMinutes": "Nach {{count}} Min. Inaktivität",
+    "transferTitle": "Importieren und exportieren",
+    "transferBody": "Alle Verbindungen und öffentlichen Schlüssel in einen Ordner oder eine .zip-Datei exportieren und wieder importieren. Dies ist eine Übertragung, keine Sicherung: Private Schlüssel und gespeicherte Passwörter werden nie einbezogen.",
+    "transferExportFolder": "In einen Ordner exportieren…",
+    "transferExportZip": "In eine .zip-Datei exportieren…",
+    "transferImportFolder": "Aus einem Ordner importieren…",
+    "transferImportZip": "Aus einer .zip-Datei importieren…",
+    "transferZipFilter": "Zip-Archiv",
+    "transferExported": "{{connections}} Verbindungen und {{keys}} Schlüssel exportiert.",
+    "transferImported": "Importiert: {{added}} hinzugefügt, {{skipped}} übersprungen, {{invalid}} ungültig, {{unresolved}} nicht aufgelöste Schlüssel."
+  },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
+  "trust": {
+    "title": "Diesem Host vertrauen?",
+    "body": "Dies ist die erste Verbindung zu diesem Host. Den Fingerabdruck prüfen, bevor fortgefahren wird.",
+    "fingerprint": "Host-Fingerabdruck",
+    "accept": "Vertrauen und verbinden",
+    "cancel": "Abbrechen",
+    "mismatch": "Warnung: Der Fingerabdruck des Hosts hat sich geändert. Dies könnte ein Man-in-the-Middle-Angriff sein."
+  },
+  "tray": {
+    "open": "Sigrun öffnen",
+    "quit": "Beenden",
+    "unlock": "Sigrun entsperren…",
+    "discovered": "Gefunden"
+  },
+  "help": {
+    "title": "Hilfe",
+    "intro": "Sigrun hält SSH-Schlüssel und Verbindungen an einem Ort. Der Name stammt von Sigrún: sigr bedeutet Sieg und rún bedeutet Geheimnis — Sieg über das Schlüsselchaos.",
+    "quickStart": {
+      "title": "Schnellstart",
+      "vault": "Den Tresor mit der Passphrase erstellen oder entsperren.",
+      "key": "Einen Schlüssel vom Datenträger importieren oder einen neuen generieren.",
+      "connection": "Eine Verbindung hinzufügen: Bezeichnung, Host, Benutzer und Port — oder auf Zugangsdaten verweisen, die die Anmeldedaten enthalten.",
+      "connect": "Verbinden — Sigrun öffnet das Terminal mit ssh.",
+      "provision": "Auf einem Server, der nur Passwörter akzeptiert, mit „SSH-Schlüssel installieren…“ einen Schlüssel aus dem Tresor mit dem Passwort des Servers installieren."
+    },
+    "groups": {
+      "title": "Verbindungen und Gruppen",
+      "nesting": "Gruppen werden mit „/“ verschachtelt. Eine Verbindung in PVE/Folder 1 erscheint unter Folder 1 innerhalb von PVE.",
+      "tray": "Linksklick auf das Tray-Symbol: Bei gesperrtem Tresor öffnet sich das Fenster zum Entsperren; bei entsperrtem Tresor öffnet sich das Verbindungsmenü, ebenso gruppiert."
+    },
+    "keys": {
+      "title": "Schlüssel",
+      "vault": "Tresorschlüssel liegen verschlüsselt in Sigrun und werden vom SSH-Agenten von Sigrun bereitgestellt — keine Schlüsseldatei auf dem Datenträger.",
+      "disk": "Schlüssel auf dem Datenträger bleiben, wo sie sind. Sigrun übergibt -i <Pfad> an ssh und lässt ~/.ssh unberührt."
+    },
+    "credentials": {
+      "title": "Zugangsdaten",
+      "summary": "Zugangsdaten sind ein Benutzername und die Art der Anmeldung: ein Schlüssel, ein Passwort oder beides. Sie liegen einmal unter Zugangsdaten, und beliebig viele Verbindungen können sie verwenden — eine Passwortänderung ist so eine Bearbeitung statt einer pro Host.",
+      "oneSource": "Eine Verbindung bezieht ihre Anmeldedaten aus einer Quelle: entweder aus Zugangsdaten oder aus eigenem Benutzer, Schlüssel und Passwort. Beides wird nie gemischt.",
+      "vault": "Bezeichnung, Benutzer und Schlüssel-ID liegen in der Datendatei von Sigrun, damit die Liste auch bei gesperrtem Tresor funktioniert; das Passwort ist im Tresor versiegelt. Zugangsdaten ohne Schlüssel können ihr Passwort nicht verlieren — stattdessen die Zugangsdaten löschen. Das Löschen wird abgelehnt, solange Verbindungen sie verwenden.",
+      "export": "Zugangsdaten werden nie exportiert. Eine importierte Verbindung behält ihren Verweis und zeigt „Zugangsdaten fehlen“, bis welche erstellt oder ausgewählt werden; ein Verbindungsversuch wird mit der ID abgelehnt, statt auf eigene Schlüssel zurückzufallen."
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "summary": "Design und Darstellung, Sprache, das zu startende Terminal, wo eine Verbindung geöffnet wird, automatisches Sperren nach Inaktivität und minimierter Start im Infobereich."
+    },
+    "cli": {
+      "title": "Kommandozeile",
+      "host": { "cmd": "sigrun host", "desc": "Den Host im Vordergrund ausführen." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Den Tresor entsperren." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Eine Verbindung hinzufügen." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Eine Verbindung im Terminal öffnen." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Das Passwort einer Verbindung speichern." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Zugangsdaten und die Anzahl der Verbindungen auflisten, die sie verwenden." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Zugangsdaten hinzufügen; ein Passwort wird von stdin gelesen." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Zugangsdaten entfernen, die keine Verbindung verwendet." }
+    },
+    "data": {
+      "title": "Wo die Daten liegen",
+      "dir": "Die Daten liegen im benutzerspezifischen Datenverzeichnis: ~/Library/Application Support/Sigrun unter macOS, ~/.local/share/sigrun unter Linux und %APPDATA%\\Sigrun unter Windows.",
+      "ssh": "Sigrun verändert ~/.ssh nie."
+    },
+    "about": {
+      "title": "Über",
+      "tagline": "SSH-Verbindungen und Schlüssel in einem lokal verschlüsselten Tresor, über einen integrierten Agenten für ssh bereitgestellt.",
+      "version": "Version {{version}}",
+      "author": "Erstellt von mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Lizenziert unter der MIT-Lizenz."
+    }
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "loading": "Wird geladen…",
+    "error": "Etwas ist schiefgelaufen."
+  }
+}

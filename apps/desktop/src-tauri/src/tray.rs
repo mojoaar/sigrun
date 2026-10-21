@@ -34,6 +34,12 @@ pub fn labels(language: &str) -> TrayLabels {
             unlock: "Lås Sigrun op…".into(),
             discovered: "Fundet automatisk".into(),
         },
+        "de" => TrayLabels {
+            open: "Sigrun öffnen".into(),
+            quit: "Beenden".into(),
+            unlock: "Sigrun entsperren…".into(),
+            discovered: "Gefunden".into(),
+        },
         _ => TrayLabels {
             open: "Open Sigrun".into(),
             quit: "Quit".into(),
@@ -627,8 +633,12 @@ mod tests {
         assert_eq!(labels("da").open, "Åbn Sigrun");
         assert_eq!(labels("da").unlock, "Lås Sigrun op…");
         assert_eq!(labels("da").discovered, "Fundet automatisk");
+        assert_eq!(labels("de").quit, "Beenden");
+        assert_eq!(labels("de").open, "Sigrun öffnen");
+        assert_eq!(labels("de").unlock, "Sigrun entsperren…");
+        assert_eq!(labels("de").discovered, "Gefunden");
         // An unknown language falls back to English.
-        assert_eq!(labels("de"), labels("en"));
+        assert_eq!(labels("kl"), labels("en"));
     }
 
     /// The tray strings live in Rust and in the app's translation files. This
@@ -638,6 +648,7 @@ mod tests {
         for (language, json) in [
             ("en", include_str!("../../src/i18n/en.json")),
             ("da", include_str!("../../src/i18n/da.json")),
+            ("de", include_str!("../../src/i18n/de.json")),
         ] {
             let v: serde_json::Value = serde_json::from_str(json).unwrap();
             let tray = &v["tray"];
