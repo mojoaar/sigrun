@@ -1,0 +1,24 @@
+pkgbase = sigrun-bin
+	pkgdesc = SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent
+	pkgver = 0.2.0
+	pkgrel = 1
+	url = https://github.com/mojoaar/sigrun
+	arch = x86_64
+	license = MIT
+	depends = webkit2gtk-4.1
+	depends = gtk3
+	depends = fuse2
+	provides = sigrun
+	conflicts = sigrun
+	options = !strip
+	options = !debug
+	source = Sigrun_0.2.0_amd64.AppImage::https://github.com/mojoaar/sigrun/releases/download/v0.2.0/Sigrun_0.2.0_amd64.AppImage
+	source = sigrun::https://github.com/mojoaar/sigrun/releases/download/v0.2.0/sigrun-x86_64-unknown-linux-gnu
+	source = sigrun.png
+	source = sigrun.desktop
+	sha256sums = bec65e271e1e68260aa00bf27335124b569d3eac565a0ccb4628a9fc2a2c5c4e
+	sha256sums = e2e7821f48f1e4cfaf1816273bdfddb3336bfef6e82d816f1d544df2e725ecdf
+	sha256sums = e6d75327821de225b4d424615221c87a3023dc34b519d8623232fb7de06e163a
+	sha256sums = 1517894c4a205c205016650ce85405da9eab8351e30faf357b99dd38a7d19195
+
+pkgname = sigrun-bin

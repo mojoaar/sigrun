@@ -1,0 +1,37 @@
+# Maintainer: mojoaar <hello@johansen.foo>
+pkgname=sigrun-bin
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent"
+arch=('x86_64')
+url="https://github.com/mojoaar/sigrun"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'fuse2')
+provides=('sigrun')
+conflicts=('sigrun')
+options=('!strip' '!debug')
+source=(
+  "Sigrun_${pkgver}_amd64.AppImage::https://github.com/mojoaar/sigrun/releases/download/v${pkgver}/Sigrun_${pkgver}_amd64.AppImage"
+  "sigrun::https://github.com/mojoaar/sigrun/releases/download/v${pkgver}/sigrun-x86_64-unknown-linux-gnu"
+  "sigrun.png"
+  "sigrun.desktop"
+)
+sha256sums=(
+  'bec65e271e1e68260aa00bf27335124b569d3eac565a0ccb4628a9fc2a2c5c4e'
+  'e2e7821f48f1e4cfaf1816273bdfddb3336bfef6e82d816f1d544df2e725ecdf'
+  'e6d75327821de225b4d424615221c87a3023dc34b519d8623232fb7de06e163a'
+  '1517894c4a205c205016650ce85405da9eab8351e30faf357b99dd38a7d19195'
+)
+
+package() {
+  # The desktop app ships as the release AppImage: it carries the webview
+  # assets and the sidecar binary in one signed-by-hash file.
+  install -Dm755 "${srcdir}/Sigrun_${pkgver}_amd64.AppImage" "${pkgdir}/opt/sigrun/Sigrun.AppImage"
+  install -d "${pkgdir}/usr/bin"
+  ln -s /opt/sigrun/Sigrun.AppImage "${pkgdir}/usr/bin/sigrun-desktop"
+
+  install -Dm755 "${srcdir}/sigrun" "${pkgdir}/usr/bin/sigrun"
+
+  install -Dm644 "${srcdir}/sigrun.png" "${pkgdir}/usr/share/pixmaps/sigrun.png"
+  install -Dm644 "${srcdir}/sigrun.desktop" "${pkgdir}/usr/share/applications/sigrun.desktop"
+}

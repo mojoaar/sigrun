@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Sigrun
+GenericName=SSH connection manager
+Comment=SSH connections and keys in a local encrypted vault
+Exec=sigrun-desktop %U
+Icon=sigrun
+Terminal=false
+Categories=Development;Utility;Network;
+Keywords=ssh;keys;vault;terminal;
+StartupWMClass=Sigrun

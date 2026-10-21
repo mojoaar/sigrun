@@ -26,8 +26,9 @@ agent, and the local IPC they both talk to.
 
 ## Install
 
-**Releases are unsigned pre-releases.** Grab the installer for your platform from
-the [releases page](https://github.com/mojoaar/sigrun/releases/latest).
+**Releases are unsigned.** Grab the installer for your platform from
+the [releases page](https://github.com/mojoaar/sigrun/releases/latest). Arch
+users have `sigrun-bin` in the AUR (`packaging/aur` holds its PKGBUILD).
 
 - **macOS** reports "unidentified developer" because the build is not notarized:
   right-click the app and choose **Open**, or allow it under **System Settings →
