@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import i18n, { LANGUAGES, setLanguage } from "./index";
+import { THEMES } from "../themes";
 
 const PLURAL = /_(zero|one|two|few|many|other)$/;
 
@@ -20,8 +21,8 @@ describe("i18n", () => {
     await setLanguage("da");
     expect(i18n.language).toBe("da");
     expect(document.documentElement.lang).toBe("da");
-    // A code with no bundle yet falls back to English rather than switching to nothing.
-    await setLanguage("de");
+    // A code that never enters the table falls back to English rather than switching to nothing.
+    await setLanguage("xx");
     expect(i18n.language).toBe("en");
     expect(document.documentElement.lang).toBe("en");
   });
@@ -36,12 +37,28 @@ describe("i18n", () => {
     }
   });
 
+  it("every registered bundle has a LANGUAGES row", () => {
+    // A bundle in resources but not the table is announced as English by <html lang>.
+    expect(Object.keys(i18n.options.resources ?? {}).sort()).toEqual(LANGUAGES.map((l) => l.code).sort());
+  });
+
+  it("every theme has a label in every bundle", () => {
+    for (const code of LANGUAGES.map((l) => l.code)) {
+      const bundle = i18n.getResourceBundle(code, "translation") as Record<string, unknown>;
+      const labelled = Object.keys((bundle.theme ?? {}) as object);
+      expect({ code, missing: THEMES.filter((n) => !labelled.includes(n)) }).toEqual({ code, missing: [] });
+    }
+  });
+
   it("each locale's plural families match its own rules", () => {
     for (const { code } of LANGUAGES) {
       const bundle = i18n.getResourceBundle(code, "translation") as Record<string, unknown>;
-      const expected = new Intl.PluralRules(code).resolvedOptions().pluralCategories.map((c) => `inUse_${c}`).sort();
-      const found = Object.keys((bundle.credentials ?? {}) as object).filter((k) => k.startsWith("inUse_")).sort();
-      expect({ code, found }).toEqual({ code, found: expected });
+      const creds = Object.keys((bundle.credentials ?? {}) as object);
+      // Every locale needs _other (i18next's fallback form); _one only where the
+      // locale has that category — fr/es also report "many", which _other covers.
+      const categories = new Intl.PluralRules(code).resolvedOptions().pluralCategories;
+      const required = categories.includes("one") ? ["inUse_one", "inUse_other"] : ["inUse_other"];
+      expect({ code, missing: required.filter((k) => !creds.includes(k)) }).toEqual({ code, missing: [] });
     }
   });
 
