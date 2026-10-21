@@ -44,7 +44,7 @@ pub fn labels(language: &str) -> TrayLabels {
             open: "Ouvrir Sigrun".into(),
             quit: "Quitter".into(),
             unlock: "Déverrouiller Sigrun…".into(),
-            discovered: "Découvert".into(),
+            discovered: "Découvertes".into(),
         },
         _ => TrayLabels {
             open: "Open Sigrun".into(),
@@ -646,7 +646,7 @@ mod tests {
         assert_eq!(labels("fr").quit, "Quitter");
         assert_eq!(labels("fr").open, "Ouvrir Sigrun");
         assert_eq!(labels("fr").unlock, "Déverrouiller Sigrun…");
-        assert_eq!(labels("fr").discovered, "Découvert");
+        assert_eq!(labels("fr").discovered, "Découvertes");
         // An unknown language falls back to English.
         assert_eq!(labels("kl"), labels("en"));
     }

@@ -29,7 +29,7 @@
     "connect": "Connecter",
     "unreachable": "L'hôte est injoignable",
     "connectAnyway": "Connecter quand même",
-    "active": "Connecté",
+    "active": "Connectée",
     "label": "Libellé",
     "duplicateLabel": "Une autre connexion utilise déjà ce libellé.",
     "invalidLabel": "Un libellé est requis.",
@@ -55,7 +55,7 @@
     "hasPassword": "Mot de passe enregistré",
     "search": "Rechercher des connexions",
     "noMatches": "Aucune connexion ne correspond.",
-    "discovered": "Découvert dans ~/.ssh/config",
+    "discovered": "Découverte dans ~/.ssh/config",
     "removeConfirm": "Supprimer cette connexion ? Cette action est irréversible."
   },
   "keys": {
@@ -133,7 +133,7 @@
     "transferImportZip": "Importer depuis un fichier .zip…",
     "transferZipFilter": "Archive Zip",
     "transferExported": "{{connections}} connexions et {{keys}} clés exportées.",
-    "transferImported": "Importation : {{added}} ajoutés, {{skipped}} ignorés, {{invalid}} invalides, {{unresolved}} clés non résolues."
+    "transferImported": "Importation : {{added}} ajoutées, {{skipped}} ignorées, {{invalid}} invalides, {{unresolved}} clés non résolues."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
@@ -148,7 +148,7 @@
     "open": "Ouvrir Sigrun",
     "quit": "Quitter",
     "unlock": "Déverrouiller Sigrun…",
-    "discovered": "Découvert"
+    "discovered": "Découvertes"
   },
   "help": {
     "title": "Aide",
@@ -173,7 +173,7 @@
     },
     "credentials": {
       "title": "Identifiants",
-      "summary": "Un identifiant, c'est un nom d'utilisateur et la façon de se connecter avec : une clé, un mot de passe ou les deux. Il existe une seule fois dans Identifiants, et autant de connexions que nécessaire peuvent l'utiliser ; changer un mot de passe est donc une seule modification au lieu d'une par hôte.",
+      "summary": "Un identifiant, c'est un nom d'utilisateur et la façon de se connecter : une clé, un mot de passe ou les deux. Il existe une seule fois dans Identifiants, et autant de connexions que nécessaire peuvent l'utiliser ; changer un mot de passe est donc une seule modification au lieu d'une par hôte.",
       "oneSource": "Une connexion tire ses informations de connexion d'une seule source : soit un identifiant, soit son propre utilisateur, sa clé et son mot de passe. Les deux ne sont jamais mélangés.",
       "vault": "Le libellé, l'utilisateur et l'id de la clé vivent dans le fichier de données de Sigrun, pour que la liste fonctionne même coffre verrouillé ; le mot de passe est scellé dans le coffre. Un identifiant sans clé ne peut pas perdre son mot de passe — supprimer l'identifiant à la place. La suppression est refusée tant que des connexions l'utilisent.",
       "export": "Les identifiants ne voyagent jamais dans un export. Une connexion importée garde sa référence et affiche « Identifiant manquant » jusqu'à ce qu'un identifiant soit créé ou choisi ; une tentative de connexion est refusée avec l'id plutôt que de retomber sur ses propres clés."
