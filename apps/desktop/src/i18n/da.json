@@ -176,7 +176,8 @@
     "keys": {
       "title": "Nøgler",
       "vault": "Nøgler i pengeskabet ligger krypteret i Sigrun og leveres af dets SSH-agent — ingen nøglefil på disken.",
-      "disk": "Nøgler på disken bliver, hvor de er. Sigrun sender -i <sti> videre til ssh og rører ikke din ~/.ssh."
+      "disk": "Nøgler på disken bliver, hvor de er. Sigrun sender -i <sti> videre til ssh og rører ikke din ~/.ssh.",
+      "move": "En nøgle på disken kan kopieres ind i pengeskabet fra dens række, og en nøgle i pengeskabet kan gemmes til disken. Gemning skriver den private nøgle ukrypteret, så vælg stedet med omhu."
     },
     "credentials": {
       "title": "Logins",

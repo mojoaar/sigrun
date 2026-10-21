@@ -50,6 +50,7 @@ export default function Help() {
         <h3 className="font-semibold">{t("help.keys.title")}</h3>
         <p className="text-muted">{t("help.keys.vault")}</p>
         <p className="text-muted">{t("help.keys.disk")}</p>
+        <p className="text-muted">{t("help.keys.move")}</p>
       </section>
 
       <section className="flex flex-col gap-1">

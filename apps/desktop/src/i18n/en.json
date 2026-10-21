@@ -176,7 +176,8 @@
     "keys": {
       "title": "Keys",
       "vault": "Vault-backed keys live encrypted in Sigrun and are served by its SSH agent — no key file on disk.",
-      "disk": "Disk-backed keys stay where they are. Sigrun passes -i <path> to ssh and leaves your ~/.ssh untouched."
+      "disk": "Disk-backed keys stay where they are. Sigrun passes -i <path> to ssh and leaves your ~/.ssh untouched.",
+      "move": "A key on disk can be copied into the vault from its row, and a vault key can be saved back to disk. Saving writes the private key unencrypted, so choose the place deliberately."
     },
     "credentials": {
       "title": "Credentials",

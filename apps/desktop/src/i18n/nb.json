@@ -176,7 +176,8 @@
     "keys": {
       "title": "Nøkler",
       "vault": "Nøkler i hvelvet ligger kryptert i Sigrun og leveres av Sigruns SSH-agent — ingen nøkkelfil på disken.",
-      "disk": "Nøkler på disk blir liggende der de er. Sigrun sender -i <sti> til ssh og rører aldri ~/.ssh."
+      "disk": "Nøkler på disk blir liggende der de er. Sigrun sender -i <sti> til ssh og rører aldri ~/.ssh.",
+      "move": "En nøkkel på disken kan kopieres inn i hvelvet fra raden sin, og en nøkkel i hvelvet kan lagres tilbake til disken. Lagring skriver den private nøkkelen ukryptert, så velg sted med omhu."
     },
     "credentials": {
       "title": "Pålogginger",

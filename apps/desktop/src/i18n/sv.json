@@ -176,7 +176,8 @@
     "keys": {
       "title": "Nycklar",
       "vault": "Nycklar i valvet ligger krypterade i Sigrun och tillhandahålls av dess SSH-agent — ingen nyckelfil på disken.",
-      "disk": "Nycklar på disk ligger kvar där de är. Sigrun skickar -i <sökväg> till ssh och rör aldrig ~/.ssh."
+      "disk": "Nycklar på disk ligger kvar där de är. Sigrun skickar -i <sökväg> till ssh och rör aldrig ~/.ssh.",
+      "move": "En nyckel på disken kan kopieras in i valvet från sin rad, och en nyckel i valvet kan sparas tillbaka till disken. Sparandet skriver den privata nyckeln okrypterad, så välj plats med omsikt."
     },
     "credentials": {
       "title": "Inloggningar",

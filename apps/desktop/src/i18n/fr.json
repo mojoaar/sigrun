@@ -176,7 +176,8 @@
     "keys": {
       "title": "Clés",
       "vault": "Les clés du coffre sont stockées chiffrées dans Sigrun et servies par son agent SSH — aucun fichier de clé sur le disque.",
-      "disk": "Les clés sur le disque restent où elles sont. Sigrun passe -i <chemin> à ssh et ne touche jamais à ~/.ssh."
+      "disk": "Les clés sur le disque restent où elles sont. Sigrun passe -i <chemin> à ssh et ne touche jamais à ~/.ssh.",
+      "move": "Une clé sur le disque peut être copiée dans le coffre depuis sa ligne, et une clé du coffre peut être réenregistrée sur le disque. L'enregistrement écrit la clé privée en clair : choisissez l'emplacement en connaissance de cause."
     },
     "credentials": {
       "title": "Identifiants",

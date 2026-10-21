@@ -176,7 +176,8 @@
     "keys": {
       "title": "Schlüssel",
       "vault": "Tresorschlüssel liegen verschlüsselt in Sigrun und werden vom SSH-Agenten von Sigrun bereitgestellt — keine Schlüsseldatei auf dem Datenträger.",
-      "disk": "Schlüssel auf dem Datenträger bleiben, wo sie sind. Sigrun übergibt -i <Pfad> an ssh und lässt ~/.ssh unberührt."
+      "disk": "Schlüssel auf dem Datenträger bleiben, wo sie sind. Sigrun übergibt -i <Pfad> an ssh und lässt ~/.ssh unberührt.",
+      "move": "Ein Schlüssel auf dem Datenträger lässt sich über seine Zeile in den Tresor kopieren, und ein Tresorschlüssel lässt sich zurück auf den Datenträger schreiben. Beim Speichern wird der private Schlüssel unverschlüsselt geschrieben — wähle den Ort bewusst."
     },
     "credentials": {
       "title": "Zugangsdaten",

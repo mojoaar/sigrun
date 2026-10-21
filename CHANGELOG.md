@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launching Terminal.app or iTerm opens the connection's window only, without the blank default window in front of it, and a terminal that cannot be started is named in the error (`could not launch ghostty: …`) instead of being called "a terminal".
 - A cold launch of Terminal.app typed the connection into the window it opens on startup instead of adding a second, blank one; a Terminal that is already running still gets a new window.
 - iTerm runs AppleScript `command` directly instead of through a shell, so a connection opened in iTerm died instantly; the line is typed into the session now, the same way Terminal.app receives it.
+- The README and the in-app Help describe moving a key between the vault and disk, and the README lists the keyboard shortcuts.
 - Cmd+F puts the cursor in the connection search field.
 - A key in the vault can be written to disk from its row: the save dialog picks the place, the file is created `0600`, an existing file is never overwritten, and `~/.ssh` is refused.
 - A key Sigrun found on disk can be copied into the vault from its row, with an optional passphrase, instead of re-importing the file.

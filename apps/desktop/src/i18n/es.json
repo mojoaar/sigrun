@@ -176,7 +176,8 @@
     "keys": {
       "title": "Claves",
       "vault": "Las claves de la bóveda viven cifradas en Sigrun y las sirve su agente SSH — ningún archivo de clave en el disco.",
-      "disk": "Las claves en disco se quedan donde están. Sigrun pasa -i <ruta> a ssh y nunca toca ~/.ssh."
+      "disk": "Las claves en disco se quedan donde están. Sigrun pasa -i <ruta> a ssh y nunca toca ~/.ssh.",
+      "move": "Una clave del disco se puede copiar a la bóveda desde su fila, y una clave de la bóveda se puede guardar de nuevo en el disco. Al guardarla, la clave privada se escribe sin cifrar: elige el sitio a conciencia."
     },
     "credentials": {
       "title": "Credenciales",

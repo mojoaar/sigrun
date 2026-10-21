@@ -98,8 +98,9 @@ use **Install SSH key…** — see
   session shows a pulsing dot on its row in the app; on Windows sessions are not
   tracked, so no dot appears.
 - **Keep keys in an encrypted vault.** Generate Ed25519, RSA, or ECDSA keys,
-  import or discover the ones already in `~/.ssh`, and let an in-process
-  OpenSSH agent serve vault keys to `ssh`.
+  import or discover the ones already in `~/.ssh`, move a key between the vault
+  and disk from its row, and let an in-process OpenSSH agent serve vault keys
+  to `ssh`.
 - **Reach password-only servers.** Store a password on the connection or in a
   credential, or install a key on a server with **Install SSH key…** using the
   password once.
@@ -115,6 +116,9 @@ use **Install SSH key…** — see
 The app is the long-lived host: it owns the vault, agent, and IPC, runs as a
 single instance, and closing the window minimizes it to the tray — quitting is
 explicit, from the tray menu.
+
+Keyboard: `Cmd+N` opens a new connection, `Cmd+F` jumps to the search field,
+`Cmd+,` opens Settings. On Windows and Linux the same shortcuts use `Ctrl`.
 
 ```bash
 cd apps/desktop && npm run tauri dev
