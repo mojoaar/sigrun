@@ -428,6 +428,13 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
   const [provision, setProvision] = useState<Connection | null>(null);
   const [provisioned, setProvisioned] = useState<ProvisionOutcome | null>(null);
+
+  // The install result is a confirmation, not state: let it clear itself.
+  useEffect(() => {
+    if (!provisioned) return;
+    const timer = setTimeout(() => setProvisioned(null), 5000);
+    return () => clearTimeout(timer);
+  }, [provisioned]);
   const [error, setError] = useState<string | null>(null);
   const [trust, setTrust] = useState<(TrustRetry & { fp: string; algo: string; key: string }) | null>(null);
   const [mismatch, setMismatch] = useState(false);
@@ -596,7 +603,9 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
       {mismatch && <p role="alert" className="text-danger">{t("trust.mismatch")}</p>}
       {provisioned && (
         <p role="status" className="text-sm">
-          {t("provision.installed", { installed: provisioned.installed.join(", "), verified: provisioned.verified.join(", ") })}
+          {provisioned.verified.length === provisioned.installed.length
+            ? t("provision.installedAll", { installed: provisioned.installed.join(", ") })
+            : t("provision.installed", { installed: provisioned.installed.join(", "), verified: provisioned.verified.join(", ") })}
           {typeof provisioned.hardening === "object" && ` ${t("provision.skipped", { reason: provisioned.hardening.skipped })}`}
         </p>
       )}

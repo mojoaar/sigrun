@@ -106,6 +106,7 @@
     "lockoutWarning": "This will lock you out if key login fails. Make sure you can log in with a key first.",
     "install": "Install SSH key…",
     "installed": "Installed: {{installed}} — verified: {{verified}}",
+    "installedAll": "Installed and verified {{installed}}.",
     "skipped": "Password authentication was left enabled: {{reason}}"
   },
   "settings": {

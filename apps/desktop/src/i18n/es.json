@@ -106,6 +106,7 @@
     "lockoutWarning": "Esto bloqueará el acceso si falla el inicio de sesión con clave. Asegurarse primero de poder iniciar sesión con una clave.",
     "install": "Instalar clave SSH…",
     "installed": "Instaladas: {{installed}} — verificadas: {{verified}}",
+    "installedAll": "{{installed}}: instalación y verificación correctas.",
     "skipped": "La autenticación por contraseña sigue activada: {{reason}}"
   },
   "settings": {

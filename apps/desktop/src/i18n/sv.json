@@ -106,6 +106,7 @@
     "lockoutWarning": "Åtkomsten förloras om nyckelinloggning misslyckas. Kontrollera först att inloggning med nyckel fungerar.",
     "install": "Installera SSH-nyckel…",
     "installed": "Installerade: {{installed}} — verifierade: {{verified}}",
+    "installedAll": "{{installed}}: installation och verifiering klar.",
     "skipped": "Lösenordsautentisering lämnades aktiverad: {{reason}}"
   },
   "settings": {

@@ -106,6 +106,7 @@
     "lockoutWarning": "Cela bloquera l'accès si la connexion par clé échoue. Vérifier d'abord que la connexion par clé fonctionne.",
     "install": "Installer une clé SSH…",
     "installed": "Installées : {{installed}} — vérifiées : {{verified}}",
+    "installedAll": "{{installed}} : installation et vérification réussies.",
     "skipped": "L'authentification par mot de passe reste activée : {{reason}}"
   },
   "settings": {

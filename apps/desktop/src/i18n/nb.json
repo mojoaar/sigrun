@@ -106,6 +106,7 @@
     "lockoutWarning": "Tilgangen går tapt hvis pålogging med nøkkel mislykkes. Kontroller først at det går an å logge inn med en nøkkel.",
     "install": "Installer SSH-nøkkel…",
     "installed": "Installert: {{installed}} — verifisert: {{verified}}",
+    "installedAll": "{{installed}}: installasjon og verifisering fullført.",
     "skipped": "Passordautentisering ble stående på: {{reason}}"
   },
   "settings": {

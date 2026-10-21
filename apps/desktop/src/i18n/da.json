@@ -106,6 +106,7 @@
     "lockoutWarning": "Det låser dig ude, hvis nøglelogin mislykkes. Sørg for, at du kan logge ind med en nøgle først.",
     "install": "Installér SSH-nøgle…",
     "installed": "Installeret: {{installed}} — bekræftet: {{verified}}",
+    "installedAll": "Installerede og bekræftede {{installed}}.",
     "skipped": "Adgangskodegodkendelse blev ikke slået fra: {{reason}}"
   },
   "settings": {

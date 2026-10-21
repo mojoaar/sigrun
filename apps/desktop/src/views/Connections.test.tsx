@@ -263,7 +263,10 @@ describe("Connections", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /install ssh key/i }));
 
     await waitFor(() => expect(api.provisionConnection).toHaveBeenCalledWith("c1", "hunter2", ["k1"], true));
-    expect((await screen.findByRole("status")).textContent).toMatch(/work/);
+    const status = await screen.findByRole("status");
+    // One list, not "Installed: x — verified: x".
+    expect(status.textContent).toMatch(/Installed and verified work/);
+    expect(status.textContent).not.toMatch(/verified:/);
     await waitFor(() => expect(api.updateConnection).toHaveBeenCalledWith(expect.objectContaining({ id: "c1", disable_password_auth: true })));
     expect(screen.queryByRole("dialog", { name: /install ssh key/i })).toBeNull();
   });

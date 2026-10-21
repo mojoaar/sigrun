@@ -106,6 +106,7 @@
     "lockoutWarning": "Dies sperrt den Zugang, falls die Anmeldung mit Schlüssel fehlschlägt. Zuvor sicherstellen, dass die Anmeldung mit einem Schlüssel funktioniert.",
     "install": "SSH-Schlüssel installieren…",
     "installed": "Installiert: {{installed}} — verifiziert: {{verified}}",
+    "installedAll": "{{installed}} installiert und geprüft.",
     "skipped": "Passwort-Authentifizierung wurde aktiviert gelassen: {{reason}}"
   },
   "settings": {
