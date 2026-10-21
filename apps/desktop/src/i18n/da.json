@@ -135,6 +135,7 @@
     "transferExported": "Eksporteret {{connections}} forbindelser og {{keys}} nøgler.",
     "transferImported": "Importeret: {{added}} tilføjede, {{skipped}} sprunget over, {{invalid}} ugyldige, {{unresolved}} uopløste nøgler."
   },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
     "title": "Stoler du på denne vært?",
     "body": "Det er første gang, du forbinder til denne vært. Kontrollér fingeraftrykket, før du fortsætter.",

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { exportBundle, getSettings, importBundle, saveSettings, setWindowTheme, listTerminals, type CommandError, type Settings as S, type TerminalInfo } from "../api";
-import { setLanguage, type Language } from "../i18n";
+import { setLanguage, LANGUAGES } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
 
 const field = "h-9 rounded border border-border bg-bg px-2 text-text";
@@ -16,7 +16,7 @@ export default function Settings({ transferRequest, onTransferDone }: {
   transferRequest?: "import" | "export" | null;
   onTransferDone?: () => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [s, setS] = useState<S | null>(null);
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [mode, setMode] = useState<Mode | "system">(readModeOverride() ?? "system");
@@ -38,7 +38,6 @@ export default function Settings({ transferRequest, onTransferDone }: {
       })
       .catch(() => {});
   }, []);
-  const da = i18n.language === "da";
   const zipFilter = { name: t("settings.transferZipFilter"), extensions: ["zip"] };
   // A cancelled picker resolves to null and must do nothing at all.
   const transfer = (op: () => Promise<string | null>) => {
@@ -103,7 +102,7 @@ export default function Settings({ transferRequest, onTransferDone }: {
           applyTheme(e.target.value as ThemeName, resolveMode(mode === "system" ? null : mode));
           update({ theme: e.target.value });
         }}>
-          {(Object.keys(THEMES) as ThemeName[]).map((n) => <option key={n} value={n}>{da ? THEMES[n].labelDa : THEMES[n].label}</option>)}
+          {THEMES.map((n) => <option key={n} value={n}>{t(`theme.${n}`)}</option>)}
         </select>
       </label>
       <label className="flex flex-col gap-1">{t("settings.mode")}
@@ -114,9 +113,8 @@ export default function Settings({ transferRequest, onTransferDone }: {
         </select>
       </label>
       <label className="flex flex-col gap-1">{t("settings.language")}
-        <select className={field} value={s.language} onChange={(e) => { void setLanguage(e.target.value as Language); update({ language: e.target.value }); }}>
-          <option value="en">English</option>
-          <option value="da">Dansk</option>
+        <select className={field} value={s.language} onChange={(e) => { void setLanguage(e.target.value); update({ language: e.target.value }); }}>
+          {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
         </select>
       </label>
       <label className="flex flex-col gap-1">{t("settings.terminal")}

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Theme names come from the interface language files, and the language picker is driven by one table.
 - GitHub releases are published as normal releases rather than pre-releases.
 
 ### Fixed

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { applyTheme, resolveMode, THEMES, DEFAULT_THEME, TOKENS, type ThemeName } from "./index";
+import { applyTheme, resolveMode, THEMES, DEFAULT_THEME, TOKENS } from "./index";
 
 describe("themes", () => {
   it("exposes the four themes with nordlys as default", () => {
-    expect(Object.keys(THEMES).sort()).toEqual(["fjord", "nordlys", "ravn", "skumring"]);
+    expect([...THEMES].sort()).toEqual(["fjord", "nordlys", "ravn", "skumring"]);
     expect(DEFAULT_THEME).toBe("nordlys");
   });
   it("applies nordlys dark tokens to :root", () => {
@@ -18,7 +18,7 @@ describe("themes", () => {
     expect(document.documentElement.style.getPropertyValue("--color-bg")).not.toBe(dark);
   });
   it("defines all seven tokens as hex strings for every theme and mode", () => {
-    for (const name of Object.keys(THEMES) as ThemeName[]) {
+    for (const name of THEMES) {
       for (const mode of ["light", "dark"] as const) {
         applyTheme(name, mode);
         expect(document.documentElement.dataset.theme).toBe(name);

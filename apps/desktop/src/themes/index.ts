@@ -11,12 +11,7 @@ export const TOKENS = ["bg", "surface", "text", "muted", "accent", "danger", "bo
 
 export const DEFAULT_THEME: ThemeName = "nordlys";
 
-export const THEMES: Record<ThemeName, { label: string; labelDa: string }> = {
-  nordlys: { label: "Nordlys", labelDa: "Nordlys" },
-  fjord: { label: "Fjord", labelDa: "Fjord" },
-  ravn: { label: "Ravn", labelDa: "Ravn" },
-  skumring: { label: "Skumring", labelDa: "Skumring" },
-};
+export const THEMES: ThemeName[] = ["nordlys", "fjord", "ravn", "skumring"];
 
 const PALETTES: Record<ThemeName, { light: TokenMap; dark: TokenMap }> = { nordlys, fjord, ravn, skumring };
 

@@ -135,6 +135,7 @@
     "transferExported": "Exported {{connections}} connections and {{keys}} keys.",
     "transferImported": "Imported {{added}} added, {{skipped}} skipped, {{invalid}} invalid, {{unresolved}} unresolved keys."
   },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
     "title": "Trust this host?",
     "body": "This is the first time you connect to this host. Verify the fingerprint before continuing.",

@@ -4,6 +4,18 @@ import { invoke } from "@tauri-apps/api/core";
 import en from "./en.json";
 import da from "./da.json";
 
+export type Language = "en" | "da" | "de" | "fr" | "es" | "sv" | "nb";
+
+// Native names, never translated. A language task adds its entry with its bundle.
+export const LANGUAGES: { code: Language; name: string }[] = [
+  { code: "en", name: "English" },
+  { code: "da", name: "Dansk" },
+];
+
+export function isLanguage(value: string): value is Language {
+  return LANGUAGES.some((l) => l.code === value);
+}
+
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, da: { translation: da } },
   lng: "en",
@@ -11,18 +23,22 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
-export type Language = "en" | "da";
+// One owner for <html lang>, so the persisted startup path keeps it in step too.
+i18n.on("languageChanged", (lng) => {
+  document.documentElement.lang = isLanguage(lng) ? lng : "en";
+});
 
-export async function setLanguage(lng: Language): Promise<void> {
+export async function setLanguage(lng: string): Promise<void> {
+  const code = isLanguage(lng) ? lng : "en";
   try {
     const res = await invoke<unknown>("get_settings");
     const raw = typeof res === "string" ? res : (res as { value: string }).value;
     const settings = JSON.parse(raw);
-    await invoke("save_settings", { settings: { ...settings, language: lng } });
+    await invoke("save_settings", { settings: { ...settings, language: code } });
   } catch {
     // No Tauri runtime (tests, browser) or persistence failed: still switch the UI.
   }
-  await i18n.changeLanguage(lng);
+  await i18n.changeLanguage(code);
 }
 
 export default i18n;
