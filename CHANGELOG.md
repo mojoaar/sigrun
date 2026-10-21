@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Launching Terminal.app or iTerm opens the connection's window only, without the blank default window in front of it, and a terminal that cannot be started is named in the error (`could not launch ghostty: …`) instead of being called "a terminal".
+- A cold launch of Terminal.app typed the connection into the window it opens on startup instead of adding a second, blank one; a Terminal that is already running still gets a new window.
 - iTerm runs AppleScript `command` directly instead of through a shell, so a connection opened in iTerm died instantly; the line is typed into the session now, the same way Terminal.app receives it.
 - Connecting no longer refuses a host the reachability probe cannot classify. Only a name that will not resolve, a refused port and a timeout block the launch; any other error (a firewall or VPN reporting "no route to host" for a host that answers) is logged and ssh gets the last word.
 - Installing a key names the host and port when the connection fails ("cannot reach h:22: …") instead of the bare ssh error, and the password field may be left empty to use the password already saved on the connection or its credential.

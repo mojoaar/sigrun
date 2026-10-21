@@ -429,9 +429,24 @@ end tell"#
                 );
                 ("iTerm", script)
             } else {
+                // A cold launch makes Terminal open its startup window, and a
+                // bare `do script` then opens a second one. Type into the window
+                // that launch just made unless Terminal was already running.
                 (
                     "Terminal",
-                    format!("tell application \"Terminal\" to do script \"{}\"", cmd),
+                    format!(
+                        r#"set wasRunning to application "Terminal" is running
+tell application "Terminal"
+  activate
+  if wasRunning then
+    do script "{cmd}"
+  else if (count of windows) is 0 then
+    do script "{cmd}"
+  else
+    do script "{cmd}" in front window
+  end if
+end tell"#
+                    ),
                 )
             };
             Ok(vec![LaunchSpec {
@@ -818,6 +833,11 @@ mod tests {
             "script was {:?}",
             specs[0].args[1]
         );
+        // A cold launch opens Terminal's startup window; `do script` would add
+        // a second, blank one. Only a Terminal that was already running gets a
+        // brand-new window.
+        assert!(specs[0].args[1].contains("application \"Terminal\" is running"));
+        assert!(specs[0].args[1].contains("in front window"));
     }
 
     #[test]
@@ -1009,6 +1029,10 @@ mod tests {
         )
         .unwrap();
         let line = specs[0].args.join(" ");
+        // The Terminal.app script carries the command in three branches (already
+        // running, cold start with no window, cold start with one), so the
+        // ordering checks below run against a single copy.
+        let line = line.rsplit("do script \"").next().unwrap_or(&line);
         // The pid is the shell's own (`$$`), so the host can watch it: a killed
         // terminal group cannot report its own end.
         assert!(line.contains("session-started c1 $$"), "{line}");
