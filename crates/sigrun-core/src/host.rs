@@ -990,9 +990,21 @@ async fn connections_connect(
     };
 
     // Key and vault are validated first (unchanged order); only then does the
-    // host get contacted, so a bad key never costs a probe round trip.
+    // host get contacted, so a bad key never costs a probe round trip. A probe
+    // that cannot prove the host is out of reach only advises: ssh decides,
+    // because a firewall can report EHOSTUNREACH for a host that answers.
     if !print_only && !force {
-        probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await?;
+        if let Err(failure) =
+            probe_reachable(&conn.host, conn.port, std::time::Duration::from_secs(3)).await
+        {
+            if failure.blocks() {
+                return Err(failure.into_error());
+            }
+            eprintln!(
+                "sigrun: probe inconclusive, letting ssh try: {}",
+                failure.message()
+            );
+        }
     }
 
     // Only a password the vault can actually serve drives the ssh argv and the

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Screenshots of the connections list, the add-connection dialog, the keys, credential and settings views, in the README.
 
+### Fixed
+
+- Connecting no longer refuses a host the reachability probe cannot classify. Only a name that will not resolve, a refused port and a timeout block the launch; any other error (a firewall or VPN reporting "no route to host" for a host that answers) is logged and ssh gets the last word.
+
 ## [0.3.0] - 2026-10-21
 
 ### Added

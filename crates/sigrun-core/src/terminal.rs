@@ -106,25 +106,69 @@ pub fn ssh_invocation(
     Ok(argv)
 }
 
-/// Build the `Unreachable` error for a failed probe, keeping the OS message for
+/// A failed reachability probe: what to tell the user, and whether that answer
+/// is worth refusing to launch ssh over.
+#[derive(Debug)]
+pub struct ProbeFailure {
+    message: String,
+    proven: bool,
+}
+
+impl ProbeFailure {
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// Only a name that will not resolve, a refused port or a timeout prove the
+    /// host is out of reach. Anything else (a firewall or VPN reporting
+    /// `EHOSTUNREACH` for a host that answers, a sandbox denial) is advice: the
+    /// ssh we would launch can still connect, so it gets the last word.
+    pub fn blocks(&self) -> bool {
+        self.proven
+    }
+
+    pub fn into_error(self) -> Error {
+        Error::Unreachable(self.message)
+    }
+}
+
+/// Build the `ProbeFailure` for a failed probe, keeping the OS message for
 /// every failure except a plain refusal (where the concise wording is enough).
-fn probe_failure(host: &str, port: u16, err: Option<&std::io::Error>) -> Error {
-    Error::Unreachable(match err {
-        None => format!("could not resolve {host}"),
+fn probe_failure(host: &str, port: u16, err: Option<&std::io::Error>) -> ProbeFailure {
+    let (message, proven) = match err {
+        None => (format!("could not resolve {host}"), true),
         Some(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
-            format!("connection refused on {host}:{port}")
+            (format!("connection refused on {host}:{port}"), true)
         }
-        Some(e) => format!("cannot reach {host}:{port}: {e}"),
-    })
+        Some(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+            (format!("cannot reach {host}:{port}: {e}"), true)
+        }
+        Some(e) => (format!("cannot reach {host}:{port}: {e}"), false),
+    };
+    ProbeFailure { message, proven }
 }
 
 /// Check that a TCP connection to `host:port` can be established within
 /// `timeout`. Carries no secret: the message names host and port only.
-pub async fn probe_reachable(host: &str, port: u16, timeout: std::time::Duration) -> Result<()> {
+pub async fn probe_reachable(
+    host: &str,
+    port: u16,
+    timeout: std::time::Duration,
+) -> std::result::Result<(), ProbeFailure> {
     let attempt = async {
-        let addrs = tokio::net::lookup_host((host, port))
+        let addrs: Vec<_> = tokio::net::lookup_host((host, port))
             .await
-            .map_err(|e| probe_failure(host, port, Some(&e)))?;
+            .map_err(|_| ProbeFailure {
+                message: format!("could not resolve {host}"),
+                proven: true,
+            })?
+            .collect();
+        if addrs.is_empty() {
+            return Err(ProbeFailure {
+                message: format!("could not resolve {host}"),
+                proven: true,
+            });
+        }
         let mut last_error = None;
         for addr in addrs {
             match tokio::net::TcpStream::connect(addr).await {
@@ -136,9 +180,10 @@ pub async fn probe_reachable(host: &str, port: u16, timeout: std::time::Duration
     };
     match tokio::time::timeout(timeout, attempt).await {
         Ok(result) => result,
-        Err(_) => Err(Error::Unreachable(format!(
-            "connection timed out on {host}:{port}"
-        ))),
+        Err(_) => Err(ProbeFailure {
+            message: format!("connection timed out on {host}:{port}"),
+            proven: true,
+        }),
     }
 }
 
@@ -614,37 +659,56 @@ mod tests {
 
     #[tokio::test]
     async fn probe_reports_a_closed_port() {
-        let err = probe_reachable("127.0.0.1", 1, Duration::from_millis(500))
+        let failure = probe_reachable("127.0.0.1", 1, Duration::from_millis(500))
             .await
             .unwrap_err();
-        let Error::Unreachable(m) = err else {
-            panic!("unexpected {err:?}");
-        };
-        assert!(m.contains("127.0.0.1"), "message was {m:?}");
+        assert!(failure.message().contains("127.0.0.1"), "was {failure:?}");
+        assert!(failure.blocks());
     }
 
     #[tokio::test]
     async fn probe_reachability_resolves_a_bad_name() {
         // `.invalid` is reserved and never resolves.
-        let err = probe_reachable("sigrun.invalid", 22, Duration::from_millis(500))
+        let failure = probe_reachable("sigrun.invalid", 22, Duration::from_millis(500))
             .await
             .unwrap_err();
-        assert!(matches!(err, Error::Unreachable(_)));
+        assert!(failure.blocks());
     }
 
     #[test]
     fn probe_failures_keep_the_os_error() {
         let denied = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "not permitted");
-        let Error::Unreachable(m) = probe_failure("h", 22, Some(&denied)) else {
-            panic!("expected unreachable");
-        };
-        assert_eq!(m, "cannot reach h:22: not permitted");
+        let failure = probe_failure("h", 22, Some(&denied));
+        assert_eq!(failure.message(), "cannot reach h:22: not permitted");
+        // Unusable locally, but ssh may still get through, so it does not block.
+        assert!(!failure.blocks());
 
         let refused = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
-        let Error::Unreachable(m) = probe_failure("h", 22, Some(&refused)) else {
-            panic!("expected unreachable");
-        };
-        assert_eq!(m, "connection refused on h:22");
+        let failure = probe_failure("h", 22, Some(&refused));
+        assert_eq!(failure.message(), "connection refused on h:22");
+        assert!(failure.blocks());
+    }
+
+    #[test]
+    fn only_proven_probe_failures_block_the_launch() {
+        // `EHOSTUNREACH` is what a firewall or VPN reports for a host that does
+        // answer, so it advises while a resolved refusal or a timeout decides.
+        let cases = [
+            (std::io::ErrorKind::HostUnreachable, false),
+            (std::io::ErrorKind::NetworkUnreachable, false),
+            (std::io::ErrorKind::PermissionDenied, false),
+            (std::io::ErrorKind::TimedOut, true),
+            (std::io::ErrorKind::ConnectionRefused, true),
+        ];
+        for (kind, blocks) in cases {
+            let err = std::io::Error::new(kind, "boom");
+            assert_eq!(
+                probe_failure("h", 22, Some(&err)).blocks(),
+                blocks,
+                "{kind:?} should block == {blocks}"
+            );
+        }
+        assert!(probe_failure("h", 22, None).blocks(), "a bad name blocks");
     }
 
     #[test]

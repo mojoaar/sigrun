@@ -189,9 +189,10 @@ mod tests {
         let state = HostState::new(paths).await.unwrap();
         let mut c = Connection::managed("c1", "web");
         c.host = "127.0.0.1".into();
-        c.port = 0;
+        // Port 1 is closed on every host we run on, so the probe refuses it.
+        c.port = 1;
         c.user = "u".into();
-        state.store.upsert_connection(c).unwrap();
+        state.store.upsert_connection(c.clone()).unwrap();
 
         let resp = handle(
             &state,
@@ -210,8 +211,11 @@ mod tests {
             other => panic!("unexpected {other:?}"),
         }
 
-        // Forced, the probe is skipped: the port check in `ssh_invocation` is
-        // what refuses next, so the terminal launcher is never reached.
+        // Forced, the probe is skipped: with an impossible port the check in
+        // `ssh_invocation` refuses next, so the terminal launcher is never
+        // reached.
+        c.port = 0;
+        state.store.upsert_connection(c).unwrap();
         let resp = handle(
             &state,
             Request::ConnectionsConnect {
