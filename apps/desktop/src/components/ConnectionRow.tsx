@@ -28,7 +28,7 @@ export default function ConnectionRow({ conn, credentialMissing, credentialUser,
         {conn.source === "discovered" && <span className="text-xs text-accent">{t("connections.discovered")}</span>}
       </div>
       <div className="flex items-center gap-2">
-        <button className={btn} onClick={onConnect}>{t("connections.connect")}</button>
+        <button className="rounded bg-accent px-2 py-1 font-medium text-bg" onClick={onConnect}>{t("connections.connect")}</button>
         {canProvision
           ? <button className={btn} onClick={onProvision}>{t("provision.install")}</button>
           : <button className={btn} onClick={onGoToKeys}>{t("provision.importKey")}</button>}
