@@ -54,6 +54,7 @@
     "passwordHint": "La contraseña del servidor, almacenada cifrada en la bóveda de Sigrun. No es la frase de contraseña de la bóveda.",
     "removeSavedPassword": "Eliminar la contraseña guardada",
     "hasPassword": "Contraseña guardada",
+    "usesKey": "Clave {{name}}",
     "search": "Buscar conexiones",
     "noMatches": "Ninguna conexión coincide.",
     "discovered": "Descubierta en ~/.ssh/config",

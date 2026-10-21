@@ -54,6 +54,7 @@
     "passwordHint": "Serverns lösenord, lagrat krypterat i Sigruns valv. Det är inte valvets lösenfras.",
     "removeSavedPassword": "Ta bort det sparade lösenordet",
     "hasPassword": "Lösenord sparat",
+    "usesKey": "Nyckel {{name}}",
     "search": "Sök anslutningar",
     "noMatches": "Inga anslutningar matchar.",
     "discovered": "Hittad i ~/.ssh/config",

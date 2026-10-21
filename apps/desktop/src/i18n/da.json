@@ -54,6 +54,7 @@
     "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
     "removeSavedPassword": "Fjern den gemte adgangskode",
     "hasPassword": "Adgangskode gemt",
+    "usesKey": "Nøgle {{name}}",
     "search": "Søg i forbindelser",
     "noMatches": "Ingen forbindelser matcher.",
     "discovered": "Fundet i ~/.ssh/config",

@@ -54,6 +54,7 @@
     "passwordHint": "Das Passwort des Servers, verschlüsselt im Tresor von Sigrun gespeichert. Dies ist nicht die Passphrase des Tresors.",
     "removeSavedPassword": "Gespeichertes Passwort entfernen",
     "hasPassword": "Passwort gespeichert",
+    "usesKey": "Schlüssel {{name}}",
     "search": "Verbindungen durchsuchen",
     "noMatches": "Keine Verbindungen gefunden.",
     "discovered": "In ~/.ssh/config gefunden",

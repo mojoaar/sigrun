@@ -54,6 +54,7 @@
     "passwordHint": "Serverens passord, lagret kryptert i Sigruns hvelv. Det er ikke passfrasen til hvelvet.",
     "removeSavedPassword": "Fjern det lagrede passordet",
     "hasPassword": "Passord lagret",
+    "usesKey": "Nøkkel {{name}}",
     "search": "Søk i tilkoblinger",
     "noMatches": "Ingen tilkoblinger samsvarer.",
     "discovered": "Funnet i ~/.ssh/config",

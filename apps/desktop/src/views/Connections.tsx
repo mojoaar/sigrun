@@ -557,6 +557,11 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   // A credential the host no longer holds: the row says so instead of hiding it.
   const credentialMissing = (id: string | null) => id !== null && !credentials.some((c) => c.id === id);
   const credentialUser = (id: string | null) => credentials.find((c) => c.id === id)?.user ?? "";
+  // A connection signs in with its own key or with the one its credential holds.
+  const keyName = (c: Connection) => {
+    const id = c.key_id ?? credentials.find((cred) => cred.id === c.credential_id)?.key_id ?? null;
+    return keys.find((k) => k.key.id === id)?.key.name ?? "";
+  };
 
   const renderNode = (node: TreeNode) => (
     <section key={node.path} className="flex flex-col gap-2">
@@ -569,6 +574,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
               conn={c}
               credentialMissing={credentialMissing(c.credential_id)}
               credentialUser={credentialUser(c.credential_id)}
+              keyName={keyName(c)}
               canProvision={hasUsableKey}
               onProvision={() => openProvision(c)}
               onConnect={() => { setMismatch(false); void doConnect(c); }}

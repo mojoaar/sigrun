@@ -54,6 +54,7 @@
     "passwordHint": "The server's password, stored encrypted in Sigrun's vault. This is not your vault passphrase.",
     "removeSavedPassword": "Remove the saved password",
     "hasPassword": "Password saved",
+    "usesKey": "Key {{name}}",
     "search": "Search connections",
     "noMatches": "No connections match.",
     "discovered": "Discovered in ~/.ssh/config",

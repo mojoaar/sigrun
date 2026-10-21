@@ -155,6 +155,17 @@ describe("Connections", () => {
     expect(await screen.findByText("deploy@194.180.176.88:22")).toBeTruthy();
   });
 
+  it("names the key a connection signs in with, its own or its credential's", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "web", key_id: "k1" },
+      { ...conn, id: "c2", label: "db", user: "", credential_id: "cred1" },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValueOnce([vaultKey]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential({ key_id: "k1" })]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findAllByText("Key work")).toHaveLength(2);
+  });
+
   it("shows the host's reason when a connect is refused", async () => {
     vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "invalid_input", message: "connection old uses credential gone, which is not stored" });
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);

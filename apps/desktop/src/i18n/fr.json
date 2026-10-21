@@ -54,6 +54,7 @@
     "passwordHint": "Le mot de passe du serveur, stocké chiffré dans le coffre de Sigrun. Ce n'est pas la phrase secrète du coffre.",
     "removeSavedPassword": "Supprimer le mot de passe enregistré",
     "hasPassword": "Mot de passe enregistré",
+    "usesKey": "Clé {{name}}",
     "search": "Rechercher des connexions",
     "noMatches": "Aucune connexion ne correspond.",
     "discovered": "Découverte dans ~/.ssh/config",
