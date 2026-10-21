@@ -118,7 +118,7 @@ single instance, and closing the window minimizes it to the tray — quitting is
 explicit, from the tray menu.
 
 Keyboard: `Cmd+N` opens a new connection, `Cmd+F` jumps to the search field,
-`Cmd+,` opens Settings. On Windows and Linux the same shortcuts use `Ctrl`.
+`Cmd+L` locks the vault, `Cmd+,` opens Settings. On Windows and Linux the same shortcuts use `Ctrl`.
 
 ```bash
 cd apps/desktop && npm run tauri dev

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iTerm runs AppleScript `command` directly instead of through a shell, so a connection opened in iTerm died instantly; the line is typed into the session now, the same way Terminal.app receives it.
 - The README and the in-app Help describe moving a key between the vault and disk, and the README lists the keyboard shortcuts.
 - Cmd+F puts the cursor in the connection search field.
+- `Cmd+L` locks the vault, the same action as the Lock button, and the README lists it with the other shortcuts.
 - A key in the vault can be written to disk from its row: the save dialog picks the place, the file is created `0600`, an existing file is never overwritten, and `~/.ssh` is refused.
 - A key Sigrun found on disk can be copied into the vault from its row, with an optional passphrase, instead of re-importing the file.
 - A connection row names the key it signs in with, whether the key is its own or comes from its credential, next to the password badge.
