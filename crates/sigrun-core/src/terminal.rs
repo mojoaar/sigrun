@@ -354,6 +354,10 @@ pub fn terminal_launch_specs(
         // the failure path exactly as it was: drop into a shell so the error
         // stays on screen instead of the window closing.
         //
+        // A signal death (rc >= 128) is not a failure to read: closing the
+        // window kills ssh with SIGHUP, and a shell started from that would
+        // keep the window alive, so the close has to go through.
+        //
         // The trap is what makes the dot go out when the window is closed: that
         // kills this shell with SIGHUP, and without a trap it dies before the
         // end report below ever runs.
@@ -361,7 +365,7 @@ pub fn terminal_launch_specs(
         // The pid report runs before `ssh`, so a session killed the instant it
         // starts is still watched.
         Some(reports) => format!(
-            "trap {} HUP TERM INT; {}; {cmd}; rc=$?; {}; [ $rc -ne 0 ] && exec ${{SHELL:-/bin/sh}}; exit $rc",
+            "trap {} HUP TERM INT; {}; {cmd}; rc=$?; {}; [ $rc -ne 0 ] && [ $rc -lt 128 ] && exec ${{SHELL:-/bin/sh}}; exit $rc",
             shell_escape(&format!("{}; exit", reports.ended)),
             reports.started,
             reports.ended,
@@ -963,7 +967,7 @@ mod tests {
                 specs[0]
                     .args
                     .join(" ")
-                    .contains("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}"),
+                    .contains("[ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}"),
                 "macos {configured:?} should keep the window open with a report"
             );
         }
@@ -974,7 +978,7 @@ mod tests {
             assert!(spec
                 .args
                 .join(" ")
-                .contains("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}"));
+                .contains("[ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}"));
         }
     }
 
@@ -1065,7 +1069,7 @@ mod tests {
         let ssh_at = line.find("ssh deploy@example.com").expect("ssh runs");
         assert!(prefix_at < ssh_at, "{line}");
         assert!(
-            line.ends_with("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
+            line.ends_with("[ $rc -ne 0 ] && [ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}; exit $rc"),
             "{line}"
         );
         // No stored password: the line is unchanged and ssh prompts as before.
@@ -1151,7 +1155,7 @@ mod tests {
             .rfind("connection-ended c1")
             .expect("the end is reported");
         let keep_at = line
-            .find("[ $rc -ne 0 ] && exec ${SHELL:-/bin/sh}; exit $rc")
+            .find("[ $rc -ne 0 ] && [ $rc -lt 128 ] && exec ${SHELL:-/bin/sh}; exit $rc")
             .expect("the failure path survives");
         assert!(rc_at < ended_at && ended_at < keep_at, "{line}");
     }
