@@ -1460,7 +1460,10 @@ mod tests {
             .await
             .unwrap();
         let written = std::fs::read_to_string(&out).unwrap();
-        assert!(written.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"), "{written}");
+        assert!(
+            written.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"),
+            "{written}"
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1478,7 +1481,12 @@ mod tests {
         let inside = state.paths.ssh_dir.join("exported");
         std::fs::create_dir_all(&state.paths.ssh_dir).unwrap();
         assert!(matches!(
-            keys_export(&state, key_id.clone(), inside.to_string_lossy().into_owned()).await,
+            keys_export(
+                &state,
+                key_id.clone(),
+                inside.to_string_lossy().into_owned()
+            )
+            .await,
             Err(Error::InvalidInput(_))
         ));
         assert!(!inside.exists());
