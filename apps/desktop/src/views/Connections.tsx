@@ -423,6 +423,20 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const { t } = useTranslation();
   const [conns, setConns] = useState<Connection[]>([]);
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // ⌘F belongs to the search box, and the field only exists while this view is
+  // mounted, so the shortcut is registered here rather than with the menu.
+  useEffect(() => {
+    const focusSearch = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [form, setForm] = useState<{ edit: Connection | null } | null>(null);
@@ -595,6 +609,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
         <h2 className="text-lg font-semibold">{t("connections.title")}</h2>
         <div className="flex w-full max-w-sm items-center gap-2">
           <input
+            ref={searchRef}
             type="search"
             className={field}
             value={query}

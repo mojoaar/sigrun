@@ -1156,4 +1156,13 @@ describe("Connections", () => {
       credential_id: "cred1", key_id: null, has_password: false,
     }));
   });
+  it("focuses the search field on Cmd+F", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([conn]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    await screen.findByLabelText("Search connections");
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true });
+
+    expect(document.activeElement).toBe(screen.getByLabelText("Search connections"));
+  });
 });
