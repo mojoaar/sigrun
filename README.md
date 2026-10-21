@@ -24,6 +24,25 @@ It has three faces that share one vault: a **desktop app** (window + system
 tray), a **CLI** (`sigrun`), and a long-lived host that owns the vault, the
 agent, and the local IPC they both talk to.
 
+## A look at it
+
+Connections, grouped, with a credential-backed row and a live session:
+
+![The connections list in the dark theme](docs/screenshots/connections.webp)
+
+Adding a connection from a credential — picking one sign-in source hides the
+user, key and password fields:
+
+![The add-connection dialog with a credential selected](docs/screenshots/connection-dialog.webp)
+
+| Keys | Credentials |
+| --- | --- |
+| ![The keys view](docs/screenshots/keys.webp) | ![The credentials view](docs/screenshots/credentials.webp) |
+
+![The settings view](docs/screenshots/settings.webp)
+
+*Dummy data: every host is `example.com` or a documentation address.*
+
 ## Install
 
 **Releases are unsigned.** Grab the installer for your platform from

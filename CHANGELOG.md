@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Screenshots of the connections list, the add-connection dialog, the keys, credential and settings views, in the README.
+
 ## [0.3.0] - 2026-10-21
 
 ### Added
