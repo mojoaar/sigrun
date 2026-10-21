@@ -430,6 +430,8 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   useEffect(() => {
     const focusSearch = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
+      // A dialog owns the focus while it is open, so the field behind it waits.
+      if (document.querySelector('[role="dialog"]')) return;
       e.preventDefault();
       searchRef.current?.focus();
       searchRef.current?.select();

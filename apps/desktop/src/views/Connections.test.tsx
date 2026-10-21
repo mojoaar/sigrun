@@ -1164,5 +1164,13 @@ describe("Connections", () => {
     fireEvent.keyDown(window, { key: "f", metaKey: true });
 
     expect(document.activeElement).toBe(screen.getByLabelText("Search connections"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add connection" });
+    const inside = within(dialog).getByLabelText("Label");
+    inside.focus();
+    fireEvent.keyDown(window, { key: "f", metaKey: true });
+
+    expect(document.activeElement).toBe(inside);
   });
 });
