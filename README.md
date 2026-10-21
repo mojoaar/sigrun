@@ -114,7 +114,8 @@ connection — see [The first five minutes](#the-first-five-minutes).
   buttons do not. The window's native appearance follows the **Appearance**
   setting so the traffic lights stay legible against the themed header; on macOS
   that also repaints the app's own menus and About panel.
-- **i18n:** English and Danish.
+- **i18n:** English, Danish, German, French, Spanish, Swedish and Norwegian
+  Bokmål, each shown under its own name in the picker.
 - **Settings:** appearance, language, terminal, whether a connect opens in a new
   window or a new tab, an idle **auto-lock** for the vault (default 30 minutes;
   0 disables it), and "start minimized to tray" last.

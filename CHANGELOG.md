@@ -15,11 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manage credentials from the CLI, and point a connection at one.
 - A Credentials tab, and a connection form that can use one instead of its own details.
 - An AUR `sigrun-bin` PKGBUILD (`packaging/aur`) that repackages the released AppImage and CLI binary for Arch, kept in the repository for local builds and not yet published to the AUR.
-- German (Deutsch) in the interface, the tray and the macOS menu.
-- French (Français) in the interface, the tray and the macOS menu.
-- Spanish (Español) in the interface, the tray and the macOS menu.
-- Swedish (Svenska) in the interface, the tray and the macOS menu.
-- Norwegian Bokmål (Norsk bokmål) in the interface, the tray and the macOS menu.
+- German (Deutsch), French (Français), Spanish (Español), Swedish (Svenska) and Norwegian Bokmål (Norsk bokmål) in the interface, the tray and the macOS menu.
 
 ### Changed
 
