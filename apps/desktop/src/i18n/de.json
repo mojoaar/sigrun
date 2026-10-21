@@ -15,6 +15,7 @@
     "lock": "Sperren",
     "unlocking": "Wird entsperrt…",
     "passphrase": "Passphrase",
+    "addToVaultBody": "Kopiert diesen Schlüssel in den Tresor. Passphrase leer lassen, wenn der Schlüssel keine hat.",
     "passphraseConfirm": "Passphrase bestätigen",
     "passphraseMismatch": "Die Passphrasen stimmen nicht überein.",
     "passphraseRequired": "Eine Passphrase ist erforderlich.",
@@ -61,6 +62,7 @@
     "removeConfirm": "Diese Verbindung entfernen? Dies kann nicht rückgängig gemacht werden."
   },
   "keys": {
+    "addToVault": "In den Tresor übernehmen",
     "title": "Schlüssel",
     "empty": "Noch keine Schlüssel. Einen generieren oder importieren.",
     "generate": "Schlüssel generieren",

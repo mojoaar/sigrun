@@ -15,6 +15,10 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const [imp, setImp] = useState({ path: "", name: "", passphrase: "" });
   const [confirmRemove, setConfirmRemove] = useState<KeyView | null>(null);
   const removeRef = useDialogFocus(confirmRemove !== null, () => setConfirmRemove(null));
+  const [adding, setAdding] = useState<KeyView | null>(null);
+  const [addPassphrase, setAddPassphrase] = useState("");
+  const closeAdd = () => { setAdding(null); setAddPassphrase(""); };
+  const addRef = useDialogFocus(adding !== null, closeAdd);
 
   const handle = useCallback((err: unknown) => {
     if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
@@ -34,9 +38,37 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
       {keys.length === 0 && <p className="text-muted">{t("keys.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {keys.map((k) => (
-          <KeyCard key={k.key.id} view={k} onRemove={() => setConfirmRemove(k)} />
+          <KeyCard
+            key={k.key.id}
+            view={k}
+            onRemove={() => setConfirmRemove(k)}
+            onAdd={k.key.source === "disk" && k.key.disk_path ? () => setAdding(k) : undefined}
+          />
         ))}
       </ul>
+      {adding && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-label={t("keys.addToVault")} ref={addRef} className="flex w-80 flex-col gap-2 rounded border border-border bg-surface p-3">
+            <h3 className="font-semibold">{t("keys.addToVault")}</h3>
+            <p className="text-sm text-muted">{t("keys.addToVaultBody")}</p>
+            <input type="password" aria-label={t("keys.passphrase")} placeholder={t("keys.passphrase")} className={field} value={addPassphrase} onChange={(e) => setAddPassphrase(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <button className={field} onClick={closeAdd}>{t("common.cancel")}</button>
+              <button
+                className={btn}
+                onClick={() => {
+                  const key = adding.key;
+                  const passphrase = addPassphrase;
+                  closeAdd();
+                  if (key.disk_path) run(importKey(key.disk_path, key.name, passphrase));
+                }}
+              >
+                {t("keys.addToVault")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmRemove && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
           <div role="dialog" aria-label={t("keys.removeConfirm")} ref={removeRef} className="rounded border border-border bg-surface p-3">

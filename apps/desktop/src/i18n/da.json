@@ -15,6 +15,7 @@
     "lock": "Lås",
     "unlocking": "Låser op…",
     "passphrase": "Adgangssætning",
+    "addToVaultBody": "Kopierer nøglen til pengeskabet. Lad adgangssætningen stå tom, hvis nøglen ikke har nogen.",
     "passphraseConfirm": "Bekræft adgangssætning",
     "passphraseMismatch": "Adgangssætningerne er ikke ens.",
     "passphraseRequired": "Du skal angive en adgangssætning.",
@@ -61,6 +62,7 @@
     "removeConfirm": "Vil du fjerne denne forbindelse? Det kan ikke fortrydes."
   },
   "keys": {
+    "addToVault": "Føj til pengeskabet",
     "title": "Nøgler",
     "empty": "Ingen nøgler endnu. Generér eller importér en.",
     "generate": "Generér nøgle",

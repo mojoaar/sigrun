@@ -15,6 +15,7 @@
     "lock": "Bloquear",
     "unlocking": "Desbloqueando…",
     "passphrase": "Frase de contraseña",
+    "addToVaultBody": "Copia esta clave en la bóveda. Deja la frase de contraseña vacía si la clave no tiene.",
     "passphraseConfirm": "Confirmar frase de contraseña",
     "passphraseMismatch": "Las frases de contraseña no coinciden.",
     "passphraseRequired": "Se requiere una frase de contraseña.",
@@ -61,6 +62,7 @@
     "removeConfirm": "¿Eliminar esta conexión? Esta acción no se puede deshacer."
   },
   "keys": {
+    "addToVault": "Añadir a la bóveda",
     "title": "Claves",
     "empty": "Aún no hay claves. Generar o importar una.",
     "generate": "Generar clave",

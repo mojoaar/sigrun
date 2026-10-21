@@ -15,6 +15,7 @@
     "lock": "Lås",
     "unlocking": "Låser upp…",
     "passphrase": "Lösenfras",
+    "addToVaultBody": "Kopierar nyckeln till valvet. Lämna lösenfrasen tom om nyckeln saknar en.",
     "passphraseConfirm": "Bekräfta lösenfrasen",
     "passphraseMismatch": "Lösenfraserna stämmer inte överens.",
     "passphraseRequired": "En lösenfras krävs.",
@@ -61,6 +62,7 @@
     "removeConfirm": "Ta bort den här anslutningen? Det går inte att ångra."
   },
   "keys": {
+    "addToVault": "Lägg till i valvet",
     "title": "Nycklar",
     "empty": "Inga nycklar ännu. Generera eller importera en.",
     "generate": "Generera nyckel",

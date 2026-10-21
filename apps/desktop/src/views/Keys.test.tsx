@@ -35,4 +35,25 @@ describe("Keys", () => {
     expect(api.removeKey).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(opener);
   });
+  it("copies a key on disk into the vault through the add dialog", async () => {
+    const diskKey = { key: { ...vaultKey.key, id: "k2", name: "homelab", source: "disk" as const, disk_path: "/Users/x/.ssh/id_ed25519", has_passphrase: true }, available: true };
+    vi.mocked(api.listKeys).mockResolvedValue([diskKey]);
+    vi.mocked(api.importKey).mockResolvedValueOnce(vaultKey);
+    render(<Keys onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add to vault" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add to vault" });
+    fireEvent.change(within(dialog).getByLabelText("Key passphrase"), { target: { value: "s3cret" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add to vault" }));
+
+    expect(api.importKey).toHaveBeenCalledWith("/Users/x/.ssh/id_ed25519", "homelab", "s3cret");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("offers no add button for a key already in the vault", async () => {
+    vi.mocked(api.listKeys).mockResolvedValueOnce([vaultKey]);
+    render(<Keys onVaultLocked={() => {}} />);
+    await screen.findByText("work");
+    expect(screen.queryByRole("button", { name: "Add to vault" })).toBeNull();
+  });
 });
