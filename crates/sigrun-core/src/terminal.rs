@@ -411,18 +411,25 @@ end tell"#
                 // silent no-op. `command` on iTerm is exec'd directly rather than
                 // run through a shell, so a `trap …; ssh …` line dies instantly;
                 // `write text` types it into the session's shell, as `do script`
-                // does for Terminal.
+                // does for Terminal. A cold launch opens iTerm's own startup
+                // window, so only a running iTerm gets a window we create.
                 let open = if open_in == "tab" {
-                    r#"if (count of windows) is 0 then
-    create window with default profile
-  else
+                    r#"if wasRunning and (count of windows) > 0 then
     tell current window to create tab with default profile
+  else if (count of windows) is 0 then
+    create window with default profile
   end if"#
                 } else {
-                    "create window with default profile"
+                    r#"if wasRunning then
+    create window with default profile
+  else if (count of windows) is 0 then
+    create window with default profile
+  end if"#
                 };
                 let script = format!(
-                    r#"tell application "iTerm"
+                    r#"set wasRunning to application "iTerm" is running
+tell application "iTerm"
+  activate
   {open}
   tell current session of current window to write text "{cmd}"
 end tell"#
@@ -1183,6 +1190,12 @@ mod tests {
         assert!(script.contains("write text \""), "script was {script:?}");
         assert!(!script.contains("profile command"), "script was {script:?}");
         assert!(!script.contains("create tab"), "script was {script:?}");
+        // A cold launch already opens iTerm's own window; creating another one
+        // leaves a blank window in front of the connection.
+        assert!(
+            script.contains("application \"iTerm\" is running"),
+            "script was {script:?}"
+        );
     }
 
     #[test]
@@ -1207,6 +1220,10 @@ mod tests {
             "script was {script:?}"
         );
         assert!(script.contains("write text \""), "script was {script:?}");
+        assert!(
+            script.contains("application \"iTerm\" is running"),
+            "script was {script:?}"
+        );
     }
 
     #[test]
