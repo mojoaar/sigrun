@@ -103,7 +103,7 @@ use **Install SSH key…** — see
   to `ssh`.
 - **Reach password-only servers.** Store a password on the connection or in a
   credential, or install a key on a server with **Install SSH key…** using the
-  password once.
+  password once — leave the field empty to reuse the password already saved.
 - **Share sign-in details.** A credential holds one user name plus its key, a
   password, or both; point any number of connections at it, so rotating a
   password is one edit instead of one per host.
