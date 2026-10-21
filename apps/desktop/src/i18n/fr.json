@@ -1,0 +1,220 @@
+{
+  "app": { "title": "Sigrun", "tagline": "Vos clés SSH et vos connexions, au même endroit." },
+  "nav": { "connections": "Connexions", "keys": "Clés", "credentials": "Identifiants", "settings": "Réglages", "help": "Aide" },
+  "vault": {
+    "uninitialized": {
+      "title": "Créer le coffre",
+      "body": "Choisir une phrase secrète pour chiffrer les clés. Elle ne peut pas être récupérée si elle est oubliée."
+    },
+    "locked": {
+      "title": "Coffre verrouillé",
+      "body": "Saisir la phrase secrète pour déverrouiller les clés et les connexions."
+    },
+    "unlock": "Déverrouiller",
+    "create": "Créer le coffre",
+    "lock": "Verrouiller",
+    "unlocking": "Déverrouillage…",
+    "passphrase": "Phrase secrète",
+    "passphraseConfirm": "Confirmer la phrase secrète",
+    "passphraseMismatch": "Les phrases secrètes ne correspondent pas.",
+    "passphraseRequired": "Une phrase secrète est requise.",
+    "wrongPassphrase": "Phrase secrète incorrecte. Réessayer."
+  },
+  "connections": {
+    "title": "Connexions",
+    "empty": "Aucune connexion pour l'instant. Ajouter une connexion pour commencer.",
+    "add": "Ajouter une connexion",
+    "edit": "Modifier la connexion",
+    "remove": "Supprimer la connexion",
+    "connect": "Connecter",
+    "unreachable": "L'hôte est injoignable",
+    "connectAnyway": "Connecter quand même",
+    "active": "Connecté",
+    "label": "Libellé",
+    "duplicateLabel": "Une autre connexion utilise déjà ce libellé.",
+    "invalidLabel": "Un libellé est requis.",
+    "invalidHost": "Utiliser uniquement des lettres, des chiffres, des points, des tirets bas et des traits d'union.",
+    "invalidUser": "Utiliser uniquement des lettres, des chiffres, des points, des tirets bas et des traits d'union, ou laisser le champ vide.",
+    "invalidPort": "Saisir un port entre 1 et 65535.",
+    "host": "Hôte",
+    "user": "Utilisateur",
+    "port": "Port",
+    "key": "Clé",
+    "credential": "Identifiant",
+    "source": "Informations de connexion",
+    "sourceOwn": "Saisir manuellement",
+    "sourceCredential": "Utiliser un identifiant",
+    "missingCredential": "Cette connexion utilise un identifiant absent : {{id}}. En choisir un autre ou saisir ses propres informations.",
+    "chooseCredential": "Choisir un identifiant ou saisir ses propres informations.",
+    "keylessCredential": "Cet identifiant n'a pas de clé et cette connexion n'autorise pas la connexion par mot de passe. Ajouter une clé à l'identifiant ou autoriser les mots de passe sur la connexion.",
+    "passwordRemoved": "Le mot de passe enregistré sur cette connexion a été supprimé ; l'identifiant gère désormais la connexion.",
+    "group": "Groupe",
+    "password": "Mot de passe",
+    "passwordHint": "Le mot de passe du serveur, stocké chiffré dans le coffre de Sigrun. Ce n'est pas la phrase secrète du coffre.",
+    "removeSavedPassword": "Supprimer le mot de passe enregistré",
+    "hasPassword": "Mot de passe enregistré",
+    "search": "Rechercher des connexions",
+    "noMatches": "Aucune connexion ne correspond.",
+    "discovered": "Découvert dans ~/.ssh/config",
+    "removeConfirm": "Supprimer cette connexion ? Cette action est irréversible."
+  },
+  "keys": {
+    "title": "Clés",
+    "empty": "Aucune clé pour l'instant. En générer une ou en importer une.",
+    "generate": "Générer une clé",
+    "import": "Importer une clé",
+    "remove": "Supprimer la clé",
+    "name": "Nom",
+    "path": "Chemin",
+    "algorithm": "Algorithme",
+    "fingerprint": "Empreinte",
+    "source": { "vault": "Coffre", "disk": "Sur le disque" },
+    "passphrase": "Phrase secrète de la clé",
+    "removeConfirm": "Supprimer cette clé ? Cette action est irréversible."
+  },
+  "credentials": {
+    "title": "Identifiants",
+    "empty": "Aucun identifiant pour l'instant. Ajouter un identifiant pour partager une identité entre plusieurs connexions.",
+    "add": "Ajouter un identifiant",
+    "edit": "Modifier l'identifiant",
+    "label": "Libellé",
+    "user": "Utilisateur",
+    "key": "Clé",
+    "password": "Mot de passe",
+    "passwordHint": "Le mot de passe du serveur, stocké chiffré dans le coffre de Sigrun. Ce n'est pas la phrase secrète du coffre.",
+    "removeSavedPassword": "Supprimer le mot de passe enregistré",
+    "method": { "key": "Clé", "password": "Mot de passe", "keyPassword": "Clé + mot de passe" },
+    "usedBy": "Utilisé par {{count}}",
+    "inUse_one": "Cet identifiant est utilisé par une connexion. Réaffecter cette connexion avant de le supprimer.",
+    "inUse_other": "Cet identifiant est utilisé par {{count}} connexions. Réaffecter ces connexions avant de le supprimer.",
+    "missing": "Identifiant manquant",
+    "invalidLabel": "Un libellé est requis.",
+    "invalidUser": "Un utilisateur est requis.",
+    "invalidKey": "Une clé est requise, sauf si un mot de passe est enregistré.",
+    "removeConfirm": "Supprimer cet identifiant ? Cette action est irréversible."
+  },
+  "provision": {
+    "title": "Installer une clé SSH",
+    "body": "Installer une clé du coffre ou du disque sur ce serveur à l'aide de son mot de passe.",
+    "password": "Mot de passe",
+    "selectKeys": "Clés à installer",
+    "diskKeys": "Clés sur le disque",
+    "keyPassphrase": "Phrase secrète de la clé",
+    "importKey": "Importer une clé",
+    "disablePasswordAuth": "Désactiver l'authentification par mot de passe",
+    "lockoutWarning": "Cela bloquera l'accès si la connexion par clé échoue. Vérifier d'abord que la connexion par clé fonctionne.",
+    "install": "Installer une clé SSH…",
+    "installed": "Installées : {{installed}} — vérifiées : {{verified}}",
+    "skipped": "L'authentification par mot de passe reste activée : {{reason}}"
+  },
+  "settings": {
+    "title": "Réglages",
+    "theme": "Thème",
+    "language": "Langue",
+    "mode": "Apparence",
+    "modeSystem": "Système",
+    "modeLight": "Clair",
+    "modeDark": "Sombre",
+    "terminal": "Terminal",
+    "terminalDefault": "Valeur par défaut du système",
+    "openIn": "Ouvrir dans",
+    "openInWindow": "Nouvelle fenêtre",
+    "openInTab": "Nouvel onglet",
+    "openInUnavailable": "Ce terminal ne peut pas ouvrir d'onglet.",
+    "startMinimized": "Démarrer réduit dans la zone de notification",
+    "autoLock": "Verrouiller automatiquement le coffre",
+    "autoLockNever": "Jamais",
+    "autoLockMinutes": "Après {{count}} min d'inactivité",
+    "transferTitle": "Importer et exporter",
+    "transferBody": "Exporter toutes les connexions et les clés publiques vers un dossier ou un fichier .zip, puis les importer à nouveau. C'est un transfert, pas une sauvegarde : les clés privées et les mots de passe enregistrés ne sont jamais inclus.",
+    "transferExportFolder": "Exporter vers un dossier…",
+    "transferExportZip": "Exporter vers un fichier .zip…",
+    "transferImportFolder": "Importer depuis un dossier…",
+    "transferImportZip": "Importer depuis un fichier .zip…",
+    "transferZipFilter": "Archive Zip",
+    "transferExported": "{{connections}} connexions et {{keys}} clés exportées.",
+    "transferImported": "Importation : {{added}} ajoutés, {{skipped}} ignorés, {{invalid}} invalides, {{unresolved}} clés non résolues."
+  },
+  "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
+  "trust": {
+    "title": "Faire confiance à cet hôte ?",
+    "body": "C'est la première connexion à cet hôte. Vérifier l'empreinte avant de continuer.",
+    "fingerprint": "Empreinte de l'hôte",
+    "accept": "Faire confiance et connecter",
+    "cancel": "Annuler",
+    "mismatch": "Avertissement : l'empreinte de l'hôte a changé. Il pourrait s'agir d'une attaque de type man-in-the-middle."
+  },
+  "tray": {
+    "open": "Ouvrir Sigrun",
+    "quit": "Quitter",
+    "unlock": "Déverrouiller Sigrun…",
+    "discovered": "Découvert"
+  },
+  "help": {
+    "title": "Aide",
+    "intro": "Sigrun réunit les clés SSH et les connexions au même endroit. Le nom vient de Sigrún : sigr signifie victoire et rún signifie secret — la victoire sur le chaos des clés.",
+    "quickStart": {
+      "title": "Démarrage rapide",
+      "vault": "Créer ou déverrouiller le coffre avec la phrase secrète.",
+      "key": "Importer une clé depuis le disque ou en générer une nouvelle.",
+      "connection": "Ajouter une connexion : libellé, hôte, utilisateur et port — ou la pointer vers un identifiant qui porte les informations de connexion.",
+      "connect": "Connecter — Sigrun ouvre le terminal en lançant ssh.",
+      "provision": "Sur un serveur qui n'accepte que les mots de passe, utiliser « Installer une clé SSH… » pour installer une clé du coffre avec le mot de passe du serveur."
+    },
+    "groups": {
+      "title": "Connexions et groupes",
+      "nesting": "Les groupes s'imbriquent avec « / ». Une connexion dans PVE/Folder 1 apparaît sous Folder 1 dans PVE.",
+      "tray": "Clic gauche sur l'icône de la zone de notification : coffre verrouillé, la fenêtre s'ouvre pour le déverrouiller ; coffre déverrouillé, le menu des connexions s'ouvre, groupé de la même façon."
+    },
+    "keys": {
+      "title": "Clés",
+      "vault": "Les clés du coffre sont stockées chiffrées dans Sigrun et servies par son agent SSH — aucun fichier de clé sur le disque.",
+      "disk": "Les clés sur le disque restent où elles sont. Sigrun passe -i <chemin> à ssh et ne touche jamais à ~/.ssh."
+    },
+    "credentials": {
+      "title": "Identifiants",
+      "summary": "Un identifiant, c'est un nom d'utilisateur et la façon de se connecter avec : une clé, un mot de passe ou les deux. Il existe une seule fois dans Identifiants, et autant de connexions que nécessaire peuvent l'utiliser ; changer un mot de passe est donc une seule modification au lieu d'une par hôte.",
+      "oneSource": "Une connexion tire ses informations de connexion d'une seule source : soit un identifiant, soit son propre utilisateur, sa clé et son mot de passe. Les deux ne sont jamais mélangés.",
+      "vault": "Le libellé, l'utilisateur et l'id de la clé vivent dans le fichier de données de Sigrun, pour que la liste fonctionne même coffre verrouillé ; le mot de passe est scellé dans le coffre. Un identifiant sans clé ne peut pas perdre son mot de passe — supprimer l'identifiant à la place. La suppression est refusée tant que des connexions l'utilisent.",
+      "export": "Les identifiants ne voyagent jamais dans un export. Une connexion importée garde sa référence et affiche « Identifiant manquant » jusqu'à ce qu'un identifiant soit créé ou choisi ; une tentative de connexion est refusée avec l'id plutôt que de retomber sur ses propres clés."
+    },
+    "settings": {
+      "title": "Réglages",
+      "summary": "Thème et apparence, langue, terminal à lancer, lieu d'ouverture d'une connexion, verrouillage automatique après inactivité et démarrage réduit dans la zone de notification."
+    },
+    "cli": {
+      "title": "Ligne de commande",
+      "host": { "cmd": "sigrun host", "desc": "Exécuter l'hôte au premier plan." },
+      "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Déverrouiller le coffre." },
+      "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Ajouter une connexion." },
+      "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Ouvrir une connexion dans le terminal." },
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Enregistrer le mot de passe d'une connexion." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lister les identifiants et le nombre de connexions qui utilisent chacun." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Ajouter un identifiant ; le mot de passe est lu sur stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Supprimer un identifiant qu'aucune connexion n'utilise." }
+    },
+    "data": {
+      "title": "Où vivent les données",
+      "dir": "Les données vivent dans le répertoire de données propre à l'utilisateur : ~/Library/Application Support/Sigrun sous macOS, ~/.local/share/sigrun sous Linux et %APPDATA%\\Sigrun sous Windows.",
+      "ssh": "Sigrun ne modifie jamais ~/.ssh."
+    },
+    "about": {
+      "title": "À propos",
+      "tagline": "Connexions et clés SSH dans un coffre local chiffré, servies à ssh par un agent intégré.",
+      "version": "Version {{version}}",
+      "author": "Créé par mojoaar.",
+      "website": "https://johansen.foo",
+      "github": "https://github.com/mojoaar/sigrun",
+      "license": "Sous licence MIT."
+    }
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue."
+  }
+}

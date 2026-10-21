@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import en from "./en.json";
 import da from "./da.json";
 import de from "./de.json";
+import fr from "./fr.json";
 
 export type Language = "en" | "da" | "de" | "fr" | "es" | "sv" | "nb";
 
@@ -12,6 +13,7 @@ export const LANGUAGES: { code: Language; name: string }[] = [
   { code: "en", name: "English" },
   { code: "da", name: "Dansk" },
   { code: "de", name: "Deutsch" },
+  { code: "fr", name: "Français" },
 ];
 
 export function isLanguage(value: string): value is Language {
@@ -23,6 +25,7 @@ i18n.use(initReactI18next).init({
     en: { translation: en },
     da: { translation: da },
     de: { translation: de },
+    fr: { translation: fr },
   },
   lng: "en",
   fallbackLng: "en",
