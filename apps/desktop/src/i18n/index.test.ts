@@ -54,8 +54,9 @@ describe("i18n", () => {
     for (const { code } of LANGUAGES) {
       const bundle = i18n.getResourceBundle(code, "translation") as Record<string, unknown>;
       const creds = Object.keys((bundle.credentials ?? {}) as object);
-      // Every locale needs _other (i18next's fallback form); _one only where the
-      // locale has that category — fr/es also report "many", which _other covers.
+      // Every locale needs _other; i18next does not fall back to it from another
+      // category, so it must exist. _one only where the locale has that category.
+      // fr/es also report "many" (10^6 connections), which no bundle covers.
       const categories = new Intl.PluralRules(code).resolvedOptions().pluralCategories;
       const required = categories.includes("one") ? ["inUse_one", "inUse_other"] : ["inUse_other"];
       expect({ code, missing: required.filter((k) => !creds.includes(k)) }).toEqual({ code, missing: [] });

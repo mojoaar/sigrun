@@ -131,7 +131,7 @@
     "transferExportZip": "Exportar a un archivo .zip…",
     "transferImportFolder": "Importar desde una carpeta…",
     "transferImportZip": "Importar desde un archivo .zip…",
-    "transferZipFilter": "Archivo Zip",
+    "transferZipFilter": "Archivo ZIP",
     "transferExported": "Se exportaron {{connections}} conexiones y {{keys}} claves.",
     "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver."
   },
