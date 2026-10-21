@@ -156,7 +156,7 @@
       "title": "Quick start",
       "vault": "Create or unlock the vault with your passphrase.",
       "key": "Import a key from disk, or generate a new one.",
-      "connection": "Add a connection: label, host, user, and port.",
+      "connection": "Add a connection: label, host, user, and port — or point it at a credential that carries the sign-in details.",
       "connect": "Connect — Sigrun opens your terminal running ssh.",
       "provision": "On a server that only accepts passwords, use “Install SSH key…” to install a key from your vault using the server's password."
     },
@@ -170,6 +170,13 @@
       "vault": "Vault-backed keys live encrypted in Sigrun and are served by its SSH agent — no key file on disk.",
       "disk": "Disk-backed keys stay where they are. Sigrun passes -i <path> to ssh and leaves your ~/.ssh untouched."
     },
+    "credentials": {
+      "title": "Credentials",
+      "summary": "A credential is a user name and how to sign in as it: a key, a password, or both. It lives once under Credentials, and any number of connections can use it, so rotating a password is one edit instead of one per host.",
+      "oneSource": "A connection takes its sign-in details from one source: either a credential, or its own user, key and password. The two are never mixed.",
+      "vault": "Label, user and key id live in Sigrun's data file, so the list works while the vault is locked; the password is sealed in the vault. A credential with no key cannot lose its password — delete the credential instead. Deleting one is refused while connections still use it.",
+      "export": "Credentials never travel in an export. An imported connection keeps its reference and shows “Credential missing” until you create or choose one; a connect refuses with the id rather than falling back to your own keys."
+    },
     "settings": {
       "title": "Settings",
       "summary": "Theme and appearance, language, the terminal to launch, where a connect opens, auto-lock after idle, and start minimized to the tray."
@@ -180,7 +187,10 @@
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Unlock the vault." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Add a connection." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Open a connection in the terminal." },
-      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Store a connection's password." }
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Store a connection's password." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "List credentials and how many connections use each." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Add a credential; a password comes from stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Remove a credential that no connection uses." }
     },
     "data": {
       "title": "Where data lives",

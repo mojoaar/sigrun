@@ -2,7 +2,16 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getStatus, openExternal } from "../api";
 
-const CLI = ["host", "vaultUnlock", "connectionsAdd", "connectionsConnect", "connectionsPassword"] as const;
+const CLI = [
+  "host",
+  "vaultUnlock",
+  "connectionsAdd",
+  "connectionsConnect",
+  "connectionsPassword",
+  "credentialsList",
+  "credentialsAdd",
+  "credentialsRemove",
+] as const;
 
 const LINKS = [
   { url: "https://johansen.foo", label: "help.about.website" },
@@ -41,6 +50,14 @@ export default function Help() {
         <h3 className="font-semibold">{t("help.keys.title")}</h3>
         <p className="text-muted">{t("help.keys.vault")}</p>
         <p className="text-muted">{t("help.keys.disk")}</p>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <h3 className="font-semibold">{t("help.credentials.title")}</h3>
+        <p className="text-muted">{t("help.credentials.summary")}</p>
+        <p className="text-muted">{t("help.credentials.oneSource")}</p>
+        <p className="text-muted">{t("help.credentials.vault")}</p>
+        <p className="text-muted">{t("help.credentials.export")}</p>
       </section>
 
       <section className="flex flex-col gap-1">

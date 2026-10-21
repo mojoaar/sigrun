@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saving a connection whose credential no longer exists now refuses instead of storing a dangling reference and deleting its saved password.
 - A connection that switches to a credential no longer loses its saved password before a switch the host will refuse, and says so when the password had to be removed first.
 - A connection can no longer mix a credential with its own user or secret.
+- The README, the in-app Help view and AGENTS.md now document credentials: the tab, one sign-in source per connection, the vault split, the CLI commands, and that credentials never travel in an export.
 
 ### Changed
 

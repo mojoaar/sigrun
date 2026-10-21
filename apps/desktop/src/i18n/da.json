@@ -156,7 +156,7 @@
       "title": "Kom hurtigt i gang",
       "vault": "Opret eller lås pengeskabet op med din adgangssætning.",
       "key": "Importér en nøgle fra disken, eller generér en ny.",
-      "connection": "Tilføj en forbindelse: navn, vært, bruger og port.",
+      "connection": "Tilføj en forbindelse: navn, vært, bruger og port — eller peg den på et login, der har loginoplysningerne.",
       "connect": "Forbind — Sigrun åbner din terminal med ssh.",
       "provision": "På en server, der kun accepterer adgangskoder, kan du bruge “Installér SSH-nøgle…” til at installere en nøgle fra pengeskabet med serverens adgangskode."
     },
@@ -170,6 +170,13 @@
       "vault": "Nøgler i pengeskabet ligger krypteret i Sigrun og leveres af dets SSH-agent — ingen nøglefil på disken.",
       "disk": "Nøgler på disken bliver, hvor de er. Sigrun sender -i <sti> videre til ssh og rører ikke din ~/.ssh."
     },
+    "credentials": {
+      "title": "Logins",
+      "summary": "Et login er et brugernavn og måden at logge ind som det: en nøgle, en adgangskode eller begge. Det ligger ét sted under Logins, og så mange forbindelser, du vil, kan bruge det — så en adgangskodeændring er én rettelse i stedet for én pr. vært.",
+      "oneSource": "En forbindelse henter sine loginoplysninger ét sted fra: enten et login eller sin egen bruger, nøgle og adgangskode. De to blandes aldrig.",
+      "vault": "Navn, bruger og nøgle-id ligger i Sigruns datafil, så listen virker, mens pengeskabet er låst; adgangskoden ligger forseglet i pengeskabet. Et login uden nøgle kan ikke miste sin adgangskode — slet login'et i stedet. Sletning afvises, så længe forbindelser bruger det.",
+      "export": "Logins følger aldrig med en eksport. En importeret forbindelse beholder sin reference og viser “Login mangler”, indtil du opretter eller vælger et; en forbindelse afvises med id'et i stedet for at falde tilbage til dine egne nøgler."
+    },
     "settings": {
       "title": "Indstillinger",
       "summary": "Tema og udseende, sprog, hvilken terminal der åbnes, hvor en forbindelse åbnes, automatisk låsning efter inaktivitet og start minimeret i systembakken."
@@ -180,7 +187,10 @@
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås pengeskabet op." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Tilføj en forbindelse." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åbn en forbindelse i terminalen." },
-      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Gem en forbindelses adgangskode." }
+      "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Gem en forbindelses adgangskode." },
+      "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis logins og hvor mange forbindelser der bruger hvert." },
+      "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Tilføj et login; en adgangskode læses fra stdin." },
+      "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern et login, som ingen forbindelse bruger." }
     },
     "data": {
       "title": "Hvor data ligger",

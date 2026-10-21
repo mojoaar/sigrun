@@ -49,8 +49,9 @@ The `sigrun` binary lands at `target/release/sigrun`.
    encrypts your keys and connections; it cannot be recovered if you forget it.
 2. **Generate key** for a new Ed25519, RSA, or ECDSA key, or **Import key** one
    that already lives in `~/.ssh`.
-3. **Add connection.** Give it a label, host, user, and port, and group it if you
-   like — a `/`-separated path like `PVE/Folder 1` nests in the list.
+3. **Add connection.** Give it a label and host, then either enter a user, key
+   and port or pick a credential that carries them. Group it if you like — a
+   `/`-separated path like `PVE/Folder 1` nests in the list.
 4. **Connect.** Sigrun opens your terminal running `ssh`, and a live session
    shows a pulsing dot on its row.
 
@@ -80,6 +81,9 @@ use **Install SSH key…** — see
   OpenSSH agent serve vault keys to `ssh`.
 - **Reach password-only servers.** Store a per-connection password in the vault,
   or install a key on a server with **Install SSH key…** using the password once.
+- **Share sign-in details.** A credential holds one user name plus its key, a
+  password, or both; point any number of connections at it, so rotating a
+  password is one edit instead of one per host.
 - **Export and import connections.** Write every connection and the public
   halves of your keys to a folder or a `.zip` from Settings, and merge them back
   on another machine — a transfer, not a backup.
@@ -134,7 +138,10 @@ key that is not present on this machine.
 **Not a backup.** An import brings back **connections only**. The `keys/` folder
 carries each key's public half, name, fingerprint and algorithm as reference
 material; import ignores it, because a private key exists nowhere but the vault
-and a stored password never leaves it. The vault file plus its passphrase is
+and a stored password never leaves it. Credentials never travel in a bundle
+either: an imported connection that referenced one arrives with the reference
+intact and is marked **Credential missing** until you create or pick one. The
+vault file plus its passphrase is
 therefore the only thing that restores private keys and saved passwords. And an
 exported folder or `.zip` is **not encrypted**: it holds host names, user names,
 ports and public keys, so anyone who has the file can read it.
@@ -208,6 +215,40 @@ With the vault locked, `sigrun connections connect` cannot tell that a
 password is stored and falls back to `ssh`'s own prompt; the app and the tray
 refuse through the vault gate instead.
 
+## Credentials
+
+A **credential** is a user name and how to sign in as it: a key, a password, or
+both (a key first, with the password as the fallback when the server asks for
+one). It lives once in the Credentials tab, and any number of connections can
+use it, so a password rotation is one edit rather than one per host.
+
+A connection takes its sign-in details from **one source**. Either it points at
+a credential, or it carries its own user, key and password — never a mix. The
+form enforces it, and so do the host and the importer, because the CLI and a
+bundle can both produce a connection the form never saw. Switching a connection
+to a credential removes the password saved on the connection itself (the host
+refuses the switch while one exists), so nothing is left behind in the vault.
+
+Metadata — label, user, key id, whether a password exists — lives in Sigrun's
+data file, which is why the list works while the vault is locked; the password
+itself is sealed in the vault. A credential that has no key cannot lose its
+password, because that would leave it unable to sign in: delete the credential
+instead. Deleting one is refused while connections still use it, and the message
+names how many.
+
+Credentials are never exported; the connections that use them are, carrying the
+reference. An imported reference that matches nothing here shows as **Credential
+missing** on the row, and a connect refuses with a message naming the id instead
+of silently falling back to your own keys.
+
+```bash
+sigrun credentials list
+printf '%s\n' "$PASSWORD" | sigrun credentials add --label prod --user deploy --password-stdin
+sigrun credentials add --label prod --user deploy --key <key-id>
+sigrun connections add --label web --host example.com --credential prod
+sigrun credentials remove prod
+```
+
 ## Quick start (CLI)
 
 The CLI talks to the running host (the desktop app, or a headless `sigrun
@@ -230,6 +271,8 @@ sigrun status
 sigrun keys generate --name work --algorithm ed25519
 sigrun keys import ~/.ssh/id_ed25519 --name personal
 sigrun connections password web            # prompt (never argv)
+# Or define one identity once and share it
+sigrun credentials add --label prod --user deploy --key <key-id>
 sigrun vault lock
 ```
 

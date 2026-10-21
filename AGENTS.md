@@ -56,6 +56,14 @@ newtype variants holding a sequence.
   `SIGRUN_CONNECTION_ID`. The password is never put on a command line. This is
   macOS and Linux only: the Windows launch path carries no askpass variables,
   so a stored password falls back to `ssh`'s own prompt there.
+- **One identity source per connection.** A connection either references a
+  credential or carries its own `user`, `key_id` and password — never both.
+  `bundle::valid_connection`, the host save path and the form all refuse a
+  hybrid, and a credential with no key cannot lose its password. `model::effective`
+  is the only place identity is resolved, for connect, askpass and provisioning
+  alike; a dangling `credential_id` is an error at connect, never a fallback to
+  the connection's own fields. Credentials never enter an export — the
+  connection's reference travels, nothing else.
 
 ## Code rules
 
