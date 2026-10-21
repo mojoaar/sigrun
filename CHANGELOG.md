@@ -7,32 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-21
+
 ### Added
 
-- Screenshots of the connections list, the add-connection dialog, the keys, credential and settings views, in the README.
+- A connection row names the key it signs in with, whether the key is its own or comes from its
+  credential, next to the password badge.
+- A key Sigrun found on disk can be copied into the vault from its row, with an optional passphrase,
+  instead of importing the file again.
+- A key in the vault can be saved to disk from its row: the save dialog picks the place, the file is
+  created `0600`, an existing file is never overwritten, and `~/.ssh` is refused.
+- `Cmd+F` puts the cursor in the connection search field and `Cmd+L` locks the vault, the same action
+  as the Lock button. The README lists the shortcuts.
+- Screenshots of the connections list, the add-connection dialog, and the keys, credentials and
+  settings views, in the README.
+
+### Changed
+
+- Installing a key on a server can reuse the password already saved on the connection or its
+  credential: leave the field empty. A failed install names the host and port instead of the bare ssh
+  error.
+- The install confirmation names the key once and clears itself after five seconds.
 
 ### Fixed
 
-- Launching Terminal.app or iTerm opens the connection's window only, without the blank default window in front of it, and a terminal that cannot be started is named in the error (`could not launch ghostty: …`) instead of being called "a terminal".
-- A cold launch of Terminal.app typed the connection into the window it opens on startup instead of adding a second, blank one; a Terminal that is already running still gets a new window.
-- iTerm runs AppleScript `command` directly instead of through a shell, so a connection opened in iTerm died instantly; the line is typed into the session now, the same way Terminal.app receives it.
-- The README and the in-app Help describe moving a key between the vault and disk, and the README lists the keyboard shortcuts.
-- Cmd+F puts the cursor in the connection search field.
-- `Cmd+L` locks the vault, the same action as the Lock button, and the README lists it with the other shortcuts.
-- A key in the vault can be written to disk from its row: the save dialog picks the place, the file is created `0600`, an existing file is never overwritten, and `~/.ssh` is refused.
-- A key Sigrun found on disk can be copied into the vault from its row, with an optional passphrase, instead of re-importing the file.
-- A connection row names the key it signs in with, whether the key is its own or comes from its credential, next to the password badge.
-- A session whose terminal window closed without hanging up (seen with Alacritty) no longer leaves a pulsing dot and a stranded ssh behind: a watched shell reparented to init is treated as ended and its process group is signalled.
-- Ghostty's "open in a new window" opens a window, not a tab: the line is handed over by AppleScript the way the tab setting already was, instead of through the CLI.
-- iTerm opens the connection's window only on a cold start, without a blank startup window in front of it, the way Terminal.app already did.
-- A terminal installed as an app bundle (Alacritty, Ghostty, kitty and WezTerm in `/Applications`) is found without being on `PATH`, and the AppleScript terminals clear the echoed command line so a session no longer opens with the trap wiring on screen.
-- Closing a connection's terminal window no longer leaves it hanging: the keep-open shell is skipped when ssh dies from a signal, so the window closes instead of needing Force Quit.
-- Connecting no longer refuses a host the reachability probe cannot classify. Only a name that will not resolve, a refused port and a timeout block the launch; any other error (a firewall or VPN reporting "no route to host" for a host that answers) is logged and ssh gets the last word.
-- Installing a key names the host and port when the connection fails ("cannot reach h:22: …") instead of the bare ssh error, and the password field may be left empty to use the password already saved on the connection or its credential.
-- A host that offers several key types no longer looks like a changed host key. A key type Sigrun has not seen for that host is a first-use prompt; only a different key of a type already known fails closed.
-- The key picker in the connection form names its empty choice "No key" instead of showing a blank row.
-- The install confirmation names the key once ("Installed and verified homelab") instead of repeating it, and clears itself after five seconds.
-- A key held in the vault now works in a terminal started through AppleScript (Terminal.app, iTerm, Ghostty tabs). The agent socket travels in the command line, because that shell inherits nothing from Sigrun, so ssh no longer falls back to asking for a password.
+- A key held in the vault works in a terminal started through AppleScript (Terminal.app, iTerm,
+  Ghostty tabs). The agent socket travels in the command line, because that shell inherits nothing
+  from Sigrun, so ssh no longer falls back to asking for a password.
+- Terminal launching: one window instead of a blank one plus the session, for Terminal.app, iTerm and
+  Ghostty; iTerm types the line into the session instead of exec'ing it; Ghostty's "open in a new
+  window" opens a window rather than a tab; a terminal installed as an app bundle is found without
+  being on `PATH`; and the AppleScript terminals clear the echoed command line.
+- Closing a connection's terminal window closes it instead of leaving it hanging, and a session whose
+  terminal vanished without a hangup no longer leaves a pulsing dot and a stranded ssh behind.
+- Connecting no longer refuses a host the reachability probe cannot classify. Only a name that does
+  not resolve, a refused port and a timeout block the launch; any other error is logged and ssh has
+  the last word.
+- A host that offers several key types no longer looks like a changed host key. An unseen type is a
+  first-use prompt; only a different key of a known type fails closed.
+- The key picker in the connection form names its empty choice "No key" instead of showing a blank
+  row.
+- The README and the in-app Help describe moving a key between the vault and disk.
 
 ## [0.3.0] - 2026-10-21
 

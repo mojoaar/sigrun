@@ -4996,7 +4996,7 @@ dependencies = [
 
 [[package]]
 name = "sigrun-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -5011,7 +5011,7 @@ dependencies = [
 
 [[package]]
 name = "sigrun-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "argon2 0.5.3",
  "base64 0.22.1",
@@ -5043,7 +5043,7 @@ dependencies = [
 
 [[package]]
 name = "sigrun-desktop"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
