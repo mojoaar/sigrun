@@ -146,6 +146,15 @@ describe("Connections", () => {
     expect(screen.queryByText(/not here: cred1/)).toBeNull();
   });
 
+  it("shows the credential's user on a credential-mode row", async () => {
+    vi.mocked(api.listConnections).mockResolvedValueOnce([
+      { ...conn, id: "c1", label: "web", host: "194.180.176.88", user: "", credential_id: "cred1" },
+    ]);
+    vi.mocked(api.listCredentials).mockResolvedValueOnce([credential()]);
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    expect(await screen.findByText("deploy@194.180.176.88:22")).toBeTruthy();
+  });
+
   it("shows the host's reason when a connect is refused", async () => {
     vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "invalid_input", message: "connection old uses credential gone, which is not stored" });
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
@@ -1094,7 +1103,7 @@ describe("Connections", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(api.setConnectionPassword).toHaveBeenCalledWith("c1", null));
-    expect(await within(dialog).findByText(/saved password for this connection was removed/i)).toBeTruthy();
+    expect(await within(dialog).findByText(/password saved on this connection was removed/i)).toBeTruthy();
     expect(within(dialog).getByText("boom")).toBeTruthy();
   });
 

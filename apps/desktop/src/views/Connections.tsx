@@ -265,7 +265,7 @@ function Form({ initial, keys, credentials, groups, labels, onClose, onSaved, on
             )}
           </>
         )}
-        {passwordRemoved && <p role="alert" className="text-danger">{t("connections.passwordRemoved")}</p>}
+        {passwordRemoved && <p role="status" className="text-sm text-muted">{t("connections.passwordRemoved")}</p>}
         {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
         <div className="flex items-center justify-end gap-2">
           {initial && (canProvision
@@ -548,6 +548,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const filtered = filterConnections(conns, query);
   // A credential the host no longer holds: the row says so instead of hiding it.
   const credentialMissing = (id: string | null) => id !== null && !credentials.some((c) => c.id === id);
+  const credentialUser = (id: string | null) => credentials.find((c) => c.id === id)?.user ?? "";
 
   const renderNode = (node: TreeNode) => (
     <section key={node.path} className="flex flex-col gap-2">
@@ -559,6 +560,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
               key={c.id}
               conn={c}
               credentialMissing={credentialMissing(c.credential_id)}
+              credentialUser={credentialUser(c.credential_id)}
               canProvision={hasUsableKey}
               onProvision={() => openProvision(c)}
               onConnect={() => { setMismatch(false); void doConnect(c); }}

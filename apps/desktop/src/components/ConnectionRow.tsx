@@ -1,11 +1,13 @@
 import { useTranslation } from "react-i18next";
 import type { Connection } from "../api";
 
-type Props = { conn: Connection; credentialMissing: boolean; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void; onGoToKeys?: () => void };
+type Props = { conn: Connection; credentialMissing: boolean; credentialUser?: string; canProvision: boolean; onProvision: () => void; onConnect: () => void; onEdit: () => void; onRemove: () => void; onGoToKeys?: () => void };
 
-export default function ConnectionRow({ conn, credentialMissing, canProvision, onProvision, onConnect, onEdit, onRemove, onGoToKeys }: Props) {
+export default function ConnectionRow({ conn, credentialMissing, credentialUser, canProvision, onProvision, onConnect, onEdit, onRemove, onGoToKeys }: Props) {
   const { t } = useTranslation();
   const btn = "rounded border border-border px-2 py-1 hover:text-accent";
+  // A credential-mode connection has no user of its own; the credential holds it.
+  const user = conn.user || credentialUser;
   return (
     <li className="flex items-center justify-between gap-4 rounded border border-border bg-surface p-3">
       <div>
@@ -21,7 +23,7 @@ export default function ConnectionRow({ conn, credentialMissing, canProvision, o
           {conn.group?.trim() && <span className="rounded border border-border px-1 text-xs text-muted">{conn.group}</span>}
           {conn.has_password && <span className="rounded border border-border px-1 text-xs text-muted">{t("connections.hasPassword")}</span>}
         </div>
-        <div className="text-sm text-muted">{conn.user}@{conn.host}:{conn.port}</div>
+        <div className="text-sm text-muted">{user ? `${user}@` : ""}{conn.host}:{conn.port}</div>
         {credentialMissing && <p className="text-xs text-danger">{t("connections.missingCredential", { id: conn.credential_id })}</p>}
         {conn.source === "discovered" && <span className="text-xs text-accent">{t("connections.discovered")}</span>}
       </div>

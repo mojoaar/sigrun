@@ -47,7 +47,7 @@
     "missingCredential": "Denne forbindelse bruger et login, der ikke findes her: {{id}}. Vælg et andet, eller indtast dine egne oplysninger.",
     "chooseCredential": "Vælg et login, eller indtast dine egne oplysninger.",
     "keylessCredential": "Denne loginoplysning har ingen nøgle, og denne forbindelse tillader ikke adgang med adgangskode. Tilføj en nøgle til loginoplysningen, eller tillad adgangskoder på forbindelsen.",
-    "passwordRemoved": "Den gemte adgangskode til denne forbindelse blev fjernet. Skriv den igen for at gendanne den.",
+    "passwordRemoved": "Adgangskoden, der var gemt på denne forbindelse, blev fjernet; loginoplysningen håndterer nu login.",
     "group": "Gruppe",
     "password": "Adgangskode",
     "passwordHint": "Serverens adgangskode, gemt krypteret i Sigruns pengeskab. Det er ikke din adgangssætning til pengeskabet.",
