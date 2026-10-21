@@ -44,19 +44,21 @@ fn validate(host: &str, algo: &str, key_b64: &str) -> Result<()> {
 pub fn check(path: &Path, host: &str, port: u16, algo: &str, key_b64: &str) -> Result<TrustStatus> {
     validate(host, algo, key_b64)?;
     let id = format!("{host}:{port}");
-    let mut status = TrustStatus::Unknown;
     for line in read(path)?.lines() {
         let mut p = line.split_whitespace();
         if let (Some(h), Some(a), Some(k)) = (p.next(), p.next(), p.next()) {
-            if h == id {
-                if a == algo && k == key_b64 {
-                    return Ok(TrustStatus::Trusted);
-                }
-                status = TrustStatus::Mismatch;
+            // A host may be known by one key type and be asked for another (a client
+            // picks its own preference). Only the same type can contradict the key.
+            if h == id && a == algo {
+                return Ok(if k == key_b64 {
+                    TrustStatus::Trusted
+                } else {
+                    TrustStatus::Mismatch
+                });
             }
         }
     }
-    Ok(status)
+    Ok(TrustStatus::Unknown)
 }
 
 pub fn record(path: &Path, host: &str, port: u16, algo: &str, key_b64: &str) -> Result<()> {
@@ -108,16 +110,22 @@ mod tests {
     }
 
     #[test]
-    fn algorithm_switch_is_mismatch() {
+    fn another_key_type_is_a_first_use_prompt_not_a_mismatch() {
         let dir = tempfile::tempdir().unwrap();
         let kh = dir.path().join("known_hosts");
         record(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap();
+        // The same host, asked for a key type it never offered before: this is a
+        // trust prompt, not evidence that the host's identity changed.
         assert!(check(&kh, "h.example", 22, "ssh-rsa", KEY)
             .unwrap()
-            .is_mismatch());
+            .needs_confirmation());
         assert!(check(&kh, "h.example", 22, "ssh-ed25519", KEY)
             .unwrap()
             .is_trusted());
+        // Only a different key of a type already known is a mismatch.
+        assert!(check(&kh, "h.example", 22, "ssh-ed25519", "BBBB")
+            .unwrap()
+            .is_mismatch());
     }
 
     #[test]

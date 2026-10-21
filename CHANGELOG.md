@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Connecting no longer refuses a host the reachability probe cannot classify. Only a name that will not resolve, a refused port and a timeout block the launch; any other error (a firewall or VPN reporting "no route to host" for a host that answers) is logged and ssh gets the last word.
 - Installing a key names the host and port when the connection fails ("cannot reach h:22: …") instead of the bare ssh error, and the password field may be left empty to use the password already saved on the connection or its credential.
+- A host that offers several key types no longer looks like a changed host key. A key type Sigrun has not seen for that host is a first-use prompt; only a different key of a type already known fails closed.
 
 ## [0.3.0] - 2026-10-21
 
