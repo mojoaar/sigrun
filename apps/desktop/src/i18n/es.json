@@ -18,7 +18,8 @@
     "passphraseConfirm": "Confirmar frase de contraseña",
     "passphraseMismatch": "Las frases de contraseña no coinciden.",
     "passphraseRequired": "Se requiere una frase de contraseña.",
-    "wrongPassphrase": "Frase de contraseña incorrecta. Volver a intentarlo."
+    "wrongPassphrase": "Frase de contraseña incorrecta. Volver a intentarlo.",
+    "failedAttempts": "Intentos fallidos de desbloqueo: {{count}}."
   },
   "connections": {
     "title": "Conexiones",

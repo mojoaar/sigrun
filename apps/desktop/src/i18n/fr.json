@@ -18,7 +18,8 @@
     "passphraseConfirm": "Confirmer la phrase secrète",
     "passphraseMismatch": "Les phrases secrètes ne correspondent pas.",
     "passphraseRequired": "Une phrase secrète est requise.",
-    "wrongPassphrase": "Phrase secrète incorrecte. Réessayer."
+    "wrongPassphrase": "Phrase secrète incorrecte. Réessayer.",
+    "failedAttempts": "Tentatives de déverrouillage échouées : {{count}}."
   },
   "connections": {
     "title": "Connexions",

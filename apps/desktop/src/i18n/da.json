@@ -18,7 +18,8 @@
     "passphraseConfirm": "Bekræft adgangssætning",
     "passphraseMismatch": "Adgangssætningerne er ikke ens.",
     "passphraseRequired": "Du skal angive en adgangssætning.",
-    "wrongPassphrase": "Forkert adgangssætning. Prøv igen."
+    "wrongPassphrase": "Forkert adgangssætning. Prøv igen.",
+    "failedAttempts": "Mislykkede oplåsningsforsøg: {{count}}."
   },
   "connections": {
     "title": "Forbindelser",

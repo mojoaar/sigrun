@@ -18,7 +18,8 @@
     "passphraseConfirm": "Bekreft passfrasen",
     "passphraseMismatch": "Passfrasene er ikke like.",
     "passphraseRequired": "En passfrase kreves.",
-    "wrongPassphrase": "Feil passfrase. Prøv igjen."
+    "wrongPassphrase": "Feil passfrase. Prøv igjen.",
+    "failedAttempts": "Mislykkede opplåsingsforsøk: {{count}}."
   },
   "connections": {
     "title": "Tilkoblinger",

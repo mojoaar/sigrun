@@ -18,7 +18,8 @@
     "passphraseConfirm": "Bekräfta lösenfrasen",
     "passphraseMismatch": "Lösenfraserna stämmer inte överens.",
     "passphraseRequired": "En lösenfras krävs.",
-    "wrongPassphrase": "Fel lösenfras. Försök igen."
+    "wrongPassphrase": "Fel lösenfras. Försök igen.",
+    "failedAttempts": "Misslyckade upplåsningsförsök: {{count}}."
   },
   "connections": {
     "title": "Anslutningar",

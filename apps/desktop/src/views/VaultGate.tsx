@@ -10,6 +10,7 @@ export default function VaultGate({ mode = "unlock", notice, onDone }: Props) {
   const [pass, setPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
@@ -22,9 +23,15 @@ export default function VaultGate({ mode = "unlock", notice, onDone }: Props) {
       await (create ? vaultInit(pass) : vaultUnlock(pass));
       setPass("");
       setConfirm("");
+      setFailedAttempts(null);
       onDone?.();
     } catch (err) {
-      const code = (err as CommandError)?.code;
+      const cmdErr = err as CommandError;
+      const code = cmdErr?.code;
+      const attempts = cmdErr?.payload?.attempts;
+      if (typeof attempts === "number") {
+        setFailedAttempts(attempts);
+      }
       setError(code === "invalid_passphrase" || code === "vault_locked" ? t("vault.wrongPassphrase") : t("common.error"));
     } finally {
       setBusy(false);
@@ -42,6 +49,11 @@ export default function VaultGate({ mode = "unlock", notice, onDone }: Props) {
         <input type="password" aria-label={t("vault.passphraseConfirm")} placeholder={t("vault.passphraseConfirm")} className={field} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
       )}
       {error && <p role="alert" className="text-danger">{error}</p>}
+      {failedAttempts && failedAttempts > 1 && (
+        <p role="status" className="text-xs text-muted">
+          {t("vault.failedAttempts", { count: failedAttempts })}
+        </p>
+      )}
       <button type="submit" disabled={busy} className="rounded bg-accent px-3 py-2 text-bg">
         {busy ? t("vault.unlocking") : t(create ? "vault.create" : "vault.unlock")}
       </button>

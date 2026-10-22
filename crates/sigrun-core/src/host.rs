@@ -420,8 +420,19 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
                         + 1;
                     let millis = (500u64 * (1u64 << (attempts.min(6) - 1))).min(30_000);
+                    eprintln!(
+                        "sigrun-host: failed vault unlock attempt {} (backoff {}ms)",
+                        attempts, millis
+                    );
                     tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
-                    return Err(e);
+                    return Ok(Response::Error {
+                        code: "invalid_passphrase".to_string(),
+                        message: e.to_string(),
+                        payload: Some(serde_json::json!({
+                            "attempts": attempts,
+                            "backoff_ms": millis,
+                        })),
+                    });
                 }
             };
 
@@ -3396,6 +3407,34 @@ mod tests {
             elapsed3 < elapsed2,
             "reset backoff should be shorter than second failure: elapsed3 {elapsed3:?} < elapsed2 {elapsed2:?}"
         );
+
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn failed_unlock_returns_attempt_count_in_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("correct-pw").unwrap();
+
+        let res = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "wrong-pw".into(),
+            },
+        )
+        .await;
+
+        match res {
+            Response::Error { code, payload, .. } => {
+                assert_eq!(code, "invalid_passphrase");
+                let payload = payload.expect("expected payload with attempts");
+                assert_eq!(payload.get("attempts").and_then(|v| v.as_u64()), Some(1));
+                assert!(payload.get("backoff_ms").and_then(|v| v.as_u64()).is_some());
+            }
+            other => panic!("expected Response::Error, got {other:?}"),
+        }
 
         state.shutdown.cancel();
     }

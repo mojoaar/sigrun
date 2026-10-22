@@ -18,7 +18,8 @@
     "passphraseConfirm": "Passphrase bestätigen",
     "passphraseMismatch": "Die Passphrasen stimmen nicht überein.",
     "passphraseRequired": "Eine Passphrase ist erforderlich.",
-    "wrongPassphrase": "Falsche Passphrase. Bitte erneut versuchen."
+    "wrongPassphrase": "Falsche Passphrase. Bitte erneut versuchen.",
+    "failedAttempts": "Fehlgeschlagene Entsperrversuche: {{count}}."
   },
   "connections": {
     "title": "Verbindungen",

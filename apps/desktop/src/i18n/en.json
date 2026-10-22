@@ -18,7 +18,8 @@
     "passphraseConfirm": "Confirm passphrase",
     "passphraseMismatch": "The passphrases do not match.",
     "passphraseRequired": "A passphrase is required.",
-    "wrongPassphrase": "Wrong passphrase. Please try again."
+    "wrongPassphrase": "Wrong passphrase. Please try again.",
+    "failedAttempts": "Failed unlock attempts: {{count}}."
   },
   "connections": {
     "title": "Connections",
