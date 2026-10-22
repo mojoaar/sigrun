@@ -59,6 +59,7 @@ mod tests {
             Response::Error {
                 code: "not_found".into(),
                 message: "not found: c1".into(),
+                payload: None,
             },
         );
         report(&sock, "c1").await;

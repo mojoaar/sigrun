@@ -136,9 +136,17 @@ pub enum Response {
     Provisioned(crate::provision::ProvisionOutcome),
     Export(crate::bundle::ExportSummary),
     Import(crate::bundle::ImportSummary),
-    Unlocked { warnings: Vec<String> },
+    Unlocked {
+        warnings: Vec<String>,
+    },
     Password(String),
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+        /// Structured payload for errors that carry one (e.g. trust errors).
+        /// Older clients ignore it; newer ones use it instead of parsing `message`.
+        payload: Option<serde_json::Value>,
+    },
 }
 
 // Manual `Debug` because `Response::Password` carries a secret. Every other
@@ -162,11 +170,18 @@ impl std::fmt::Debug for Response {
                 .field("warnings", warnings)
                 .finish(),
             Response::Password(_) => f.write_str("Password(\"<redacted>\")"),
-            Response::Error { code, message } => f
-                .debug_struct("Error")
-                .field("code", code)
-                .field("message", message)
-                .finish(),
+            Response::Error {
+                code,
+                message,
+                payload,
+            } => {
+                let mut d = f.debug_struct("Error");
+                d.field("code", code).field("message", message);
+                if payload.is_some() {
+                    d.field("payload", payload);
+                }
+                d.finish()
+            }
         }
     }
 }
@@ -195,6 +210,35 @@ pub fn decode<T: serde::de::DeserializeOwned>(line: &[u8]) -> Result<T> {
     serde_json::from_slice(line).map_err(|e| Error::Ipc(e.to_string()))
 }
 
+impl From<Error> for Response {
+    fn from(err: Error) -> Self {
+        let code = error_code(&err).to_string();
+        let message = err.to_string();
+        let payload = match &err {
+            Error::HostKeyUnknown {
+                fingerprint,
+                algorithm,
+                key,
+            }
+            | Error::HostKeyMismatch {
+                fingerprint,
+                algorithm,
+                key,
+            } => Some(serde_json::json!({
+                "fingerprint": fingerprint,
+                "algorithm": algorithm,
+                "key": key,
+            })),
+            _ => None,
+        };
+        Response::Error {
+            code,
+            message,
+            payload,
+        }
+    }
+}
+
 /// Stable machine code for an error, safe to surface over IPC. Never carries a
 /// secret: the underlying variants hold no key material.
 pub fn error_code(err: &Error) -> &'static str {
@@ -209,8 +253,8 @@ pub fn error_code(err: &Error) -> &'static str {
         Error::Config(_) => "invalid_config",
         Error::AlreadyRunning => "already_running",
         Error::Ipc(_) => "ipc",
-        Error::HostKeyUnknown(_) => "host_key_unknown",
-        Error::HostKeyMismatch(_) => "host_key_mismatch",
+        Error::HostKeyUnknown { .. } => "host_key_unknown",
+        Error::HostKeyMismatch { .. } => "host_key_mismatch",
         Error::Unreachable(_) => "unreachable",
         Error::Ssh(_) => "ssh",
         _ => "internal",
@@ -226,5 +270,65 @@ mod tests {
         let debug = format!("{:?}", Response::Password("s3cret".to_string()));
         assert!(!debug.contains("s3cret"), "{debug}");
         assert!(debug.contains("redacted"), "{debug}");
+    }
+
+    #[test]
+    fn error_response_from_host_key_unknown_carries_payload() {
+        let err = Error::HostKeyUnknown {
+            fingerprint: "SHA256:abc".into(),
+            algorithm: "ssh-ed25519".into(),
+            key: "AAAA".into(),
+        };
+        let resp: Response = err.into();
+        match resp {
+            Response::Error {
+                code,
+                message,
+                payload,
+            } => {
+                assert_eq!(code, "host_key_unknown");
+                assert_eq!(message, "SHA256:abc ssh-ed25519 AAAA");
+                let p = payload.unwrap();
+                assert_eq!(p["fingerprint"], "SHA256:abc");
+                assert_eq!(p["algorithm"], "ssh-ed25519");
+                assert_eq!(p["key"], "AAAA");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_response_from_host_key_mismatch_carries_payload() {
+        let err = Error::HostKeyMismatch {
+            fingerprint: "SHA256:def".into(),
+            algorithm: "ssh-rsa".into(),
+            key: "BBBB".into(),
+        };
+        let resp: Response = err.into();
+        match resp {
+            Response::Error {
+                code,
+                message,
+                payload,
+            } => {
+                assert_eq!(code, "host_key_mismatch");
+                assert_eq!(message, "SHA256:def ssh-rsa BBBB");
+                let p = payload.unwrap();
+                assert_eq!(p["fingerprint"], "SHA256:def");
+                assert_eq!(p["algorithm"], "ssh-rsa");
+                assert_eq!(p["key"], "BBBB");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_response_from_plain_error_has_no_payload() {
+        let err = Error::NotFound("x".into());
+        let resp: Response = err.into();
+        match resp {
+            Response::Error { payload, .. } => assert!(payload.is_none()),
+            other => panic!("unexpected {other:?}"),
+        }
     }
 }

@@ -194,6 +194,8 @@ mod tests {
         c.user = "u".into();
         state.store.upsert_connection(c.clone()).unwrap();
 
+        // The TOFU gate runs before the reachability probe; with no known_hosts
+        // entry and no keyscan answer, it fails closed as a probe failure.
         let resp = handle(
             &state,
             Request::ConnectionsConnect {
@@ -204,14 +206,17 @@ mod tests {
         )
         .await;
         match resp {
-            Response::Error { code, message } => {
-                assert_eq!(code, "unreachable");
-                assert!(message.contains("127.0.0.1"), "message was {message:?}");
+            Response::Error { code, message, .. } => {
+                assert_eq!(code, "invalid_config");
+                assert!(
+                    message.contains("could not scan host keys"),
+                    "message was {message:?}"
+                );
             }
             other => panic!("unexpected {other:?}"),
         }
 
-        // Forced, the probe is skipped: with an impossible port the check in
+        // Forced, the gate is skipped: with an impossible port the check in
         // `ssh_invocation` refuses next, so the terminal launcher is never
         // reached.
         c.port = 0;
