@@ -2417,6 +2417,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn adding_credential_ignores_client_has_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut credential = new_credential("prod", "deploy");
+        credential.has_password = true;
+
+        let res = handle(
+            &state,
+            Request::CredentialsAdd {
+                credential,
+                password: None,
+            },
+        )
+        .await;
+        assert!(matches!(res, Response::Ok));
+
+        let stored = state.store.load_data().unwrap().credentials;
+        assert_eq!(stored.len(), 1);
+        assert!(!stored[0].has_password);
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
     async fn adding_a_credential_assigns_an_id_and_stores_metadata_only() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
