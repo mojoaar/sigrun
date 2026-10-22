@@ -4,8 +4,9 @@ Ranked, deduplicated findings from nine review passes over `main` at `673c1e3`
 (branch `review/full-app-audit`). Each finding states what is wrong, the risk of
 fixing it, the risk of leaving it, and the effort. **Nothing here has been
 fixed.** Per-pass detail lives in the sibling files (`01-code-quality.md` …
-`09-docs.md`). Pass 6 (interactive UI) is pending — it needs the dev build
-running with the installed app quit.
+`09-docs.md`). All nine passes are complete; pass 6 (interactive UI) ran the real
+React app in a stubbed-Tauri browser harness and reproduced #12 and #13 live
+(screenshots in `./shots/`).
 
 Severity key: **Critical** = security or data loss, fix before anything user-facing.
 **High** = real user harm or a broken promise. **Medium** = correctness /
@@ -105,13 +106,15 @@ Effort: **S** = under a day, one area. **M** = a day-ish, touches a boundary
 - **Risk of fixing:** none — fall back to the default theme when the name is unknown.
 - **Risk of leaving:** one bad string strands the user on an unlock screen that can never succeed, with no in-app recovery.
 - **Effort:** S — `PALETTES[name] ?? PALETTES[DEFAULT_THEME]`; keep theme failures out of the vault-state path.
+- **Confirmed live (pass 6):** reproduced in the browser harness — with an invalid theme the app sat on "Vault locked" and never opened, with zero console errors; a valid theme unlocked immediately. This raises #12 from a code-read suspicion to a demonstrated failure.
 
 ### 13. `keys.addToVaultBody` used but defined in no locale — dialog renders the raw key
 - **Location:** `apps/desktop/src/views/Keys.tsx:63`; the string lives at `vault.addToVaultBody` in all seven bundles
 - **What:** the add-to-vault dialog calls `t("keys.addToVaultBody")` but every locale defines only `vault.addToVaultBody`; i18next falls back to the key itself, so every user sees the literal text "keys.addToVaultBody". The completeness guard compares locales against each other, so a key missing from all seven passes.
 - **Risk of fixing:** none — rename the JSON entry or the call site.
 - **Risk of leaving:** an untranslated internal key shown in every language on a shipped feature.
-- **Effort:** S — add `addToVaultBody` under `keys` in each locale; optionally extend the guard to check call sites against en.json.
+- **Effort:** S — add `addToVaultBody` under `keys` in each locale (the text already exists at `vault.addToVaultBody`); optionally extend the guard to check call sites against en.json.
+- **Confirmed live (pass 6):** the "Add to vault" dialog shows the literal string `keys.addToVaultBody` as its body (screenshot `shots/16-addtovault-dialog.png`). A call-site-vs-en.json scan of all 176 `t()` calls found this is the only missing key in the app.
 
 ### 14. Windows IPC server spins forever when pipe creation keeps failing
 - **Location:** `crates/sigrun-core/src/ipc/server.rs:80-99`
@@ -306,32 +309,39 @@ Effort: **S** = under a day, one area. **M** = a day-ish, touches a boundary
 - **Risk of leaving:** negligible on a desktop, but pure waste in the common locked-idle case.
 - **Effort:** S — gate the tick on a dirty flag; cache `auto_lock_minutes` refreshed by the save path.
 
+### 41. Connection-error modal blocks all navigation until dismissed
+- **Location:** `apps/desktop/src/views/Connections.tsx` — the failed-connect/trust modal is a `div.fixed.inset-0` overlay (no Escape / outside-click dismissal).
+- **What:** after a failed connect an accessible modal (`role="dialog"`, `aria-label` set, Cancel / "Connect anyway") appears — correct — but its overlay intercepts pointer events for the whole window, so the nav tabs (Keys/Credentials/Settings/Help) are unreachable by mouse until the user picks an action. Other dialogs in the app close on Escape; this one does not. Found in the pass-6 browser walk (screenshot `shots/15-connect-error-modal.png`).
+- **Risk of fixing:** low; keep the explicit trust decision — Escape/outside-click must map to Cancel only, never to Connect-anyway.
+- **Risk of leaving:** minor — one extra click to return to the rest of the app after a failed connect. Keyboard users can already tab to Cancel.
+- **Effort:** S.
+
 ---
 
 ## Docs (all S effort; fix after the code findings you choose)
 
-### 41. README promises Ctrl+N / Ctrl+, on Windows/Linux — they don't exist there
+### 42. README promises Ctrl+N / Ctrl+, on Windows/Linux — they don't exist there
 - **Location:** `README.md:120-121`; the menu is `#[cfg(target_os = "macos")]` only (`lib.rs:151-175`). **Fix:** qualify the sentence, or implement the shortcuts cross-platform.
 
-### 42. Six shipped locales are machine-translated and unreviewed
+### 43. Six shipped locales are machine-translated and unreviewed
 - **Location:** `apps/desktop/src/i18n/{da,de,fr,es,sv,nb}.json`; only `en.json` is authored. Spot-checks show "vault" rendered as the architectural/cash word (da `pengeskab`, sv `valv`, nb `hvelv`). **Fix:** a README disclaimer line + an issue for native review; full review is L.
 
-### 43. AGENTS.md i18n rule is stale — says keys live in "both en.json and da.json"
+### 44. AGENTS.md i18n rule is stale — says keys live in "both en.json and da.json"
 - **Location:** AGENTS.md "Code rules" bullet 4; the guard actually enforces all seven locales. A contributor following it breaks the build. **Fix:** one-line edit to name all seven locales.
 
-### 44. "Left-click tray icon shows the window when locked" is false on Linux
+### 45. "Left-click tray icon shows the window when locked" is false on Linux
 - **Location:** `README.md:130-132` and `help.groups.tray` in all locales; Linux delivers no tray click events (`tray.rs:129-131,300-302`), so the locked Linux tray leads with an Unlock item instead. **Fix:** qualify the wording in README and the seven bundles.
 
-### 45. In-app Help omits the keyboard shortcuts entirely
+### 46. In-app Help omits the keyboard shortcuts entirely
 - **Location:** `apps/desktop/src/views/Help.tsx` (no shortcuts section) while README documents Cmd/Ctrl+F, Cmd/Ctrl+L, Cmd+N, Cmd+,. **Fix:** add a `help.shortcuts` section in all seven bundles.
 
-### 46. README Install section's `cargo build --release` lands the wrong binary on macOS
+### 47. README Install section's `cargo build --release` lands the wrong binary on macOS
 - **Location:** `README.md:61-65`; a bare build collides the desktop `Sigrun` onto `target/release/sigrun` on macOS's case-insensitive FS — a caveat the README itself admits 250 lines later. **Fix:** use `cargo build -p sigrun-cli --release` in Install.
 
-### 47. Help "CLI" section lists 8 commands and omits provision/keys/status
+### 48. Help "CLI" section lists 8 commands and omits provision/keys/status
 - **Location:** `apps/desktop/src/views/Help.tsx:5-14`; omits `connections provision`, `keys generate`, `keys import`, `vault init`/`lock`, `status` — even though the same view's quickStart recommends "Install SSH key…". **Fix:** add the missing rows in all seven bundles.
 
-### 48. README "It works the same on macOS, Linux, and Windows" overstates parity
+### 49. README "It works the same on macOS, Linux, and Windows" overstates parity
 - **Location:** `README.md:12-13`; the README's own limitations list says otherwise (no askpass on Windows, no session dot on Windows, no tabs off macOS). **Fix:** soften the sentence.
 
 ---
@@ -394,12 +404,15 @@ README "Current limitations" are marked *(documented)*.
 
 ## What I did not check / known limits
 
-- **Pass 6 (interactive UI) is still pending.** It needs `npm run tauri dev` with
-  the installed Sigrun quit. It may add findings (and confirm the i18n raw-key
-  bug #13 renders as predicted). Everything above is from code reading.
+- **Pass 6 (interactive UI) is done.** It ran the real React app in a stubbed-Tauri
+  Chromium harness (Playwright), walked every tab and the lock/unlock/error paths, and
+  captured screenshots (`./shots/`). It **confirmed #12 and #13 live** and added #41
+  (connection-error modal blocks navigation). It did not exercise native file pickers,
+  real terminal launch, the tray menu, or OS window chrome — those need the real Tauri
+  shell. See `06-interactive-ui.md`.
 - No profiler was run; performance findings (#20-#24, #33, #40) are from code
   reading, not measurement. The Argon2id cost is deliberate and excluded.
 - Windows behavior was reviewed from code only; no live Windows host was tested
   (#5's named-pipe ACL, #14's pipe loop, #16's quoting all assume the documented
   Win32 semantics).
-- The seven non-English locales were spot-checked, not fully reviewed (#42).
+- The seven non-English locales were spot-checked, not fully reviewed (#43).
