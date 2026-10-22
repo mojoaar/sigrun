@@ -54,6 +54,12 @@ export default function Help() {
       </section>
 
       <section className="flex flex-col gap-1">
+        <h3 className="font-semibold">{t("help.trust.title")}</h3>
+        <p className="text-muted">{t("help.trust.tofu")}</p>
+        <p className="text-muted">{t("help.trust.payload")}</p>
+      </section>
+
+      <section className="flex flex-col gap-1">
         <h3 className="font-semibold">{t("help.credentials.title")}</h3>
         <p className="text-muted">{t("help.credentials.summary")}</p>
         <p className="text-muted">{t("help.credentials.oneSource")}</p>
@@ -82,6 +88,8 @@ export default function Help() {
         <h3 className="font-semibold">{t("help.data.title")}</h3>
         <p className="text-muted">{t("help.data.dir")}</p>
         <p className="text-muted">{t("help.data.ssh")}</p>
+        <p className="text-muted">{t("help.data.config")}</p>
+        <p className="text-muted">{t("help.data.windows")}</p>
       </section>
 
       <section className="flex flex-col gap-1">

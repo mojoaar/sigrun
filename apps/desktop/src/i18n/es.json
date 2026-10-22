@@ -179,6 +179,11 @@
       "disk": "Las claves en disco se quedan donde están. Sigrun pasa -i <ruta> a ssh y nunca toca ~/.ssh.",
       "move": "Una clave del disco se puede copiar a la bóveda desde su fila, y una clave de la bóveda se puede guardar de nuevo en el disco. Al guardarla, la clave privada se escribe sin cifrar: elige el sitio a conciencia."
     },
+    "trust": {
+      "title": "Confianza en la clave del host",
+      "tofu": "Antes de abrir una conexión, Sigrun comprueba la clave del servidor contra su propio known_hosts (confianza en el primer uso). Una clave nunca vista se pregunta — el diálogo muestra su huella — y una clave distinta de la vista antes se rechaza: no se abre ningún terminal hasta que confirmes. Un host cuya clave no se pueda escanear también se rechaza; sigrun connections connect --force omite la comprobación.",
+      "payload": "Un rechazo de confianza lleva la huella, el algoritmo y la clave como campos estructurados (códigos de error host_key_unknown y host_key_mismatch), que es lo que muestra el diálogo de confianza."
+    },
     "credentials": {
       "title": "Credenciales",
       "summary": "Una credencial es un nombre de usuario y la forma de iniciar sesión con él: una clave, una contraseña o ambas. Existe una sola vez en Credenciales, y cualquier número de conexiones puede usarla, así que rotar una contraseña es una sola edición en lugar de una por host.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Dónde viven los datos",
       "dir": "Los datos viven en el directorio de datos de cada usuario: ~/Library/Application Support/Sigrun en macOS, ~/.local/share/sigrun en Linux y %APPDATA%\\Sigrun en Windows.",
-      "ssh": "Sigrun nunca modifica ~/.ssh."
+      "ssh": "Sigrun nunca modifica ~/.ssh.",
+      "config": "También se descubren los hosts de ~/.ssh/config; se leen tanto las líneas «Clave valor» como «Clave=valor», igual que OpenSSH.",
+      "windows": "En Windows, los argumentos con espacios —una ruta de clave como C:\\Users\\My User\\.ssh\\id_rsa— se entrecomillan como los interpreta cmd.exe, de modo que llegan a ssh como un solo argumento."
     },
     "about": {
       "title": "Acerca de",

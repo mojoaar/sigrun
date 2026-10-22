@@ -179,6 +179,11 @@
       "disk": "Nøgler på disken bliver, hvor de er. Sigrun sender -i <sti> videre til ssh og rører ikke din ~/.ssh.",
       "move": "En nøgle på disken kan kopieres ind i pengeskabet fra dens række, og en nøgle i pengeskabet kan gemmes til disken. Gemning skriver den private nøgle ukrypteret, så vælg stedet med omhu."
     },
+    "trust": {
+      "title": "Værtsnøgletillid",
+      "tofu": "Før en forbindelse åbnes, kontrollerer Sigrun serverens værtsnøgle mod sin egen known_hosts (tillid ved første brug). En nøgle, der aldrig er set før, spørges der om — dialogen viser dens fingeraftryk — og en nøgle, der afviger fra det tidligere sete, afvises: ingen terminal åbnes, før du bekræfter. En vært, hvis nøgle slet ikke kan skannes, afvises også; sigrun connections connect --force omgår kontrollen.",
+      "payload": "Et tillidsafslag medfører fingeraftryk, algoritme og nøgle som strukturerede felter (fejlkoderne host_key_unknown og host_key_mismatch), og det er dem, tillidsdialogen viser."
+    },
     "credentials": {
       "title": "Logins",
       "summary": "Et login er et brugernavn og måden at logge ind som det: en nøgle, en adgangskode eller begge. Det ligger ét sted under Logins, og så mange forbindelser, du vil, kan bruge det — så en adgangskodeændring er én rettelse i stedet for én pr. vært.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Hvor data ligger",
       "dir": "Dine data ligger i brugerens datamappe: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux og %APPDATA%\\Sigrun på Windows.",
-      "ssh": "Sigrun ændrer aldrig ~/.ssh."
+      "ssh": "Sigrun ændrer aldrig ~/.ssh.",
+      "config": "Værter fra ~/.ssh/config opdages også; både linjerne “Nøgle værdi” og “Nøgle=værdi” læses, som OpenSSH.",
+      "windows": "På Windows citeres argumenter med mellemrum — en nøglesti som C:\\Users\\My User\\.ssh\\id_rsa — som cmd.exe fortolker dem, så de når ssh som ét argument."
     },
     "about": {
       "title": "Om",
