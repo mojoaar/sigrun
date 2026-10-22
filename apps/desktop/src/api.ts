@@ -104,7 +104,7 @@ export const importKey = (path: string, name: string, passphrase?: string | null
 export const removeKey = (id: string) => call<void>("remove_key", { id });
 export const exportKey = (id: string, path: string) =>
   call<void>("export_key", { id, path });
-export const getSettings = async () => JSON.parse(await call<string>("get_settings")) as Settings;
+export const getSettings = () => call<Settings>("get_settings");
 export const saveSettings = (settings: Settings) => call<void>("save_settings", { settings });
 // The native window appearance tracks the Light/Dark setting so the macOS
 // overlay title bar's traffic lights stay legible against the themed header.

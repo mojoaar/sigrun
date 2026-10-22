@@ -208,14 +208,16 @@ pub async fn import_bundle_inner(state: Arc<HostState>, path: String) -> CmdResu
     call(state, Request::ImportBundle { path }).await
 }
 pub async fn get_settings_inner(state: Arc<HostState>) -> CmdResult {
-    let s = state.store.load_settings().map_err(config_err)?;
-    Ok(Response::Command(
-        serde_json::to_string(&s).map_err(config_err)?,
-    ))
+    call(state, Request::SettingsGet).await
 }
 pub async fn save_settings_inner(state: Arc<HostState>, settings: Settings) -> CmdResult {
-    state.store.save_settings(&settings).map_err(config_err)?;
-    Ok(Response::Ok)
+    call(
+        state,
+        Request::SettingsSet {
+            settings: Box::new(settings),
+        },
+    )
+    .await
 }
 
 type St<'a> = State<'a, Arc<HostState>>;

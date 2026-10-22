@@ -288,4 +288,39 @@ mod tests {
         state.shutdown.cancel();
         let _ = server.await;
     }
+
+    #[tokio::test]
+    async fn settings_roundtrip_over_ipc() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = HostState::new(paths).await.unwrap();
+
+        // Initially returns default settings
+        let resp = handle(&state, Request::SettingsGet).await;
+        let mut settings = match resp {
+            Response::Settings(s) => s,
+            other => panic!("expected Response::Settings, got {other:?}"),
+        };
+        assert_eq!(settings.theme, "nordlys");
+
+        // Mutate settings and save
+        settings.theme = "frost".into();
+        let resp = handle(
+            &state,
+            Request::SettingsSet {
+                settings: Box::new(settings.clone()),
+            },
+        )
+        .await;
+        assert!(matches!(resp, Response::Ok));
+
+        // Read back and verify mutation persisted
+        let resp = handle(&state, Request::SettingsGet).await;
+        match resp {
+            Response::Settings(s) => assert_eq!(s.theme, "frost"),
+            other => panic!("expected Response::Settings, got {other:?}"),
+        }
+
+        state.shutdown.cancel();
+    }
 }

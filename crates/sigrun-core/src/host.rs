@@ -548,6 +548,11 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             state.report_session(&id, pid);
             Ok(Response::Ok)
         }
+        Request::SettingsGet => Ok(Response::Settings(state.store.load_settings()?)),
+        Request::SettingsSet { settings } => {
+            state.store.save_settings(&settings)?;
+            Ok(Response::Ok)
+        }
         Request::Shutdown => {
             state.shutdown.cancel();
             Ok(Response::Ok)
