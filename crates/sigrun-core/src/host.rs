@@ -1393,6 +1393,7 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
         }
     }
 
+    let mut metas = Vec::with_capacity(keys.len());
     let mut views = Vec::with_capacity(keys.len());
     for key in keys {
         let name = key
@@ -1410,12 +1411,13 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
         meta.name = name;
         meta.disk_path = Some(key.path.display().to_string());
         meta.has_passphrase = key.has_passphrase;
-        store.upsert_key(meta.clone())?;
         views.push(KeyView {
-            key: meta,
+            key: meta.clone(),
             available: key.path.exists(),
         });
+        metas.push(meta);
     }
+    store.upsert_keys(&metas)?;
 
     views.sort_by(|a, b| (&a.key.name, &a.key.fingerprint).cmp(&(&b.key.name, &b.key.fingerprint)));
     Ok(views)
