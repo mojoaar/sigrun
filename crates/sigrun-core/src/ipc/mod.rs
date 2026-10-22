@@ -239,6 +239,34 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn unix_socket_has_mode_0600() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("host.sock");
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
+        let server = tokio::spawn({
+            let state = state.clone();
+            let sock = sock.clone();
+            async move { serve(&sock, state).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let metadata = std::fs::metadata(&sock).expect("socket file exists");
+        let mode = metadata.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "expected socket permissions to be 0600, got {:o}",
+            mode
+        );
+
+        state.shutdown.cancel();
+        let _ = server.await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn unix_socket_verifies_peer_credentials() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("host.sock");

@@ -42,6 +42,11 @@ async fn serve_unix(addr: &Path, state: Arc<HostState>) -> Result<()> {
         }
     }
     let listener = tokio::net::UnixListener::bind(addr)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(addr, std::fs::Permissions::from_mode(0o600))?;
+    }
     loop {
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
