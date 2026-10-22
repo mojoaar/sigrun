@@ -46,6 +46,8 @@ describe("Keys", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Add to vault" }));
     const dialog = await screen.findByRole("dialog", { name: "Add to vault" });
+    expect(within(dialog).getByText("Copies this key into the vault. Leave the passphrase empty if the key has none.")).toBeDefined();
+    expect(within(dialog).queryByText("keys.addToVaultBody")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Key passphrase"), { target: { value: "s3cret" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add to vault" }));
 

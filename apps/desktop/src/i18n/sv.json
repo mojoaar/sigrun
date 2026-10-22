@@ -15,11 +15,11 @@
     "lock": "Lås",
     "unlocking": "Låser upp…",
     "passphrase": "Lösenfras",
-    "addToVaultBody": "Kopierar nyckeln till valvet. Lämna lösenfrasen tom om nyckeln saknar en.",
     "passphraseConfirm": "Bekräfta lösenfrasen",
     "passphraseMismatch": "Lösenfraserna stämmer inte överens.",
     "passphraseRequired": "En lösenfras krävs.",
-    "wrongPassphrase": "Fel lösenfras. Försök igen."
+    "wrongPassphrase": "Fel lösenfras. Försök igen.",
+    "failedAttempts": "Misslyckade upplåsningsförsök: {{count}}."
   },
   "connections": {
     "title": "Anslutningar",
@@ -62,6 +62,7 @@
     "removeConfirm": "Ta bort den här anslutningen? Det går inte att ångra."
   },
   "keys": {
+    "addToVaultBody": "Kopierar nyckeln till valvet. Lämna lösenfrasen tom om nyckeln saknar en.",
     "saveToDisk": "Spara på disk…",
     "addToVault": "Lägg till i valvet",
     "title": "Nycklar",

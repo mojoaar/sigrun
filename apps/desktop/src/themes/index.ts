@@ -23,9 +23,10 @@ export function resolveMode(override?: Mode | null): Mode {
 
 export function applyTheme(name: ThemeName, mode: Mode): void {
   const root = document.documentElement;
-  const tokens = PALETTES[name][mode];
+  const resolvedName = name in PALETTES ? name : DEFAULT_THEME;
+  const tokens = PALETTES[resolvedName][mode];
   for (const t of TOKENS) root.style.setProperty(`--color-${t}`, tokens[t]);
-  root.setAttribute("data-theme", name);
+  root.setAttribute("data-theme", resolvedName);
   root.setAttribute("data-mode", mode);
 }
 

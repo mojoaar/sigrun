@@ -15,11 +15,11 @@
     "lock": "Sperren",
     "unlocking": "Wird entsperrt…",
     "passphrase": "Passphrase",
-    "addToVaultBody": "Kopiert diesen Schlüssel in den Tresor. Passphrase leer lassen, wenn der Schlüssel keine hat.",
     "passphraseConfirm": "Passphrase bestätigen",
     "passphraseMismatch": "Die Passphrasen stimmen nicht überein.",
     "passphraseRequired": "Eine Passphrase ist erforderlich.",
-    "wrongPassphrase": "Falsche Passphrase. Bitte erneut versuchen."
+    "wrongPassphrase": "Falsche Passphrase. Bitte erneut versuchen.",
+    "failedAttempts": "Fehlgeschlagene Entsperrversuche: {{count}}."
   },
   "connections": {
     "title": "Verbindungen",
@@ -62,6 +62,7 @@
     "removeConfirm": "Diese Verbindung entfernen? Dies kann nicht rückgängig gemacht werden."
   },
   "keys": {
+    "addToVaultBody": "Kopiert diesen Schlüssel in den Tresor. Passphrase leer lassen, wenn der Schlüssel keine hat.",
     "saveToDisk": "Auf Datenträger speichern…",
     "addToVault": "In den Tresor übernehmen",
     "title": "Schlüssel",

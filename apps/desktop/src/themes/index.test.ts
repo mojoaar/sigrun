@@ -35,4 +35,8 @@ describe("themes", () => {
     expect(resolveMode()).toBe("dark");
     expect(resolveMode(null)).toBe("dark");
   });
+  it("falls back to DEFAULT_THEME when given an invalid theme name", () => {
+    expect(() => applyTheme("invalid_theme" as unknown as Parameters<typeof applyTheme>[0], "dark")).not.toThrow();
+    expect(document.documentElement.getAttribute("data-theme")).toBe("nordlys");
+  });
 });

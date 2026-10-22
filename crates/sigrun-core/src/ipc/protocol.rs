@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::model::{Connection, Credential, KeyAlgorithm, KeyView};
+use crate::model::{Connection, Credential, KeyAlgorithm, KeyView, Settings};
 use crate::vault::VaultStatus;
 
 /// The largest single IPC line, in bytes. Anything longer is rejected.
@@ -117,6 +117,12 @@ pub enum Request {
     ImportBundle {
         path: String,
     },
+    #[serde(rename = "settings_get")]
+    SettingsGet,
+    #[serde(rename = "settings_set")]
+    SettingsSet {
+        settings: Box<Settings>,
+    },
     Shutdown,
 }
 
@@ -136,6 +142,8 @@ pub enum Response {
     Provisioned(crate::provision::ProvisionOutcome),
     Export(crate::bundle::ExportSummary),
     Import(crate::bundle::ImportSummary),
+    #[serde(rename = "settings")]
+    Settings(Settings),
     Unlocked {
         warnings: Vec<String>,
     },
@@ -165,6 +173,7 @@ impl std::fmt::Debug for Response {
             Response::Provisioned(v) => f.debug_tuple("Provisioned").field(v).finish(),
             Response::Export(v) => f.debug_tuple("Export").field(v).finish(),
             Response::Import(v) => f.debug_tuple("Import").field(v).finish(),
+            Response::Settings(v) => f.debug_tuple("Settings").field(v).finish(),
             Response::Unlocked { warnings } => f
                 .debug_struct("Unlocked")
                 .field("warnings", warnings)
