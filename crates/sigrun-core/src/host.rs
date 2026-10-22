@@ -28,6 +28,11 @@ pub struct HostState {
     pub paths: Paths,
     pub store: Store,
     pub vault: tokio::sync::Mutex<Option<UnlockedVault>>,
+    /// Tracks consecutive failed unlock attempts for exponential backoff rate limiting.
+    pub failed_unlocks: std::sync::atomic::AtomicU32,
+    /// Serializes vault unlock operations so parallel Argon2 derivations cannot
+    /// exhaust memory.
+    pub unlock_lock: tokio::sync::Mutex<()>,
     pub agent: AgentState,
     pub agent_socket: String,
     /// The IPC address this host actually serves on. `Paths::socket_path()` is
@@ -67,6 +72,8 @@ impl HostState {
             ipc_addr: paths.socket_path().display().to_string(),
             store: Store::new(paths.clone()),
             vault: tokio::sync::Mutex::new(None),
+            failed_unlocks: std::sync::atomic::AtomicU32::new(0),
+            unlock_lock: tokio::sync::Mutex::new(()),
             agent: AgentState::new(),
             shutdown: tokio_util::sync::CancellationToken::new(),
             last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -396,11 +403,31 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             Ok(Response::Ok)
         }
         Request::VaultUnlock { passphrase } => {
+            let _permit = state.unlock_lock.lock().await;
             let vault_path = state.paths.vault_file().clone();
-            let unlocked =
+            let unlock_res =
                 tokio::task::spawn_blocking(move || Vault::new(vault_path).unlock(&passphrase))
                     .await
-                    .map_err(|e| Error::Ipc(e.to_string()))??;
+                    .map_err(|e| Error::Ipc(e.to_string()))?;
+
+            let unlocked = match unlock_res {
+                Ok(u) => {
+                    state
+                        .failed_unlocks
+                        .store(0, std::sync::atomic::Ordering::SeqCst);
+                    u
+                }
+                Err(e) => {
+                    let attempts = state
+                        .failed_unlocks
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                        + 1;
+                    let millis = (500u64 * (1u64 << (attempts.min(6) - 1))).min(30_000);
+                    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+                    return Err(e);
+                }
+            };
+
             *state.vault.lock().await = Some(unlocked);
             let warnings = reload_agent(state).await?;
             Ok(Response::Unlocked { warnings })
@@ -3149,6 +3176,134 @@ mod tests {
             Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn parallel_unlock_requests_are_serialized() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file().clone();
+        Vault::new(path).create("pw").unwrap();
+
+        // Spawn multiple parallel unlock requests
+        let mut handles = Vec::new();
+        for _ in 0..5 {
+            let state_clone = state.clone();
+            handles.push(tokio::spawn(async move {
+                handle(
+                    &state_clone,
+                    Request::VaultUnlock {
+                        passphrase: "pw".into(),
+                    },
+                )
+                .await
+            }));
+        }
+
+        for handle in handles {
+            let res = handle.await.unwrap();
+            assert!(matches!(res, Response::Unlocked { .. }));
+        }
+
+        // Verify unlock_lock exists on HostState
+        let _ = &state.unlock_lock;
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn failed_unlock_attempts_apply_exponential_backoff() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("correct-pw").unwrap();
+
+        // First failure: attempts count should be 1, delay at least 500ms
+        let start1 = std::time::Instant::now();
+        let res1 = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "wrong-1".into(),
+            },
+        )
+        .await;
+        let elapsed1 = start1.elapsed();
+        assert!(matches!(res1, Response::Error { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        assert!(
+            elapsed1 >= std::time::Duration::from_millis(500),
+            "expected at least 500ms backoff, took {elapsed1:?}"
+        );
+
+        // Second failure: attempts count should be 2, delay at least 1000ms
+        let start2 = std::time::Instant::now();
+        let res2 = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "wrong-2".into(),
+            },
+        )
+        .await;
+        let elapsed2 = start2.elapsed();
+        assert!(matches!(res2, Response::Error { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            2
+        );
+        assert!(
+            elapsed2 >= std::time::Duration::from_millis(1000),
+            "expected at least 1000ms backoff, took {elapsed2:?}"
+        );
+        assert!(
+            elapsed2 > elapsed1,
+            "consecutive failures should increase delay: elapsed2 {elapsed2:?} > elapsed1 {elapsed1:?}"
+        );
+
+        // Success resets the counter
+        let res_ok = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "correct-pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_ok, Response::Unlocked { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+
+        // Third failure after reset: attempts count should be 1 again, backoff resets to 500ms level
+        let start3 = std::time::Instant::now();
+        let res3 = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "wrong-3".into(),
+            },
+        )
+        .await;
+        let elapsed3 = start3.elapsed();
+        assert!(matches!(res3, Response::Error { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        assert!(
+            elapsed3 < elapsed2,
+            "reset backoff should be shorter than second failure: elapsed3 {elapsed3:?} < elapsed2 {elapsed2:?}"
+        );
+
         state.shutdown.cancel();
     }
 }

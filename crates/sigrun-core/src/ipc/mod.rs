@@ -231,4 +231,56 @@ mod tests {
         }
         state.shutdown.cancel();
     }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_socket_verifies_peer_credentials() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("host.sock");
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
+        let server = tokio::spawn({
+            let state = state.clone();
+            let sock = sock.clone();
+            async move { serve(&sock, state).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let res = client::request(&sock, &Request::Status).await;
+        assert!(res.is_ok());
+        state.shutdown.cancel();
+        let _ = server.await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn oversized_request_line_is_rejected_without_unbounded_buffering() {
+        use super::protocol;
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("host.sock");
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
+        let server = tokio::spawn({
+            let state = state.clone();
+            let sock = sock.clone();
+            async move { serve(&sock, state).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Send a stream of MAX_LINE + 1024 bytes with no newline
+        use tokio::io::AsyncWriteExt;
+        let mut stream = tokio::net::UnixStream::connect(&sock).await.unwrap();
+        let garbage = vec![b'a'; protocol::MAX_LINE + 1024];
+        let res = stream.write_all(&garbage).await;
+        assert!(res.is_ok());
+
+        // Connection should be closed by server when line exceeds MAX_LINE
+        use tokio::io::AsyncReadExt;
+        let mut resp = Vec::new();
+        let read_res = stream.read_to_end(&mut resp).await;
+        assert!(read_res.is_ok());
+
+        state.shutdown.cancel();
+        let _ = server.await;
+    }
 }

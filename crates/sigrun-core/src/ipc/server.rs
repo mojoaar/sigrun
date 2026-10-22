@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt};
 
 use crate::error::Result;
 use crate::host::{self, HostState};
@@ -48,6 +48,10 @@ async fn serve_unix(addr: &Path, state: Arc<HostState>) -> Result<()> {
             accepted = listener.accept() => {
                 match accepted {
                     Ok((stream, _)) => {
+                        match stream.peer_cred() {
+                            Ok(cred) if cred.uid() == unsafe { libc::getuid() } => {}
+                            _ => continue,
+                        }
                         let state = state.clone();
                         tokio::spawn(handle_conn(stream, state));
                     }
@@ -99,6 +103,46 @@ async fn serve_windows(addr: &Path, state: Arc<HostState>) -> Result<()> {
     Ok(())
 }
 
+/// Read a single newline-terminated line from `reader`, enforcing `max_bytes`
+/// across buffered chunks to prevent unbounded memory allocation.
+async fn read_line_bounded<R: AsyncBufRead + Unpin>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+    max_bytes: usize,
+) -> std::io::Result<usize> {
+    let mut total_read = 0;
+    loop {
+        let chunk = reader.fill_buf().await?;
+        if chunk.is_empty() {
+            return Ok(total_read);
+        }
+        if let Some(pos) = chunk.iter().position(|&b| b == b'\n') {
+            let len = pos + 1;
+            if buf.len() + len > max_bytes {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "line exceeded maximum allowed length",
+                ));
+            }
+            buf.extend_from_slice(&chunk[..len]);
+            reader.consume(len);
+            total_read += len;
+            return Ok(total_read);
+        } else {
+            let len = chunk.len();
+            if buf.len() + len > max_bytes {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "line exceeded maximum allowed length",
+                ));
+            }
+            buf.extend_from_slice(chunk);
+            reader.consume(len);
+            total_read += len;
+        }
+    }
+}
+
 /// Serve newline-delimited requests on one connection until EOF.
 async fn handle_conn<S>(stream: S, state: Arc<HostState>)
 where
@@ -110,7 +154,7 @@ where
 
     loop {
         line.clear();
-        match reader.read_until(b'\n', &mut line).await {
+        match read_line_bounded(&mut reader, &mut line, protocol::MAX_LINE).await {
             Ok(0) => break, // EOF: client went away.
             Ok(_) => {}
             Err(_) => break,
