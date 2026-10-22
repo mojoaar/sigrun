@@ -110,12 +110,13 @@ export default function Credentials({ onVaultLocked }: { onVaultLocked: () => vo
   const [keys, setKeys] = useState<KeyView[]>([]);
   const [form, setForm] = useState<{ edit: Credential | null } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<Credential | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const removeRef = useDialogFocus(confirmRemove !== null, () => setConfirmRemove(null));
 
   const handle = useCallback((err: unknown) => {
-    if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
-    else setError(true);
+    const e = err as CommandError | undefined;
+    if (e?.code === "vault_locked") onVaultLocked();
+    else setError(e && e.code !== "internal" ? e.message : "");
   }, [onVaultLocked]);
   const refresh = useCallback(() => {
     // The used-by count is read from the connections, never fetched separately.
@@ -134,7 +135,7 @@ export default function Credentials({ onVaultLocked }: { onVaultLocked: () => vo
         <h2 className="text-lg font-semibold">{t("credentials.title")}</h2>
         <button className="shrink-0 rounded bg-accent px-3 py-1 text-bg" onClick={() => setForm({ edit: null })}>{t("credentials.add")}</button>
       </div>
-      {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+      {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
       {creds.length === 0 && <p className="text-muted">{t("credentials.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {rows.map((c) => (
@@ -170,6 +171,7 @@ export default function Credentials({ onVaultLocked }: { onVaultLocked: () => vo
                 onClick={() => {
                   const id = confirmRemove.id;
                   setConfirmRemove(null);
+                  setError(null);
                   removeCredential(id).then(refresh).catch(handle);
                 }}
               >

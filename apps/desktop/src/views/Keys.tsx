@@ -11,7 +11,7 @@ const btn = "h-9 shrink-0 rounded bg-accent px-3 text-bg";
 export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const { t } = useTranslation();
   const [keys, setKeys] = useState<KeyView[]>([]);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [gen, setGen] = useState({ name: "", algorithm: "ed25519" as KeyAlgorithm, passphrase: "" });
   const [imp, setImp] = useState({ path: "", name: "", passphrase: "" });
   const [confirmRemove, setConfirmRemove] = useState<KeyView | null>(null);
@@ -22,28 +22,29 @@ export default function Keys({ onVaultLocked }: { onVaultLocked: () => void }) {
   const addRef = useDialogFocus(adding !== null, closeAdd);
 
   const handle = useCallback((err: unknown) => {
-    if ((err as CommandError)?.code === "vault_locked") onVaultLocked();
-    else setError(true);
+    const e = err as CommandError | undefined;
+    if (e?.code === "vault_locked") onVaultLocked();
+    else setError(e && e.code !== "internal" ? e.message : "");
   }, [onVaultLocked]);
   const refresh = useCallback(() => { listKeys().then(setKeys).catch(handle); }, [handle]);
   useEffect(refresh, [refresh]);
 
-  const run = (p: Promise<unknown>) => { setError(false); p.then(refresh).catch(handle); };
+  const run = (p: Promise<unknown>) => { setError(null); p.then(refresh).catch(handle); };
   const onGen = (e: FormEvent) => { e.preventDefault(); run(generateKey(gen.name, gen.algorithm, gen.passphrase).then(() => setGen({ ...gen, name: "", passphrase: "" }))); };
   const onImp = (e: FormEvent) => { e.preventDefault(); run(importKey(imp.path, imp.name, imp.passphrase).then(() => setImp({ path: "", name: "", passphrase: "" }))); };
   const saveToDisk = async (k: KeyView) => {
     try {
       const path = await save({ defaultPath: `${k.key.name}.pem` });
       if (path) run(exportKey(k.key.id, path));
-    } catch {
-      setError(true);
+    } catch (err) {
+      handle(err);
     }
   };
 
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">{t("keys.title")}</h2>
-      {error && <p role="alert" className="text-danger">{t("common.error")}</p>}
+      {error !== null && <p role="alert" className="text-danger">{error || t("common.error")}</p>}
       {keys.length === 0 && <p className="text-muted">{t("keys.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {keys.map((k) => (

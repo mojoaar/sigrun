@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows IPC server throttles retry loops and respects shutdown when named pipe creation fails.
 - Host Unix IPC socket explicitly enforces `0600` permissions.
 - Bundle export uses atomic file creation (`create_new`) for `.zip` files and guards against pre-existing `keys/` directories.
+- Remote sshd hardening and provisioning error messages are sanitized using fixed exit-code descriptions, preventing arbitrary remote stderr injection.
+- Provisioning rejects an empty username before Russh authentication, preventing misleading password failure errors.
+- Removed dead stderr logging on inconclusive reachability probe timeouts.
+- Keys and Credentials views surface specific host error messages instead of generic failure notices.
 
 ## [0.4.0] - 2026-10-21
 

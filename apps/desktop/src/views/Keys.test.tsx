@@ -74,4 +74,19 @@ describe("Keys", () => {
     await screen.findByText("work");
     expect(screen.queryByRole("button", { name: "Add to vault" })).toBeNull();
   });
+
+  it("renders specific host error message on exportKey failure", async () => {
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.exportKey).mockRejectedValueOnce({
+      code: "invalid_input",
+      message: "cannot export inside the SSH directory",
+    });
+    saveMock.mockResolvedValueOnce("/Users/x/.ssh/work.pem");
+    render(<Keys onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Save to disk…" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("cannot export inside the SSH directory");
+  });
 });

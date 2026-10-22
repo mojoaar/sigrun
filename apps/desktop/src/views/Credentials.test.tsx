@@ -167,4 +167,21 @@ describe("Credentials", () => {
 
     await waitFor(() => expect(api.setCredentialPassword).toHaveBeenCalledWith("cred1", null));
   });
+
+  it("renders specific host error message when removing credential fails", async () => {
+    vi.mocked(api.listCredentials).mockResolvedValue([cred()]);
+    vi.mocked(api.listConnections).mockResolvedValue([]);
+    vi.mocked(api.removeCredential).mockRejectedValueOnce({
+      code: "conflict",
+      message: "credential is used by 2 connections",
+    });
+    render(<Credentials onVaultLocked={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("credential is used by 2 connections");
+  });
 });
