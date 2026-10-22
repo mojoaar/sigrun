@@ -50,6 +50,31 @@ impl KdfParams {
 
 /// Derives the 32-byte vault key from a passphrase under `params`.
 pub fn derive_key(passphrase: &str, params: &KdfParams) -> Result<Zeroizing<[u8; 32]>> {
+    if params.algorithm != "argon2id" {
+        return Err(Error::VaultCorrupt(format!(
+            "unsupported KDF algorithm: {}",
+            params.algorithm
+        )));
+    }
+    if !(8_192..=262_144).contains(&params.m_cost_kib) {
+        return Err(Error::VaultCorrupt(format!(
+            "m_cost {} KiB is outside safe range (8192..=262144)",
+            params.m_cost_kib
+        )));
+    }
+    if !(1..=10).contains(&params.t_cost) {
+        return Err(Error::VaultCorrupt(format!(
+            "t_cost {} is outside safe range (1..=10)",
+            params.t_cost
+        )));
+    }
+    if !(1..=16).contains(&params.p_cost) {
+        return Err(Error::VaultCorrupt(format!(
+            "p_cost {} is outside safe range (1..=16)",
+            params.p_cost
+        )));
+    }
+
     let argon = Argon2::new(
         Algorithm::Argon2id,
         Version::V0x13,
@@ -136,5 +161,18 @@ mod tests {
             seal(&key, b"x").unwrap().nonce,
             seal(&key, b"x").unwrap().nonce
         );
+    }
+
+    #[test]
+    fn excessive_kdf_params_are_rejected() {
+        let mut params = KdfParams::new([0u8; 16]);
+        params.m_cost_kib = 1_000_000; // 1 GiB
+        let res = derive_key("pass", &params);
+        assert!(matches!(res, Err(Error::VaultCorrupt(_))));
+
+        params.m_cost_kib = 65_536;
+        params.t_cost = 100;
+        let res = derive_key("pass", &params);
+        assert!(matches!(res, Err(Error::VaultCorrupt(_))));
     }
 }
