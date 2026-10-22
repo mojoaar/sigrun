@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() =
 
 vi.mock("./api", () => ({
   getStatus: vi.fn().mockResolvedValue({ vault: "Locked", agent_socket: null, host_addr: "x", version: "0.1.0" }),
-  getSettings: vi.fn().mockResolvedValue({ theme: "ravn", language: "da", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 }),
+  getSettings: vi.fn().mockResolvedValue({ theme: "ravn", language: "da", terminal: null, open_in: "window", start_minimized: false, auto_lock_minutes: 30, version: 1 }),
   listConnections: vi.fn().mockResolvedValue([]),
   listKeys: vi.fn().mockResolvedValue([]),
   listCredentials: vi.fn().mockResolvedValue([]),
@@ -140,7 +140,7 @@ test("the menu opens the add form when unlocked", async () => {
 
 test("a tray connection error brings the connections tab forward with its trust dialog", async () => {
   vi.mocked(getStatus).mockResolvedValueOnce({ vault: "Unlocked", agent_socket: null, host_addr: "x", version: "0.1.0" });
-  vi.mocked(getSettings).mockResolvedValueOnce({ theme: "ravn", language: "en", terminal: null, open_in: "window", agent_enabled: true, start_minimized: false, auto_lock_minutes: 30, version: 1 });
+  vi.mocked(getSettings).mockResolvedValueOnce({ theme: "ravn", language: "en", terminal: null, open_in: "window", start_minimized: false, auto_lock_minutes: 30, version: 1 });
   render(<App />);
   // A tray click can find the window parked on another tab.
   fireEvent.click(await screen.findByRole("button", { name: "Keys" }));

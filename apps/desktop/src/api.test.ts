@@ -13,7 +13,6 @@ test("getSettings requests settings and returns typed Settings object", async ()
     language: "en",
     terminal: null,
     open_in: "window",
-    agent_enabled: true,
     start_minimized: false,
     auto_lock_minutes: 30,
   };
@@ -29,7 +28,6 @@ test("saveSettings sends settings to host", async () => {
     language: "en",
     terminal: null,
     open_in: "window",
-    agent_enabled: true,
     start_minimized: false,
     auto_lock_minutes: 30,
   };

@@ -51,17 +51,6 @@ impl AgentState {
             .iter()
             .any(|key| key.key_id == key_id)
     }
-
-    pub fn len(&self) -> usize {
-        self.keys.read().unwrap_or_else(|p| p.into_inner()).len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.keys
-            .read()
-            .unwrap_or_else(|p| p.into_inner())
-            .is_empty()
-    }
 }
 
 /// A concrete [`Session`] serving the keys held in [`AgentState`].
@@ -263,7 +252,12 @@ mod tests {
             comment: "k1".into(),
         }]);
         assert!(state.contains_key_id("k1"));
-        assert_eq!(state.len(), 1);
+        let mut agent = SigrunAgent::new(state.clone());
+        let identities = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(agent.request_identities())
+            .unwrap();
+        assert_eq!(identities.len(), 1);
     }
 
     #[test]
@@ -351,10 +345,8 @@ mod tests {
             comment: "k1".into(),
         }]);
 
-        // Verify read recovery via contains_key_id, len, is_empty
+        // Verify read recovery via contains_key_id
         assert!(state.contains_key_id("k1"));
-        assert_eq!(state.len(), 1);
-        assert!(!state.is_empty());
 
         // Verify request_identities on agent
         let mut agent = SigrunAgent::new(state.clone());
@@ -366,7 +358,12 @@ mod tests {
 
         // Verify clear also works
         state.clear();
-        assert_eq!(state.len(), 0);
+        assert!(!state.contains_key_id("k1"));
+        let identities = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(agent.request_identities())
+            .unwrap();
+        assert!(identities.is_empty());
     }
 
     #[test]

@@ -270,7 +270,6 @@ pub struct Settings {
     pub terminal: Option<String>,
     /// Where a connect opens: "window" or "tab". Anything else is "window".
     pub open_in: String,
-    pub agent_enabled: bool,
     pub start_minimized: bool,
     /// Idle minutes before the vault auto-locks; 0 disables it.
     pub auto_lock_minutes: u32,
@@ -284,7 +283,6 @@ impl Default for Settings {
             language: "en".into(),
             terminal: None,
             open_in: "window".into(),
-            agent_enabled: true,
             start_minimized: false,
             auto_lock_minutes: 30,
         }

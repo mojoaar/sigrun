@@ -12,18 +12,6 @@ pub enum TrustStatus {
     Mismatch,
 }
 
-impl TrustStatus {
-    pub fn is_trusted(&self) -> bool {
-        *self == Self::Trusted
-    }
-    pub fn is_mismatch(&self) -> bool {
-        *self == Self::Mismatch
-    }
-    pub fn needs_confirmation(&self) -> bool {
-        *self == Self::Unknown
-    }
-}
-
 fn read(path: &Path) -> Result<String> {
     match std::fs::read_to_string(path) {
         Ok(s) => Ok(s),
@@ -170,16 +158,19 @@ mod tests {
     fn host_key_trust_is_tofu_and_fails_closed() {
         let dir = tempfile::tempdir().unwrap();
         let kh = dir.path().join("known_hosts");
-        assert!(check(&kh, "h.example", 22, "ssh-ed25519", KEY)
-            .unwrap()
-            .needs_confirmation());
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap(),
+            TrustStatus::Unknown
+        );
         record(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap();
-        assert!(check(&kh, "h.example", 22, "ssh-ed25519", KEY)
-            .unwrap()
-            .is_trusted());
-        assert!(check(&kh, "h.example", 22, "ssh-ed25519", "BBBB")
-            .unwrap()
-            .is_mismatch());
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap(),
+            TrustStatus::Trusted
+        );
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-ed25519", "BBBB").unwrap(),
+            TrustStatus::Mismatch
+        );
     }
 
     #[test]
@@ -189,16 +180,19 @@ mod tests {
         record(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap();
         // The same host, asked for a key type it never offered before: this is a
         // trust prompt, not evidence that the host's identity changed.
-        assert!(check(&kh, "h.example", 22, "ssh-rsa", KEY)
-            .unwrap()
-            .needs_confirmation());
-        assert!(check(&kh, "h.example", 22, "ssh-ed25519", KEY)
-            .unwrap()
-            .is_trusted());
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-rsa", KEY).unwrap(),
+            TrustStatus::Unknown
+        );
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-ed25519", KEY).unwrap(),
+            TrustStatus::Trusted
+        );
         // Only a different key of a type already known is a mismatch.
-        assert!(check(&kh, "h.example", 22, "ssh-ed25519", "BBBB")
-            .unwrap()
-            .is_mismatch());
+        assert_eq!(
+            check(&kh, "h.example", 22, "ssh-ed25519", "BBBB").unwrap(),
+            TrustStatus::Mismatch
+        );
     }
 
     #[test]

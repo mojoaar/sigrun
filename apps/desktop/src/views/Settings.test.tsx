@@ -13,7 +13,6 @@ const settings = vi.hoisted((): api.Settings => ({
   language: "en",
   terminal: null,
   open_in: "window",
-  agent_enabled: true,
   auto_lock_minutes: 30,
   start_minimized: false,
 }));

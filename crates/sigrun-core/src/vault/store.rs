@@ -59,10 +59,6 @@ impl Vault {
         &self.path
     }
 
-    pub fn exists(&self) -> bool {
-        self.path.exists()
-    }
-
     pub fn status(&self) -> VaultStatus {
         if self.path.exists() {
             VaultStatus::Locked
@@ -185,10 +181,6 @@ impl UnlockedVault {
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &Secret)> {
         self.payload.iter()
-    }
-
-    pub fn lock(self) -> Vault {
-        Vault::new(self.path)
     }
 
     fn persist(&self) -> Result<()> {
