@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate and clamp vault KDF parameters against safe upper bounds on unlock.
 - Ensure vault `put` and `remove` operations roll back in-memory state if disk persistence fails.
 - Fail closed during TOFU host-key verification if `ssh-keyscan` fails or is unavailable.
+- Parse `Key=Value` syntax (with optional spaces around `=`) in `~/.ssh/config`, matching OpenSSH.
 
 ## [0.4.0] - 2026-10-21
 

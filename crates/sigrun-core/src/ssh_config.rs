@@ -35,9 +35,22 @@ pub fn parse_ssh_config(text: &str) -> Vec<SshHost> {
         if line.is_empty() {
             continue;
         }
+        // OpenSSH accepts both `Key Value` and `Key=Value` (with optional
+        // spaces around the `=`); only the first `=` splits key from value.
         let mut tokens = line.split_whitespace();
-        let key = tokens.next().unwrap_or_default().to_ascii_lowercase();
-        let value = tokens.collect::<Vec<_>>().join(" ");
+        let first = tokens.next().unwrap_or_default();
+        let rest = tokens.collect::<Vec<_>>().join(" ");
+        let (key, value) = match first.split_once('=') {
+            // `Key= Value` leaves an empty v; the value sits in rest.
+            Some((k, v)) if v.is_empty() && !rest.is_empty() => (k.to_ascii_lowercase(), rest),
+            Some((k, v)) => (k.to_ascii_lowercase(), v.to_string()),
+            // `Key = Value` leaves rest starting with a bare `=` token.
+            None if rest.starts_with('=') => (
+                first.to_ascii_lowercase(),
+                rest.trim_start_matches('=').trim_start().to_string(),
+            ),
+            None => (first.to_ascii_lowercase(), rest),
+        };
 
         match key.as_str() {
             // A Match line's options apply at ssh's discretion; never attach
@@ -237,6 +250,47 @@ Host db
         assert_eq!(hosts.len(), 1);
         assert_eq!(hosts[0].host_name, "s");
         assert_eq!(hosts[0].port, None);
+    }
+
+    #[test]
+    fn parses_key_value_syntax() {
+        let text = "Host=example.com\n  Port=2222\n  User=admin\n  IdentityFile=~/.ssh/id_rsa\n";
+        let hosts = parse_ssh_config(text);
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].alias, "example.com");
+        assert_eq!(hosts[0].port, Some(2222));
+        assert_eq!(hosts[0].user.as_deref(), Some("admin"));
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(hosts[0].identity_file, Some(home.join(".ssh/id_rsa")));
+    }
+
+    #[test]
+    fn parses_mixed_syntax() {
+        let text = "Host example.com\n  Port=2222\n  User admin\n  IdentityFile ~/.ssh/id_rsa\n";
+        let hosts = parse_ssh_config(text);
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].alias, "example.com");
+        assert_eq!(hosts[0].port, Some(2222));
+        assert_eq!(hosts[0].user.as_deref(), Some("admin"));
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(hosts[0].identity_file, Some(home.join(".ssh/id_rsa")));
+    }
+
+    #[test]
+    fn handles_equals_in_value() {
+        // ProxyCommand is not a field SshHost tracks; use HostName to prove
+        // only the first `=` splits key from value.
+        let text = "Host=example.com\n  HostName=foo=bar.example\n";
+        let hosts = parse_ssh_config(text);
+        assert_eq!(hosts[0].host_name, "foo=bar.example");
+    }
+
+    #[test]
+    fn handles_spaces_around_equals() {
+        let text = "Host example.com\n  Port = 2222\n  User = admin\n";
+        let hosts = parse_ssh_config(text);
+        assert_eq!(hosts[0].port, Some(2222));
+        assert_eq!(hosts[0].user.as_deref(), Some("admin"));
     }
 
     #[test]
