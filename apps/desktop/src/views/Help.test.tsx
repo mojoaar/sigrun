@@ -32,4 +32,11 @@ describe("Help", () => {
     expect(screen.getByText("A connection takes its sign-in details from one source: either a credential, or its own user, key and password. The two are never mixed.")).toBeTruthy();
     expect(screen.getByText("sigrun credentials add")).toBeTruthy();
   });
+
+  it("lists keyboard shortcuts", () => {
+    render(<Help />);
+    expect(screen.getByRole("heading", { name: "Keyboard shortcuts", level: 3 })).toBeTruthy();
+    expect(screen.getByText(/Cmd\+F/)).toBeTruthy();
+    expect(screen.getByText(/Cmd\+L/)).toBeTruthy();
+  });
 });

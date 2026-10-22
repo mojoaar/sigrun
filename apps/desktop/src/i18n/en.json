@@ -196,6 +196,13 @@
       "title": "Settings",
       "summary": "Theme and appearance, language, the terminal to launch, where a connect opens, auto-lock after idle, and start minimized to the tray."
     },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "search": "Cmd+F (Ctrl+F on Windows and Linux): Focus search field.",
+      "lock": "Cmd+L (Ctrl+L on Windows and Linux): Lock the vault.",
+      "newConnection": "Cmd+N (macOS): Open new connection dialog.",
+      "settings": "Cmd+, (macOS): Open Settings."
+    },
     "cli": {
       "title": "Command line",
       "host": { "cmd": "sigrun host", "desc": "Run the host in the foreground." },

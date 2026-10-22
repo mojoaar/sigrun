@@ -73,6 +73,14 @@ export default function Help() {
       </section>
 
       <section className="flex flex-col gap-1">
+        <h3 className="font-semibold">{t("help.shortcuts.title")}</h3>
+        <p className="text-muted">{t("help.shortcuts.search")}</p>
+        <p className="text-muted">{t("help.shortcuts.lock")}</p>
+        <p className="text-muted">{t("help.shortcuts.newConnection")}</p>
+        <p className="text-muted">{t("help.shortcuts.settings")}</p>
+      </section>
+
+      <section className="flex flex-col gap-1">
         <h3 className="font-semibold">{t("help.cli.title")}</h3>
         <dl className="flex flex-col gap-1">
           {CLI.map((k) => (

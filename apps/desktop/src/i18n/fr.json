@@ -196,6 +196,13 @@
       "title": "Réglages",
       "summary": "Thème et apparence, langue, terminal à lancer, lieu d'ouverture d'une connexion, verrouillage automatique après inactivité et démarrage réduit dans la zone de notification."
     },
+    "shortcuts": {
+      "title": "Raccourcis clavier",
+      "search": "Cmd+F (Ctrl+F sous Windows et Linux) : Activer le champ de recherche.",
+      "lock": "Cmd+L (Ctrl+L sous Windows et Linux) : Verrouiller le coffre.",
+      "newConnection": "Cmd+N (macOS) : Ouvrir la boîte de dialogue de nouvelle connexion.",
+      "settings": "Cmd+, (macOS) : Ouvrir les Réglages."
+    },
     "cli": {
       "title": "Ligne de commande",
       "host": { "cmd": "sigrun host", "desc": "Exécuter l'hôte au premier plan." },

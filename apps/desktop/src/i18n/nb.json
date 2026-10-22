@@ -196,6 +196,13 @@
       "title": "Innstillinger",
       "summary": "Tema og utseende, språk, hvilken terminal som startes, hvor en tilkobling åpnes, automatisk låsing etter inaktivitet og start minimert i systemfeltet."
     },
+    "shortcuts": {
+      "title": "Tastatursnarveier",
+      "search": "Cmd+F (Ctrl+F på Windows og Linux): Fokuser søkefeltet.",
+      "lock": "Cmd+L (Ctrl+L på Windows og Linux): Lås hvelvet.",
+      "newConnection": "Cmd+N (macOS): Åpne dialogen for ny tilkobling.",
+      "settings": "Cmd+, (macOS): Åpne Innstillinger."
+    },
     "cli": {
       "title": "Kommandolinje",
       "host": { "cmd": "sigrun host", "desc": "Kjør verten i forgrunnen." },

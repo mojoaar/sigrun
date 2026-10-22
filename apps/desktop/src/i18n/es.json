@@ -196,6 +196,13 @@
       "title": "Ajustes",
       "summary": "Tema y apariencia, idioma, el terminal que se lanza, dónde se abre una conexión, el bloqueo automático tras inactividad y el inicio minimizado en la bandeja."
     },
+    "shortcuts": {
+      "title": "Atajos de teclado",
+      "search": "Cmd+F (Ctrl+F en Windows y Linux): Enfocar el campo de búsqueda.",
+      "lock": "Cmd+L (Ctrl+L en Windows y Linux): Bloquear la bóveda.",
+      "newConnection": "Cmd+N (macOS): Abrir el cuadro de diálogo de nueva conexión.",
+      "settings": "Cmd+, (macOS): Abrir Ajustes."
+    },
     "cli": {
       "title": "Línea de comandos",
       "host": { "cmd": "sigrun host", "desc": "Ejecutar el host en primer plano." },

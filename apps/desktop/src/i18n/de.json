@@ -196,6 +196,13 @@
       "title": "Einstellungen",
       "summary": "Design und Darstellung, Sprache, das zu startende Terminal, wo eine Verbindung geöffnet wird, automatisches Sperren nach Inaktivität und minimierter Start im Infobereich."
     },
+    "shortcuts": {
+      "title": "Tastaturkurzbefehle",
+      "search": "Cmd+F (Strg+F unter Windows und Linux): Suchfeld fokussieren.",
+      "lock": "Cmd+L (Strg+L unter Windows und Linux): Tresor sperren.",
+      "newConnection": "Cmd+N (macOS): Dialog für neue Verbindung öffnen.",
+      "settings": "Cmd+, (macOS): Einstellungen öffnen."
+    },
     "cli": {
       "title": "Kommandozeile",
       "host": { "cmd": "sigrun host", "desc": "Den Host im Vordergrund ausführen." },

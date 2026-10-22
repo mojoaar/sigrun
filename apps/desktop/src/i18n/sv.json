@@ -196,6 +196,13 @@
       "title": "Inställningar",
       "summary": "Tema och utseende, språk, vilken terminal som startas, var en anslutning öppnas, automatiskt lås efter inaktivitet och start minimerad i systemfältet."
     },
+    "shortcuts": {
+      "title": "Kortkommandon",
+      "search": "Cmd+F (Ctrl+F på Windows och Linux): Fokusera sökfältet.",
+      "lock": "Cmd+L (Ctrl+L på Windows och Linux): Lås valvet.",
+      "newConnection": "Cmd+N (macOS): Öppna dialogen för ny anslutning.",
+      "settings": "Cmd+, (macOS): Öppna Inställningar."
+    },
     "cli": {
       "title": "Kommandorad",
       "host": { "cmd": "sigrun host", "desc": "Kör värden i förgrunden." },
