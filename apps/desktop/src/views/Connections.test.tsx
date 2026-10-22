@@ -201,6 +201,31 @@ describe("Connections", () => {
     await waitFor(() => expect(api.connectForce).toHaveBeenCalledWith("1"));
   });
 
+  it("dismisses the unreachable dialog on backdrop click and Escape without retrying", async () => {
+    vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "unreachable", message: "connection refused on h:22" });
+    vi.mocked(api.connectForce).mockClear();
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Host is not reachable" });
+    const backdrop = dialog.parentElement;
+    expect(backdrop).toBeTruthy();
+
+    // Clicking the backdrop dismisses the dialog
+    fireEvent.click(backdrop!);
+    expect(screen.queryByRole("dialog", { name: "Host is not reachable" })).toBeNull();
+    expect(api.connectForce).not.toHaveBeenCalled();
+
+    // Open unreachable dialog again and dismiss via Escape
+    vi.mocked(api.connectGuarded).mockRejectedValueOnce({ code: "unreachable", message: "connection refused on h:22" });
+    fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+    expect(await screen.findByRole("dialog", { name: "Host is not reachable" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Host is not reachable" })).toBeNull();
+    expect(api.connectForce).not.toHaveBeenCalled();
+  });
+
   it("shows a tray error that has no dedicated dialog", async () => {
     const handled = vi.fn();
     render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} connectionError={{ id: "c1", code: "invalid_input", message: "connection old uses credential gone, which is not stored", host: "h", port: 22 }} onConnectionErrorHandled={handled} />);

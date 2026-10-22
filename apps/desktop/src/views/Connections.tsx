@@ -667,7 +667,12 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
         </div>
       )}
       {unreachable && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+        <div
+          className="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setUnreachable(null);
+          }}
+        >
           <div role="dialog" aria-label={t("connections.unreachable")} ref={unreachableRef} className="rounded border border-border bg-surface p-3">
             <h3 className="font-semibold">{t("connections.unreachable")}</h3>
             <p>{unreachable.message}</p>
