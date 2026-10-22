@@ -172,7 +172,7 @@
     "groups": {
       "title": "Anslutningar och grupper",
       "nesting": "Grupper nästlas med ”/”. En anslutning i PVE/Folder 1 visas under Folder 1 inuti PVE.",
-      "tray": "Ett vänsterklick på ikonen i systemfältet: med valvet låst öppnas fönstret så att valvet kan låsas upp; med valvet upplåst öppnas anslutningsmenyn, grupperad på samma sätt."
+      "tray": "Ett vänsterklick på ikonen i systemfältet: på macOS och Windows, med valvet låst öppnas fönstret så att valvet kan låsas upp; med valvet upplåst öppnas anslutningsmenyn, grupperad på samma sätt. På Linux öppnar ett klick snabbmenyn, som innehåller ett Lås upp-alternativ när valvet är låst."
     },
     "keys": {
       "title": "Nycklar",
@@ -206,10 +206,17 @@
     "cli": {
       "title": "Kommandorad",
       "host": { "cmd": "sigrun host", "desc": "Kör värden i förgrunden." },
+      "status": { "cmd": "sigrun status", "desc": "Visa status för valv, agent och anslutningar." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Initiera ett nytt valv." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås valvet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås upp valvet." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Lägg till en anslutning." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Öppna en anslutning i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Spara en anslutnings lösenord." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Installera en valvnyckel på en fjärrvärd." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Lista valv- och upptäckta nycklar." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generera en ny SSH-nyckel." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Importera en befintlig nyckel från disken till valvet." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lista inloggningar och hur många anslutningar som använder varje." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Lägg till en inloggning; ett lösenord läses från stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Ta bort en inloggning som ingen anslutning använder." }

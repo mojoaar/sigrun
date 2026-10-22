@@ -4,10 +4,17 @@ import { getStatus, openExternal } from "../api";
 
 const CLI = [
   "host",
+  "status",
+  "vaultInit",
+  "vaultLock",
   "vaultUnlock",
   "connectionsAdd",
   "connectionsConnect",
   "connectionsPassword",
+  "connectionsProvision",
+  "keysList",
+  "keysGenerate",
+  "keysImport",
   "credentialsList",
   "credentialsAdd",
   "credentialsRemove",

@@ -172,7 +172,7 @@
     "groups": {
       "title": "Conexiones y grupos",
       "nesting": "Los grupos se anidan con «/». Una conexión en PVE/Folder 1 aparece bajo Folder 1 dentro de PVE.",
-      "tray": "Clic izquierdo en el icono de la bandeja: con la bóveda bloqueada se abre la ventana para desbloquearla; con la bóveda desbloqueada se abre el menú de conexiones, agrupado de la misma forma."
+      "tray": "Clic izquierdo en el icono de la bandeja: en macOS y Windows, con la bóveda bloqueada se abre la ventana para desbloquearla; con la bóveda desbloqueada se abre el menú de conexiones, agrupado de la misma forma. En Linux, al hacer clic se abre el menú contextual, que incluye la opción Desbloquear cuando está bloqueada."
     },
     "keys": {
       "title": "Claves",
@@ -206,10 +206,17 @@
     "cli": {
       "title": "Línea de comandos",
       "host": { "cmd": "sigrun host", "desc": "Ejecutar el host en primer plano." },
+      "status": { "cmd": "sigrun status", "desc": "Mostrar el estado de la bóveda, el agente y las conexiones." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Inicializar una nueva bóveda." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Bloquear la bóveda." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Desbloquear la bóveda." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Añadir una conexión." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Abrir una conexión en el terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Guardar la contraseña de una conexión." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Instalar una clave de la bóveda en un host remoto." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Listar las claves de la bóveda y las descubiertas." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generar una nueva clave SSH." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Importar a la bóveda una clave existente del disco." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Listar las credenciales y cuántas conexiones usa cada una." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Añadir una credencial; la contraseña se lee de stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Eliminar una credencial que ninguna conexión usa." }

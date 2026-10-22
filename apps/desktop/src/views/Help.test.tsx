@@ -39,4 +39,13 @@ describe("Help", () => {
     expect(screen.getByText(/Cmd\+F/)).toBeTruthy();
     expect(screen.getByText(/Cmd\+L/)).toBeTruthy();
   });
+
+  it("lists core cli commands including provision, keys, and status", () => {
+    render(<Help />);
+    expect(screen.getByText("sigrun status")).toBeTruthy();
+    expect(screen.getByText("sigrun vault lock")).toBeTruthy();
+    expect(screen.getByText("sigrun connections provision")).toBeTruthy();
+    expect(screen.getByText("sigrun keys list")).toBeTruthy();
+    expect(screen.getByText("sigrun keys generate")).toBeTruthy();
+  });
 });

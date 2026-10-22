@@ -172,7 +172,7 @@
     "groups": {
       "title": "Verbindungen und Gruppen",
       "nesting": "Gruppen werden mit „/“ verschachtelt. Eine Verbindung in PVE/Folder 1 erscheint unter Folder 1 innerhalb von PVE.",
-      "tray": "Linksklick auf das Tray-Symbol: Bei gesperrtem Tresor öffnet sich das Fenster zum Entsperren; bei entsperrtem Tresor öffnet sich das Verbindungsmenü, ebenso gruppiert."
+      "tray": "Linksklick auf das Tray-Symbol: Unter macOS und Windows öffnet sich bei gesperrtem Tresor das Fenster zum Entsperren; bei entsperrtem Tresor öffnet sich das Verbindungsmenü, ebenso gruppiert. Unter Linux öffnet ein Klick das Kontextmenü, das bei gesperrtem Tresor einen Entsperren-Eintrag enthält."
     },
     "keys": {
       "title": "Schlüssel",
@@ -206,10 +206,17 @@
     "cli": {
       "title": "Kommandozeile",
       "host": { "cmd": "sigrun host", "desc": "Den Host im Vordergrund ausführen." },
+      "status": { "cmd": "sigrun status", "desc": "Tresor-, Agent- und Verbindungsstatus anzeigen." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Einen neuen Tresor initialisieren." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Den Tresor sperren." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Den Tresor entsperren." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Eine Verbindung hinzufügen." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Eine Verbindung im Terminal öffnen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Das Passwort einer Verbindung speichern." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Einen Tresorschlüssel auf einem entfernten Host installieren." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Tresor- und gefundene Schlüssel auflisten." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Einen neuen SSH-Schlüssel erzeugen." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Einen vorhandenen Schlüssel vom Datenträger in den Tresor importieren." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Zugangsdaten und die Anzahl der Verbindungen auflisten, die sie verwenden." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Zugangsdaten hinzufügen; ein Passwort wird von stdin gelesen." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Zugangsdaten entfernen, die keine Verbindung verwendet." }
