@@ -90,7 +90,12 @@ async fn serve_windows(addr: &Path, state: Arc<HostState>) -> Result<()> {
         // A second pipe with the same name fails to create (already running).
         let server = match ServerOptions::new().create(name) {
             Ok(server) => server,
-            Err(_) => continue,
+            Err(_) => {
+                tokio::select! {
+                    _ = state.shutdown.cancelled() => break,
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => continue,
+                }
+            }
         };
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
