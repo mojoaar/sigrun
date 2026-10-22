@@ -15,7 +15,6 @@
     "lock": "Lås",
     "unlocking": "Låser opp…",
     "passphrase": "Passfrase",
-    "addToVaultBody": "Kopierer nøkkelen til hvelvet. La passfrasen stå tom hvis nøkkelen ikke har noen.",
     "passphraseConfirm": "Bekreft passfrasen",
     "passphraseMismatch": "Passfrasene er ikke like.",
     "passphraseRequired": "En passfrase kreves.",
@@ -62,6 +61,7 @@
     "removeConfirm": "Fjerne denne tilkoblingen? Det kan ikke angres."
   },
   "keys": {
+    "addToVaultBody": "Kopierer nøkkelen til hvelvet. La passfrasen stå tom hvis nøkkelen ikke har noen.",
     "saveToDisk": "Lagre på disk…",
     "addToVault": "Legg til i hvelvet",
     "title": "Nøkler",

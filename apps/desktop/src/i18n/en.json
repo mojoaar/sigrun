@@ -15,7 +15,6 @@
     "lock": "Lock",
     "unlocking": "Unlocking…",
     "passphrase": "Passphrase",
-    "addToVaultBody": "Copies this key into the vault. Leave the passphrase empty if the key has none.",
     "passphraseConfirm": "Confirm passphrase",
     "passphraseMismatch": "The passphrases do not match.",
     "passphraseRequired": "A passphrase is required.",
@@ -62,6 +61,7 @@
     "removeConfirm": "Remove this connection? This cannot be undone."
   },
   "keys": {
+    "addToVaultBody": "Copies this key into the vault. Leave the passphrase empty if the key has none.",
     "saveToDisk": "Save to disk…",
     "addToVault": "Add to vault",
     "title": "Keys",

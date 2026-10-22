@@ -15,7 +15,6 @@
     "lock": "Verrouiller",
     "unlocking": "Déverrouillage…",
     "passphrase": "Phrase secrète",
-    "addToVaultBody": "Copie cette clé dans le coffre. Laisser la phrase secrète vide si la clé n'en a pas.",
     "passphraseConfirm": "Confirmer la phrase secrète",
     "passphraseMismatch": "Les phrases secrètes ne correspondent pas.",
     "passphraseRequired": "Une phrase secrète est requise.",
@@ -62,6 +61,7 @@
     "removeConfirm": "Supprimer cette connexion ? Cette action est irréversible."
   },
   "keys": {
+    "addToVaultBody": "Copie cette clé dans le coffre. Laisser la phrase secrète vide si la clé n'en a pas.",
     "saveToDisk": "Enregistrer sur le disque…",
     "addToVault": "Ajouter au coffre",
     "title": "Clés",
