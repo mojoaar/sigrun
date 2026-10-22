@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The README says how to get the `sigrun` command onto `PATH`: release binary, Arch package, or from source.
 
+### Fixed
+
+- Verify peer UID on Unix IPC socket connections to prevent unauthenticated local access.
+- Enforce line length limits during IPC stream reading to prevent memory exhaustion from unbounded lines.
+- Serialize concurrent vault unlock operations to prevent parallel Argon2 memory spikes.
+- Apply exponential backoff delay on consecutive failed vault unlock attempts.
+- Validate and clamp vault KDF parameters against safe upper bounds on unlock.
+- Ensure vault `put` and `remove` operations roll back in-memory state if disk persistence fails.
+- Fail closed during TOFU host-key verification if `ssh-keyscan` fails or is unavailable.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

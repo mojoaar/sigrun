@@ -360,26 +360,27 @@ fn evaluate_trust(
     }
 }
 
-/// Pre-flight TOFU gate deciding whether Sigrun launches the terminal. The probe is
-/// advisory: a missing `ssh-keyscan` or a failed probe skips the check (fail-open by
-/// design); the `ssh` in the terminal still verifies against the user's own
-/// `~/.ssh/known_hosts`.
+/// Pre-flight TOFU gate deciding whether Sigrun launches the terminal. Fails closed
+/// if `ssh-keyscan` is missing, blocked, or fails to scan the host keys.
 async fn check_trust(state: &HostState, host: &str, port: u16) -> Result<(), CommandError> {
     let Some(keys) = probe_host_key(host, port).await else {
-        eprintln!("sigrun: host-key probe unavailable; skipping trust check");
-        return Ok(());
+        return Err(CommandError {
+            code: "host_key_probe_failed".into(),
+            message: format!("could not scan host keys for {host}:{port}"),
+        });
     };
     evaluate_trust(&state.paths.data_dir.join("known_hosts"), host, port, &keys)
 }
 
-/// Connect after the TOFU host-key check. `print_only` contacts nothing, so it skips it.
+/// Connect after the TOFU host-key check. `print_only` contacts nothing, and `force`
+/// bypasses pre-flight trust verification (e.g. user chose "Connect anyway").
 pub async fn connect_guarded(
     state: Arc<HostState>,
     id: String,
     print_only: bool,
     force: bool,
 ) -> CmdResult {
-    if !print_only {
+    if !print_only && !force {
         let conns = match list_connections_inner(state.clone()).await? {
             Response::Connections(c) => c,
             _ => Vec::new(),
@@ -657,6 +658,65 @@ mod tests {
         assert!(!perms.iter().any(|p| p.starts_with("dialog:")
             && *p != "dialog:allow-open"
             && *p != "dialog:allow-save"));
+    }
+
+    #[tokio::test]
+    async fn check_trust_fails_closed_when_probe_unavailable() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = sigrun_core::paths::Paths::with_roots(
+            dir.path().into(),
+            dir.path().into(),
+            dir.path().join("ssh"),
+        );
+        let state = crate::host::start_host(paths).await.unwrap();
+        // Use an invalid port 0 or reserved address where ssh-keyscan fails/returns empty.
+        let err = super::check_trust(&state, "127.0.0.1", 0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "host_key_probe_failed");
+        assert!(err.message.contains("127.0.0.1:0"));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connect_guarded_skips_check_trust_when_force_is_true() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = sigrun_core::paths::Paths::with_roots(
+            dir.path().into(),
+            dir.path().into(),
+            dir.path().join("ssh"),
+        );
+        let state = crate::host::start_host(paths).await.unwrap();
+        // Host 127.0.0.1:1 fails keyscan, but is a valid connection.
+        let mut conn = sigrun_core::model::Connection::managed("c_test", "127.0.0.1");
+        conn.port = 1;
+        state.store.upsert_connection(conn).unwrap();
+
+        // Without force (and print_only = false), check_trust fails because port 1 scan fails.
+        let err = super::connect_guarded(state.clone(), "c_test".into(), false, false)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "host_key_probe_failed");
+
+        // With force = true (and print_only = true so it prints command instead of launching terminal),
+        // check_trust is skipped and connect succeeds with Response::Command.
+        let res = super::connect_guarded(state.clone(), "c_test".into(), true, false)
+            .await
+            .unwrap();
+        assert!(matches!(
+            res,
+            sigrun_core::ipc::protocol::Response::Command(_)
+        ));
+
+        let res_forced = super::connect_guarded(state.clone(), "c_test".into(), true, true)
+            .await
+            .unwrap();
+        assert!(matches!(
+            res_forced,
+            sigrun_core::ipc::protocol::Response::Command(_)
+        ));
+
+        state.shutdown.cancel();
     }
 
     #[tokio::test]
