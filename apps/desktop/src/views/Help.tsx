@@ -4,10 +4,17 @@ import { getStatus, openExternal } from "../api";
 
 const CLI = [
   "host",
+  "status",
+  "vaultInit",
+  "vaultLock",
   "vaultUnlock",
   "connectionsAdd",
   "connectionsConnect",
   "connectionsPassword",
+  "connectionsProvision",
+  "keysList",
+  "keysGenerate",
+  "keysImport",
   "credentialsList",
   "credentialsAdd",
   "credentialsRemove",
@@ -70,6 +77,14 @@ export default function Help() {
       <section className="flex flex-col gap-1">
         <h3 className="font-semibold">{t("help.settings.title")}</h3>
         <p className="text-muted">{t("help.settings.summary")}</p>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <h3 className="font-semibold">{t("help.shortcuts.title")}</h3>
+        <p className="text-muted">{t("help.shortcuts.search")}</p>
+        <p className="text-muted">{t("help.shortcuts.lock")}</p>
+        <p className="text-muted">{t("help.shortcuts.newConnection")}</p>
+        <p className="text-muted">{t("help.shortcuts.settings")}</p>
       </section>
 
       <section className="flex flex-col gap-1">

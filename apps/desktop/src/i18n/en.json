@@ -172,7 +172,7 @@
     "groups": {
       "title": "Connections and groups",
       "nesting": "Groups nest with “/”. A connection in PVE/Folder 1 shows under Folder 1 inside PVE.",
-      "tray": "Left-click the tray icon: with the vault locked it opens the window so you can unlock; with the vault unlocked it opens the connection menu, grouped the same way."
+      "tray": "Left-click the tray icon: on macOS and Windows with the vault locked it opens the window so you can unlock, and with the vault unlocked it opens the connection menu, grouped the same way. On Linux, clicking the icon opens the context menu, which includes an Unlock item when locked."
     },
     "keys": {
       "title": "Keys",
@@ -196,13 +196,27 @@
       "title": "Settings",
       "summary": "Theme and appearance, language, the terminal to launch, where a connect opens, auto-lock after idle, and start minimized to the tray."
     },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "search": "Cmd+F (Ctrl+F on Windows and Linux): Focus search field.",
+      "lock": "Cmd+L (Ctrl+L on Windows and Linux): Lock the vault.",
+      "newConnection": "Cmd+N (macOS): Open new connection dialog.",
+      "settings": "Cmd+, (macOS): Open Settings."
+    },
     "cli": {
       "title": "Command line",
       "host": { "cmd": "sigrun host", "desc": "Run the host in the foreground." },
+      "status": { "cmd": "sigrun status", "desc": "Display vault, agent, and connection status." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialize a new vault." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lock the vault." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Unlock the vault." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Add a connection." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Open a connection in the terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Store a connection's password." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Install a vault key on a remote host." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "List vault and discovered keys." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generate a new SSH key." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Import an existing key from disk into the vault." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "List credentials and how many connections use each." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Add a credential; a password comes from stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Remove a credential that no connection uses." }

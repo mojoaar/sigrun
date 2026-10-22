@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dialog from fields instead of parsing a message string.
 - Settings read and save use typed IPC requests (`settings_get` / `settings_set`) and response (`settings`) rather than smuggling JSON strings.
 - Removed unused agent_enabled setting and dead public core vault/agent APIs.
+- Documented keyboard shortcuts and missing CLI commands in the in-app Help view across all seven locales.
+- Clarified platform-specific keyboard shortcuts, cargo build flags, and Linux tray behavior in README and Help.
+- Updated developer documentation in AGENTS.md to reflect completeness across all seven locales.
 
 ### Fixed
 

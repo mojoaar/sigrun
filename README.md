@@ -9,10 +9,10 @@ cryptography and keys. Pronounced SIG-roon.
 
 Sigrun is a cross-platform SSH connection manager. Add a host, group it — a
 `/`-separated path like `PVE/Folder 1` nests — and click Connect to open `ssh`
-in your terminal, from the app, the tray, or the CLI. It works the same on
-macOS, Linux, and Windows. It is for anyone who moves between servers and wants
-their keys and connections in one local, encrypted place instead of scattered
-`~/.ssh` bookkeeping.
+in your terminal, from the app, the tray, or the CLI. Available on macOS, Linux,
+and Windows with native system integration on each platform. It is for anyone who
+moves between servers and wants their keys and connections in one local,
+encrypted place instead of scattered `~/.ssh` bookkeeping.
 
 Keys are what make those connections work. Sigrun keeps your private keys in an
 encrypted local vault, generates new ones, discovers the ones already in
@@ -59,10 +59,10 @@ Installers for macOS (Apple silicon and Intel), Linux, and Windows are built and
 attached to the release by pushing a `v*` tag. To build from source instead:
 
 ```bash
-cargo build --release
+cargo build -p sigrun-cli --release
 ```
 
-The `sigrun` binary lands at `target/release/sigrun`.
+Targeting `-p sigrun-cli` builds the CLI binary and prevents colliding with the desktop app binary name on macOS. The `sigrun` binary lands at `target/release/sigrun`.
 
 ## The first five minutes
 
@@ -118,8 +118,7 @@ The app is the long-lived host: it owns the vault, agent, and IPC, runs as a
 single instance, and closing the window minimizes it to the tray — quitting is
 explicit, from the tray menu.
 
-Keyboard: `Cmd+N` opens a new connection, `Cmd+F` jumps to the search field,
-`Cmd+L` locks the vault, `Cmd+,` opens Settings. On Windows and Linux the same shortcuts use `Ctrl`.
+Keyboard: Cmd+F (Ctrl+F on Windows and Linux) focuses search, Cmd+L (Ctrl+L) locks the vault. On macOS, Cmd+N opens a new connection dialog and Cmd+, opens Settings.
 
 ```bash
 cd apps/desktop && npm run tauri dev
@@ -129,8 +128,9 @@ On first run the app walks you through the vault, a key, and your first
 connection — see [The first five minutes](#the-first-five-minutes).
 
 - **Tray:** a connection menu to connect directly, plus Open and Quit.
-  Left-clicking the tray icon opens the connection menu when the vault is
-  unlocked, and shows the window when it is locked.
+  Left-clicking the tray icon opens the connection menu on macOS and Windows (or
+  shows the window when the vault is locked). On Linux, clicking the icon opens
+  the context menu, which includes an Unlock item when locked.
 - **Themes:** four Norse themes (nordlys, fjord, ravn, skumring), each in light
   and dark, following the OS by default with an override. On macOS the window
   uses an overlay title bar, so the bar is the header's own colour with the
@@ -140,7 +140,8 @@ connection — see [The first five minutes](#the-first-five-minutes).
   setting so the traffic lights stay legible against the themed header; on macOS
   that also repaints the app's own menus and About panel.
 - **i18n:** English, Danish, German, French, Spanish, Swedish and Norwegian
-  Bokmål, each shown under its own name in the picker.
+  Bokmål, each shown under its own name in the picker. Languages other than
+  English are machine-translated; community review and improvements are welcome.
 - **Settings:** appearance, language, terminal, whether a connect opens in a new
   window or a new tab, an idle **auto-lock** for the vault (default 30 minutes;
   0 disables it), and "start minimized to tray" last.

@@ -172,7 +172,7 @@
     "groups": {
       "title": "Connexions et groupes",
       "nesting": "Les groupes s'imbriquent avec « / ». Une connexion dans PVE/Folder 1 apparaît sous Folder 1 dans PVE.",
-      "tray": "Clic gauche sur l'icône de la zone de notification : coffre verrouillé, la fenêtre s'ouvre pour le déverrouiller ; coffre déverrouillé, le menu des connexions s'ouvre, groupé de la même façon."
+      "tray": "Clic gauche sur l'icône de la zone de notification : sous macOS et Windows, coffre verrouillé, la fenêtre s'ouvre pour le déverrouiller ; coffre déverrouillé, le menu des connexions s'ouvre, groupé de la même façon. Sous Linux, un clic ouvre le menu contextuel, qui comprend un élément Déverrouiller lorsque le coffre est verrouillé."
     },
     "keys": {
       "title": "Clés",
@@ -196,13 +196,27 @@
       "title": "Réglages",
       "summary": "Thème et apparence, langue, terminal à lancer, lieu d'ouverture d'une connexion, verrouillage automatique après inactivité et démarrage réduit dans la zone de notification."
     },
+    "shortcuts": {
+      "title": "Raccourcis clavier",
+      "search": "Cmd+F (Ctrl+F sous Windows et Linux) : Activer le champ de recherche.",
+      "lock": "Cmd+L (Ctrl+L sous Windows et Linux) : Verrouiller le coffre.",
+      "newConnection": "Cmd+N (macOS) : Ouvrir la boîte de dialogue de nouvelle connexion.",
+      "settings": "Cmd+, (macOS) : Ouvrir les Réglages."
+    },
     "cli": {
       "title": "Ligne de commande",
       "host": { "cmd": "sigrun host", "desc": "Exécuter l'hôte au premier plan." },
+      "status": { "cmd": "sigrun status", "desc": "Afficher l'état du coffre, de l'agent et des connexions." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialiser un nouveau coffre." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Verrouiller le coffre." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Déverrouiller le coffre." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Ajouter une connexion." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Ouvrir une connexion dans le terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Enregistrer le mot de passe d'une connexion." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Installer une clé du coffre sur un hôte distant." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Lister les clés du coffre et les clés détectées." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Générer une nouvelle clé SSH." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Importer une clé existante du disque dans le coffre." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lister les identifiants et le nombre de connexions qui utilisent chacun." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Ajouter un identifiant ; le mot de passe est lu sur stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Supprimer un identifiant qu'aucune connexion n'utilise." }

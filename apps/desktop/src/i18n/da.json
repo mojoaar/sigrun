@@ -172,7 +172,7 @@
     "groups": {
       "title": "Forbindelser og grupper",
       "nesting": "Grupper kan nestes med “/”. En forbindelse i PVE/Folder 1 vises under Folder 1 inde i PVE.",
-      "tray": "Venstreklik på bakkeikonet: er pengeskabet låst, åbnes vinduet, så du kan låse det op; er pengeskabet låst op, åbnes menuen med forbindelserne grupperet på samme måde."
+      "tray": "Venstreklik på bakkeikonet: på macOS og Windows, er pengeskabet låst, åbnes vinduet, så du kan låse det op; er pengeskabet låst op, åbnes menuen med forbindelserne grupperet på samme måde. På Linux åbner et klik genvejsmenuen, som indeholder et Lås op-punkt, når pengeskabet er låst."
     },
     "keys": {
       "title": "Nøgler",
@@ -196,13 +196,27 @@
       "title": "Indstillinger",
       "summary": "Tema og udseende, sprog, hvilken terminal der åbnes, hvor en forbindelse åbnes, automatisk låsning efter inaktivitet og start minimeret i systembakken."
     },
+    "shortcuts": {
+      "title": "Tastaturgenveje",
+      "search": "Cmd+F (Ctrl+F på Windows og Linux): Fokuser søgefeltet.",
+      "lock": "Cmd+L (Ctrl+L på Windows og Linux): Lås pengeskabet.",
+      "newConnection": "Cmd+N (macOS): Åbn dialogen til ny forbindelse.",
+      "settings": "Cmd+, (macOS): Åbn Indstillinger."
+    },
     "cli": {
       "title": "Kommandolinje",
       "host": { "cmd": "sigrun host", "desc": "Kør værten i forgrunden." },
+      "status": { "cmd": "sigrun status", "desc": "Vis status for pengeskab, agent og forbindelser." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialisér et nyt pengeskab." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås pengeskabet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås pengeskabet op." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Tilføj en forbindelse." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åbn en forbindelse i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Gem en forbindelses adgangskode." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Installér en nøgle fra pengeskabet på en fjernvært." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Vis nøgler i pengeskabet og fundne nøgler." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generér en ny SSH-nøgle." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Importér en eksisterende nøgle fra disken til pengeskabet." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis logins og hvor mange forbindelser der bruger hvert." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Tilføj et login; en adgangskode læses fra stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern et login, som ingen forbindelse bruger." }

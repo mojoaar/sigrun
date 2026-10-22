@@ -172,7 +172,7 @@
     "groups": {
       "title": "Tilkoblinger og grupper",
       "nesting": "Grupper nestes med «/». En tilkobling i PVE/Folder 1 vises under Folder 1 inne i PVE.",
-      "tray": "Et venstreklikk på ikonet i systemfeltet: er hvelvet låst, åpnes vinduet så hvelvet kan låses opp; er hvelvet opplåst, åpnes tilkoblingsmenyen, gruppert på samme måte."
+      "tray": "Et venstreklikk på ikonet i systemfeltet: på macOS og Windows, er hvelvet låst, åpnes vinduet så hvelvet kan låses opp; er hvelvet opplåst, åpnes tilkoblingsmenyen, gruppert på samme måte. På Linux åpner et klikk hurtigmenyen, som inneholder et Lås opp-element når hvelvet er låst."
     },
     "keys": {
       "title": "Nøkler",
@@ -196,13 +196,27 @@
       "title": "Innstillinger",
       "summary": "Tema og utseende, språk, hvilken terminal som startes, hvor en tilkobling åpnes, automatisk låsing etter inaktivitet og start minimert i systemfeltet."
     },
+    "shortcuts": {
+      "title": "Tastatursnarveier",
+      "search": "Cmd+F (Ctrl+F på Windows og Linux): Fokuser søkefeltet.",
+      "lock": "Cmd+L (Ctrl+L på Windows og Linux): Lås hvelvet.",
+      "newConnection": "Cmd+N (macOS): Åpne dialogen for ny tilkobling.",
+      "settings": "Cmd+, (macOS): Åpne Innstillinger."
+    },
     "cli": {
       "title": "Kommandolinje",
       "host": { "cmd": "sigrun host", "desc": "Kjør verten i forgrunnen." },
+      "status": { "cmd": "sigrun status", "desc": "Vis status for hvelv, agent og tilkoblinger." },
+      "vaultInit": { "cmd": "sigrun vault init", "desc": "Opprett et nytt hvelv." },
+      "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås hvelvet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås opp hvelvet." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Legg til en tilkobling." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åpne en tilkobling i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Lagre passordet til en tilkobling." },
+      "connectionsProvision": { "cmd": "sigrun connections provision", "desc": "Installer en nøkkel fra hvelvet på en ekstern vert." },
+      "keysList": { "cmd": "sigrun keys list", "desc": "Vis nøkler i hvelvet og oppdagede nøkler." },
+      "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generer en ny SSH-nøkkel." },
+      "keysImport": { "cmd": "sigrun keys import", "desc": "Importer en eksisterende nøkkel fra disken til hvelvet." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis pålogginger og hvor mange tilkoblinger som bruker hver." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Legg til en pålogging; et passord leses fra stdin." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern en pålogging som ingen tilkobling bruker." }

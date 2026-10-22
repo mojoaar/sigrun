@@ -73,9 +73,9 @@ newtype variants holding a sequence.
 - When frontend files change, also run `npm test -- --run && npm run typecheck
   && npm run lint && npm run build` in `apps/desktop`. When workflows change,
   run `actionlint`.
-- Every user-facing string goes through `t(...)` with its key in **both**
-  `apps/desktop/src/i18n/en.json` and `da.json`; a recursive completeness guard
-  enforces it.
+- Every user-facing string goes through `t(...)` with its key in all seven
+  locales in `apps/desktop/src/i18n/*.json` (en, da, de, es, fr, nb, sv); a
+  recursive completeness guard enforces it.
 - A frontend `listen(...)` needs a permission: every Tauri plugin API the webview
   calls must be granted in `apps/desktop/src-tauri/capabilities/default.json`.
   Without an entry the call is rejected, so a swallowed promise makes the feature
