@@ -143,13 +143,15 @@ impl HostState {
     pub fn sweep_dead_sessions(&self) -> bool {
         let mut changed = false;
         self.session_map().retain(|id, pid| {
-            if pid_is_alive(*pid) && !session_is_orphaned(*pid) {
-                return true;
+            if pid_is_alive(*pid) {
+                if !session_is_orphaned(*pid) {
+                    return true;
+                }
+                // A shell reparented to init lost the terminal that launched it, but
+                // no hangup reached it, so it would sit there with an unreachable
+                // ssh under it for good. Signal its group: the trap reports the end.
+                end_orphaned_session(*pid);
             }
-            // A shell reparented to init lost the terminal that launched it, but
-            // no hangup reached it, so it would sit there with an unreachable
-            // ssh under it for good. Signal its group: the trap reports the end.
-            end_orphaned_session(*pid);
             if self.is_active(id) {
                 self.clear_active(id);
                 changed = true;
@@ -332,6 +334,9 @@ fn session_is_orphaned(_pid: u32) -> bool {
 /// End a session whose terminal is gone but whose shell never got a hangup.
 #[cfg(unix)]
 fn end_orphaned_session(pid: u32) {
+    if pid <= 1 || pid == std::process::id() {
+        return;
+    }
     // SAFETY: the pid came from our own launch line, which makes it a session
     // leader; a negative pid targets its process group so the ssh under it goes
     // too. The trap that runs on SIGHUP reports the end over IPC.
@@ -540,11 +545,20 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         // bumped the clock, and that must not defer the idle auto-lock.
         Request::ConnectionEnded { id } => {
             state.clear_active(&id);
+            state.forget_session(&id);
             Ok(Response::Ok)
         }
         // Not vault-touching either: the report arrives right after a launch the
         // connect already bumped, and it must not defer the idle auto-lock.
         Request::SessionStarted { id, pid } => {
+            if !state.is_active(&id) {
+                return Err(Error::InvalidInput(format!(
+                    "connection {id} is not active"
+                )));
+            }
+            if pid <= 1 || pid == std::process::id() {
+                return Err(Error::InvalidInput(format!("invalid session pid {pid}")));
+            }
             state.report_session(&id, pid);
             Ok(Response::Ok)
         }
@@ -2647,11 +2661,119 @@ mod tests {
         state.shutdown.cancel();
     }
 
+    #[tokio::test]
+    async fn session_started_rejects_invalid_pids_and_inactive_connections() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+
+        // Inactive connection
+        match handle(
+            &state,
+            Request::SessionStarted {
+                id: "c1".into(),
+                pid: 1234,
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("expected invalid_input for inactive connection, got {other:?}"),
+        }
+
+        state.mark_active("c1");
+
+        // pid 0
+        match handle(
+            &state,
+            Request::SessionStarted {
+                id: "c1".into(),
+                pid: 0,
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("expected invalid_input for pid 0, got {other:?}"),
+        }
+
+        // pid 1
+        match handle(
+            &state,
+            Request::SessionStarted {
+                id: "c1".into(),
+                pid: 1,
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("expected invalid_input for pid 1, got {other:?}"),
+        }
+
+        // own pid
+        match handle(
+            &state,
+            Request::SessionStarted {
+                id: "c1".into(),
+                pid: std::process::id(),
+            },
+        )
+        .await
+        {
+            Response::Error { code, .. } => assert_eq!(code, "invalid_input"),
+            other => panic!("expected invalid_input for own pid, got {other:?}"),
+        }
+
+        state.shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dead_non_orphaned_session_is_not_signaled() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        state.mark_active("c1");
+        state.report_session("c1", pid);
+
+        // Kill and reap child so it is dead (!pid_is_alive)
+        child.kill().unwrap();
+        child.wait().unwrap();
+
+        // sweep_dead_sessions should sweep it without signaling (since it's already dead, not orphaned alive)
+        assert!(state.sweep_dead_sessions());
+        assert!(!state.is_active("c1"));
+        assert!(state.session_map().is_empty());
+
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn connection_ended_forgets_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        state.mark_active("c1");
+        state.report_session("c1", 12345);
+        assert_eq!(state.session_map().get("c1"), Some(&12345));
+        assert!(matches!(
+            handle(&state, Request::ConnectionEnded { id: "c1".into() }).await,
+            Response::Ok
+        ));
+        assert!(!state.is_active("c1"));
+        assert_eq!(state.session_map().get("c1"), None);
+        state.shutdown.cancel();
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn a_session_report_keeps_the_connection_active_while_its_pid_lives() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
+        state.mark_active("c1");
         let mut child = std::process::Command::new("sleep")
             .arg("30")
             .spawn()
@@ -2667,7 +2789,6 @@ mod tests {
             .await,
             Response::Ok
         ));
-        state.mark_active("c1");
         assert!(!state.sweep_dead_sessions());
         assert!(state.is_active("c1"));
         child.kill().unwrap();
@@ -2733,6 +2854,7 @@ mod tests {
     async fn a_session_report_is_not_a_vault_touching_request() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
+        state.mark_active("c1");
         let before = state
             .last_vault_activity
             .load(std::sync::atomic::Ordering::Relaxed);
@@ -2741,7 +2863,7 @@ mod tests {
                 &state,
                 Request::SessionStarted {
                     id: "c1".into(),
-                    pid: std::process::id()
+                    pid: 12345
                 }
             )
             .await,
