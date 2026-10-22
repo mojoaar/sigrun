@@ -1260,6 +1260,11 @@ async fn connections_provision(
     };
 
     let auth = effective(&conn, &data.credentials)?;
+    if auth.user.trim().is_empty() {
+        return Err(Error::InvalidInput(
+            "provisioning requires a username".into(),
+        ));
+    }
     let key_ids = if key_ids.is_empty() {
         auth.key_id.clone().into_iter().collect()
     } else {
@@ -1634,6 +1639,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn provisioning_without_a_user_is_invalid_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_in(dir.path()).await;
+        unlock(&state, dir.path()).await;
+        let key_id = vault_key(&state).await;
+
+        let mut conn = usable("c1", "127.0.0.1");
+        conn.user = "   ".into();
+        state.store.upsert_connection(conn).unwrap();
+
+        match connections_provision(&state, "c1".into(), "secret".into(), vec![key_id], false).await
+        {
+            Err(Error::InvalidInput(m)) => {
+                assert_eq!(m, "provisioning requires a username")
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
     async fn provisioning_without_any_password_is_invalid_input() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
@@ -1657,10 +1683,7 @@ mod tests {
     async fn provisioning_without_any_key_is_invalid_input() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
-        state
-            .store
-            .upsert_connection(crate::model::Connection::managed("c1", "web"))
-            .unwrap();
+        state.store.upsert_connection(usable("c1", "web")).unwrap();
         match provision(&state, "c1", &[]).await {
             Err(Error::InvalidInput(m)) => assert_eq!(m, "no key selected"),
             other => panic!("unexpected {other:?}"),
@@ -1672,10 +1695,7 @@ mod tests {
     async fn provisioning_a_disk_key_asks_for_import() {
         let dir = tempfile::tempdir().unwrap();
         let state = state_in(dir.path()).await;
-        state
-            .store
-            .upsert_connection(crate::model::Connection::managed("c1", "web"))
-            .unwrap();
+        state.store.upsert_connection(usable("c1", "web")).unwrap();
         state
             .store
             .upsert_key(KeyMetadata::now(
