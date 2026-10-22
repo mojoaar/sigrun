@@ -103,6 +103,39 @@ impl Store {
         })
     }
 
+    pub fn upsert_keys(&self, new_keys: &[KeyMetadata]) -> Result<()> {
+        if new_keys.is_empty() {
+            return Ok(());
+        }
+        ensure_private_dir(&self.paths.data_dir)?;
+        let lock = File::create(self.paths.lock_file())?;
+        lock.lock_exclusive()?;
+        let outcome = (|| {
+            let mut data = self.load_data()?;
+            let mut changed = false;
+            for key in new_keys {
+                match data.keys.iter_mut().find(|k| k.id == key.id) {
+                    Some(existing) => {
+                        if existing != key {
+                            *existing = key.clone();
+                            changed = true;
+                        }
+                    }
+                    None => {
+                        data.keys.push(key.clone());
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
+                self.save_data(&data)?;
+            }
+            Ok(())
+        })();
+        drop(lock);
+        outcome
+    }
+
     /// Absent ids are not an error: keys disappear when their disk file does.
     pub fn remove_key(&self, id: &str) -> Result<()> {
         self.update_data(|data| {
@@ -133,7 +166,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use crate::error::Error;
-    use crate::model::{Credential, DataFile};
+    use crate::model::{Credential, DataFile, KeyAlgorithm};
     use crate::paths::Paths;
     use crate::store::{Connection, Store};
 
@@ -266,5 +299,64 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(store.load_data(), Err(Error::Config(_))));
+    }
+
+    #[test]
+    fn upsert_keys_batches_and_skips_write_when_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(Paths::with_roots(
+            dir.path().into(),
+            dir.path().into(),
+            dir.path().into(),
+        ));
+        let key1 = crate::model::KeyMetadata::now(
+            "k1",
+            KeyAlgorithm::Ed25519,
+            "ssh-ed25519 AAAA...",
+            "fp1",
+            crate::model::KeySource::Disk,
+        );
+        let key2 = crate::model::KeyMetadata::now(
+            "k2",
+            KeyAlgorithm::Ed25519,
+            "ssh-ed25519 BBBB...",
+            "fp2",
+            crate::model::KeySource::Disk,
+        );
+
+        store.upsert_keys(&[key1.clone(), key2.clone()]).unwrap();
+        let loaded = store.load_data().unwrap();
+        assert_eq!(loaded.keys.len(), 2);
+        assert!(loaded.keys.iter().any(|k| k.id == "k1"));
+        assert!(loaded.keys.iter().any(|k| k.id == "k2"));
+
+        let mtime_before = std::fs::metadata(store.paths().data_file())
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        // Small sleep to ensure mtime timestamp would change if written
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        store.upsert_keys(&[key1.clone(), key2.clone()]).unwrap();
+        let mtime_after = std::fs::metadata(store.paths().data_file())
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(mtime_before, mtime_after);
+
+        let mut modified_key1 = key1.clone();
+        modified_key1.name = "renamed".into();
+        store.upsert_keys(&[modified_key1]).unwrap();
+        let loaded_updated = store.load_data().unwrap();
+        assert_eq!(
+            loaded_updated
+                .keys
+                .iter()
+                .find(|k| k.id == "k1")
+                .unwrap()
+                .name,
+            "renamed"
+        );
     }
 }

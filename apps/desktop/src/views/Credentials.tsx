@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { addCredential, listConnections, listCredentials, listKeys, removeCredential, setCredentialPassword, updateCredential, type CommandError, type Connection, type Credential, type KeyView } from "../api";
 import { useDialogFocus } from "../useDialogFocus";
@@ -126,7 +126,17 @@ export default function Credentials({ onVaultLocked }: { onVaultLocked: () => vo
   }, [handle]);
   useEffect(refresh, [refresh]);
 
-  const usedBy = (id: string) => conns.filter((c) => c.credential_id === id).length;
+  const usedByCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of conns) {
+      if (c.credential_id) {
+        counts.set(c.credential_id, (counts.get(c.credential_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [conns]);
+
+  const usedBy = (id: string) => usedByCount.get(id) ?? 0;
   const rows = [...creds].sort((a, b) => a.label.localeCompare(b.label));
 
   return (

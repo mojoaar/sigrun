@@ -45,6 +45,8 @@ pub struct HostState {
     /// Set when the vault is locked by the idle auto-lock (the desktop host
     /// reads it to re-gate the UI). Never set on a manual lock.
     pub auto_locked: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// In-memory cache of the configured auto-lock timeout (in minutes).
+    pub auto_lock_minutes: std::sync::atomic::AtomicU32,
     /// Ids with a live session, reported as `Connection.active`. Transient:
     /// never persisted, and dropped when the vault locks.
     pub active: std::sync::Mutex<std::collections::HashSet<String>>,
@@ -67,10 +69,18 @@ impl HostState {
             .open(paths.host_lock_file())?;
         fs2::FileExt::try_lock_exclusive(&lock_file).map_err(|_| Error::AlreadyRunning)?;
 
+        let store = Store::new(paths.clone());
+        let auto_lock_minutes = std::sync::atomic::AtomicU32::new(
+            store
+                .load_settings()
+                .map(|s| s.auto_lock_minutes)
+                .unwrap_or(0),
+        );
+
         Ok(HostState {
             agent_socket: paths.agent_socket().display().to_string(),
             ipc_addr: paths.socket_path().display().to_string(),
-            store: Store::new(paths.clone()),
+            store,
             vault: tokio::sync::Mutex::new(None),
             failed_unlocks: std::sync::atomic::AtomicU32::new(0),
             unlock_lock: tokio::sync::Mutex::new(()),
@@ -78,6 +88,7 @@ impl HostState {
             shutdown: tokio_util::sync::CancellationToken::new(),
             last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             auto_locked: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            auto_lock_minutes,
             active: std::sync::Mutex::new(std::collections::HashSet::new()),
             sessions: std::sync::Mutex::new(std::collections::HashMap::new()),
             paths,
@@ -180,16 +191,12 @@ impl HostState {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
                 _ = self.shutdown.cancelled() => return,
             }
-            let minutes = self
-                .store
-                .load_settings()
-                .map(|s| s.auto_lock_minutes)
-                .unwrap_or(0);
-            if minutes == 0 {
-                continue;
-            }
             if self.vault.lock().await.is_none() {
                 continue; // nothing to lock
+            }
+            let minutes = self.auto_lock_minutes.load(Ordering::Relaxed);
+            if minutes == 0 {
+                continue;
             }
             let last = self.last_vault_activity.load(Ordering::Relaxed);
             let now = std::time::SystemTime::now()
@@ -565,6 +572,10 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         Request::SettingsGet => Ok(Response::Settings(state.store.load_settings()?)),
         Request::SettingsSet { settings } => {
             state.store.save_settings(&settings)?;
+            state.auto_lock_minutes.store(
+                settings.auto_lock_minutes,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             Ok(Response::Ok)
         }
         Request::Shutdown => {
@@ -1393,6 +1404,7 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
         }
     }
 
+    let mut metas = Vec::with_capacity(keys.len());
     let mut views = Vec::with_capacity(keys.len());
     for key in keys {
         let name = key
@@ -1410,12 +1422,13 @@ pub fn sync_disk_keys(store: &Store, ssh_dir: &Path) -> Result<Vec<KeyView>> {
         meta.name = name;
         meta.disk_path = Some(key.path.display().to_string());
         meta.has_passphrase = key.has_passphrase;
-        store.upsert_key(meta.clone())?;
         views.push(KeyView {
-            key: meta,
+            key: meta.clone(),
             available: key.path.exists(),
         });
+        metas.push(meta);
     }
+    store.upsert_keys(&metas)?;
 
     views.sort_by(|a, b| (&a.key.name, &a.key.fingerprint).cmp(&(&b.key.name, &b.key.fingerprint)));
     Ok(views)
@@ -3600,6 +3613,48 @@ mod tests {
             other => panic!("expected Response::Error, got {other:?}"),
         }
 
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn auto_lock_minutes_atomic_updates_on_settings_save() {
+        let dir = tempfile::tempdir().unwrap();
+        // Seed settings file with auto_lock_minutes = 0 so state initializes with 0
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().join("ssh"));
+        let store = Store::new(paths.clone());
+        let initial_settings = crate::model::Settings {
+            auto_lock_minutes: 0,
+            ..Default::default()
+        };
+        store.save_settings(&initial_settings).unwrap();
+
+        let state = HostState::new(paths).await.unwrap();
+        assert_eq!(
+            state
+                .auto_lock_minutes
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+
+        let mut settings = state.store.load_settings().unwrap();
+        settings.auto_lock_minutes = 15;
+        assert!(matches!(
+            handle(
+                &state,
+                Request::SettingsSet {
+                    settings: Box::new(settings)
+                }
+            )
+            .await,
+            Response::Ok
+        ));
+
+        assert_eq!(
+            state
+                .auto_lock_minutes
+                .load(std::sync::atomic::Ordering::Relaxed),
+            15
+        );
         state.shutdown.cancel();
     }
 }

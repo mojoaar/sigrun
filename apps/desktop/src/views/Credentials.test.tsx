@@ -184,4 +184,28 @@ describe("Credentials", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("credential is used by 2 connections");
   });
+
+  it("renders credential rows with correct usedBy counts matching connection associations", async () => {
+    vi.mocked(api.listCredentials).mockResolvedValue([
+      cred({ id: "cred1", label: "Alpha" }),
+      cred({ id: "cred2", label: "Beta" }),
+      cred({ id: "cred3", label: "Gamma" }),
+    ]);
+    vi.mocked(api.listConnections).mockResolvedValue([
+      conn({ id: "c1", credential_id: "cred1" }),
+      conn({ id: "c2", credential_id: "cred1" }),
+      conn({ id: "c3", credential_id: "cred2" }),
+      conn({ id: "c4", credential_id: null }),
+    ]);
+    render(<Credentials onVaultLocked={() => {}} />);
+
+    expect(await screen.findByText("Alpha")).toBeTruthy();
+    const alphaRow = screen.getByText("Alpha").closest("li") as HTMLElement;
+    const betaRow = screen.getByText("Beta").closest("li") as HTMLElement;
+    const gammaRow = screen.getByText("Gamma").closest("li") as HTMLElement;
+
+    expect(within(alphaRow).getByText("Used by 2")).toBeTruthy();
+    expect(within(betaRow).getByText("Used by 1")).toBeTruthy();
+    expect(within(gammaRow).getByText("Used by 0")).toBeTruthy();
+  });
 });

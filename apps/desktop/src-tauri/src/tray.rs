@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use sigrun_core::host::HostState;
 use sigrun_core::ipc::protocol::{Request, Response};
@@ -277,6 +277,8 @@ pub fn sync_tray(app: &AppHandle, state: &Arc<HostState>) {
     });
 }
 
+static LAST_TRAY_MODEL: Mutex<Option<(bool, String, Vec<TrayEntry>)>> = Mutex::new(None);
+
 pub async fn sync_tray_now(app: &AppHandle, state: &Arc<HostState>) -> tauri::Result<()> {
     let unlocked = is_unlocked(state).await;
     let language = state
@@ -295,6 +297,16 @@ pub async fn sync_tray_now(app: &AppHandle, state: &Arc<HostState>) -> tauri::Re
         &labels(&language),
         cfg!(target_os = "linux"),
     );
+
+    {
+        let mut last = LAST_TRAY_MODEL.lock().unwrap_or_else(|e| e.into_inner());
+        let current = (unlocked, language.clone(), entries.clone());
+        if *last == Some(current) {
+            return Ok(());
+        }
+        *last = Some((unlocked, language, entries.clone()));
+    }
+
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(build_menu(app, &entries)?))?;
         // Unlocked, the OS opens the attached menu on left click; locked, left
@@ -473,11 +485,10 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
         .build(app)?;
     sync_tray(app, &state);
     if let Some(w) = app.get_webview_window("main") {
-        let (handle, st) = (app.clone(), state);
+        let handle = app.clone();
         w.on_window_event(move |e| {
             if matches!(e, WindowEvent::Focused(true)) {
                 set_title(&handle, NORMAL_TITLE);
-                sync_tray(&handle, &st);
             }
         });
     }
@@ -674,6 +685,28 @@ mod tests {
         assert_eq!(v["payload"]["fingerprint"], "SHA256:abc");
         assert_eq!(v["payload"]["algorithm"], "ssh-ed25519");
         assert_eq!(v["payload"]["key"], "AAAA");
+    }
+
+    #[test]
+    fn tray_menu_model_equality() {
+        let en = labels("en");
+        let da = labels("da");
+        let conns = vec![conn("1", "prod-web", None, ConnectionSource::Managed)];
+
+        let model1 = tray_menu_model(&conns, true, &en, false);
+        let model2 = tray_menu_model(&conns, true, &en, false);
+        let model_diff_lang = tray_menu_model(&conns, true, &da, false);
+        let model_locked = tray_menu_model(&conns, false, &en, false);
+
+        assert_eq!(model1, model2, "identical models must be equal");
+        assert_ne!(
+            model1, model_diff_lang,
+            "models with different language labels must not be equal"
+        );
+        assert_ne!(
+            model1, model_locked,
+            "unlocked and locked models must not be equal"
+        );
     }
 
     #[test]
