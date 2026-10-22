@@ -1198,4 +1198,30 @@ describe("Connections", () => {
 
     expect(document.activeElement).toBe(inside);
   });
+
+  it("renders connection row with adopted credential key name and missing credential indicator", async () => {
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "c1", label: "AdoptedKeyConn", credential_id: "cred1", key_id: null },
+      { ...conn, id: "c2", label: "DirectKeyConn", credential_id: null, key_id: "k1" },
+      { ...conn, id: "c3", label: "MissingCredConn", credential_id: "gone", key_id: null },
+    ]);
+    vi.mocked(api.listKeys).mockResolvedValue([vaultKey]);
+    vi.mocked(api.listCredentials).mockResolvedValue([
+      credential({ id: "cred1", label: "CredWithKey", key_id: "k1" }),
+    ]);
+
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+
+    await screen.findByText("AdoptedKeyConn");
+    const row1 = screen.getByText("AdoptedKeyConn").closest("li") as HTMLElement;
+    const row2 = screen.getByText("DirectKeyConn").closest("li") as HTMLElement;
+    const row3 = screen.getByText("MissingCredConn").closest("li") as HTMLElement;
+
+    // Both adopted credential and direct key resolve keyName "work"
+    expect(within(row1).getByText("Key work")).toBeTruthy();
+    expect(within(row2).getByText("Key work")).toBeTruthy();
+
+    // Row 3 should show missing credential indicator
+    expect(within(row3).getByText(/not here: gone/)).toBeTruthy();
+  });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { addConnection, connectForce, connectGuarded, importKey, listConnections, listCredentials, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type Credential, type KeyView, type ProvisionOutcome } from "../api";
@@ -591,13 +591,23 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
 
   const hasUsableKey = keys.some((k) => k.available);
   const filtered = filterConnections(conns, query);
+
+  const credentialById = useMemo(
+    () => new Map(credentials.map((c) => [c.id, c])),
+    [credentials]
+  );
+  const keyNameById = useMemo(
+    () => new Map(keys.map((k) => [k.key.id, k.key.name])),
+    [keys]
+  );
+
   // A credential the host no longer holds: the row says so instead of hiding it.
-  const credentialMissing = (id: string | null) => id !== null && !credentials.some((c) => c.id === id);
-  const credentialUser = (id: string | null) => credentials.find((c) => c.id === id)?.user ?? "";
+  const credentialMissing = (id: string | null) => id !== null && !credentialById.has(id);
+  const credentialUser = (id: string | null) => (id !== null ? credentialById.get(id)?.user ?? "" : "");
   // A connection signs in with its own key or with the one its credential holds.
   const keyName = (c: Connection) => {
-    const id = c.key_id ?? credentials.find((cred) => cred.id === c.credential_id)?.key_id ?? null;
-    return keys.find((k) => k.key.id === id)?.key.name ?? "";
+    const keyId = c.key_id ?? (c.credential_id ? credentialById.get(c.credential_id)?.key_id : null);
+    return (keyId ? keyNameById.get(keyId) : "") ?? "";
   };
 
   const renderNode = (node: TreeNode) => (
