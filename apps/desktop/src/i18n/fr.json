@@ -179,6 +179,11 @@
       "disk": "Les clés sur le disque restent où elles sont. Sigrun passe -i <chemin> à ssh et ne touche jamais à ~/.ssh.",
       "move": "Une clé sur le disque peut être copiée dans le coffre depuis sa ligne, et une clé du coffre peut être réenregistrée sur le disque. L'enregistrement écrit la clé privée en clair : choisissez l'emplacement en connaissance de cause."
     },
+    "trust": {
+      "title": "Confiance dans la clé d'hôte",
+      "tofu": "Avant l'ouverture d'une connexion, Sigrun vérifie la clé d'hôte du serveur dans son propre known_hosts (confiance à la première utilisation). Une clé jamais vue est demandée — la boîte de dialogue affiche son empreinte — et une clé différente de celle vue auparavant est refusée : aucun terminal ne s'ouvre avant votre confirmation. Un hôte dont la clé ne peut pas être analysée est également refusé ; sigrun connections connect --force contourne la vérification.",
+      "payload": "Un refus de confiance transporte l'empreinte, l'algorithme et la clé sous forme de champs structurés (codes d'erreur host_key_unknown et host_key_mismatch), ce qu'affiche la boîte de dialogue de confiance."
+    },
     "credentials": {
       "title": "Identifiants",
       "summary": "Un identifiant, c'est un nom d'utilisateur et la façon de se connecter : une clé, un mot de passe ou les deux. Il existe une seule fois dans Identifiants, et autant de connexions que nécessaire peuvent l'utiliser ; changer un mot de passe est donc une seule modification au lieu d'une par hôte.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Où vivent les données",
       "dir": "Les données vivent dans le répertoire de données propre à l'utilisateur : ~/Library/Application Support/Sigrun sous macOS, ~/.local/share/sigrun sous Linux et %APPDATA%\\Sigrun sous Windows.",
-      "ssh": "Sigrun ne modifie jamais ~/.ssh."
+      "ssh": "Sigrun ne modifie jamais ~/.ssh.",
+      "config": "Les hôtes de ~/.ssh/config sont également découverts ; les lignes « Clé valeur » comme « Clé=valeur » sont lues, comme OpenSSH.",
+      "windows": "Sous Windows, les arguments contenant des espaces — un chemin de clé comme C:\\Users\\My User\\.ssh\\id_rsa — sont placés entre guillemets comme cmd.exe les interprète, afin qu'ils parviennent à ssh en un seul argument."
     },
     "about": {
       "title": "À propos",

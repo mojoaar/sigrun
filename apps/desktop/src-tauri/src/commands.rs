@@ -4,7 +4,6 @@ use serde::Serialize;
 use sigrun_core::host::{handle, HostState};
 use sigrun_core::ipc::protocol::{Request, Response};
 use sigrun_core::model::{Connection, Credential, KeyAlgorithm, Settings};
-use sigrun_core::trust::{self, TrustStatus};
 #[cfg(target_os = "macos")]
 use tauri::Manager;
 use tauri::State;
@@ -13,6 +12,10 @@ use tauri::State;
 pub struct CommandError {
     pub code: String,
     pub message: String,
+    /// Structured payload for errors that carry one (e.g. trust errors).
+    /// The desktop UI reads `fingerprint`, `algorithm` and `key` from it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
 }
 
 impl std::fmt::Display for CommandError {
@@ -27,7 +30,15 @@ type CmdResult = Result<Response, CommandError>;
 
 async fn call(state: Arc<HostState>, req: Request) -> CmdResult {
     match handle(&state, req).await {
-        Response::Error { code, message } => Err(CommandError { code, message }),
+        Response::Error {
+            code,
+            message,
+            payload,
+        } => Err(CommandError {
+            code,
+            message,
+            payload,
+        }),
         other => Ok(other),
     }
 }
@@ -36,6 +47,7 @@ fn config_err(e: impl std::fmt::Display) -> CommandError {
     CommandError {
         code: "invalid_config".into(),
         message: e.to_string(),
+        payload: None,
     }
 }
 
@@ -112,6 +124,17 @@ pub async fn connect_inner(
         },
     )
     .await
+}
+
+/// Connect after the TOFU host-key check. The gate now lives in the host, so
+/// this simply forwards the request; `force` bypasses the gate.
+pub async fn connect_guarded(
+    state: Arc<HostState>,
+    id: String,
+    print_only: bool,
+    force: bool,
+) -> CmdResult {
+    connect_inner(state, id, print_only, force).await
 }
 pub async fn provision_connection_inner(
     state: Arc<HostState>,
@@ -291,29 +314,12 @@ pub async fn update_credential(state: St<'_>, credential: Credential) -> CmdResu
 pub async fn remove_credential(state: St<'_>, id: String) -> CmdResult {
     remove_credential_inner(state.inner().clone(), id).await
 }
+#[allow(dead_code)]
 async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
-    let mut cmd = tokio::process::Command::new("ssh-keyscan");
-    cmd.args([
-        "-p",
-        &port.to_string(),
-        "-T",
-        "5",
-        "-t",
-        "ed25519,ecdsa,rsa",
-        "--",
-        host,
-    ])
-    .stdin(std::process::Stdio::null())
-    .stderr(std::process::Stdio::null())
-    .kill_on_drop(true);
-    let out = tokio::time::timeout(std::time::Duration::from_secs(5), cmd.output())
-        .await
-        .ok()?
-        .ok()?;
-    let keys = parse_keyscan(&String::from_utf8_lossy(&out.stdout));
-    (!keys.is_empty()).then_some(keys)
+    sigrun_core::trust::probe_host_key(host, port).await
 }
 
+#[allow(dead_code)]
 fn parse_keyscan(out: &str) -> Vec<(String, String)> {
     out.lines()
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
@@ -325,71 +331,70 @@ fn parse_keyscan(out: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn key_error(code: &str, algo: &str, key: &str) -> CommandError {
     CommandError {
         code: code.into(),
         message: format!(
             "{} {algo} {key}",
-            trust::fingerprint(algo, key).unwrap_or_else(|| "unknown".into())
+            sigrun_core::trust::fingerprint(algo, key).unwrap_or_else(|| "unknown".into())
         ),
+        payload: None,
     }
 }
 
 /// A recorded key presented by the host wins (extra unrecorded key types are not a
 /// conflict); otherwise any mismatch refuses; otherwise all-unknown prompts.
+#[allow(dead_code)]
 fn evaluate_trust(
     kh: &std::path::Path,
     host: &str,
     port: u16,
     keys: &[(String, String)],
 ) -> Result<(), CommandError> {
-    let mut mismatch = None;
-    for (algo, key) in keys {
-        match trust::check(kh, host, port, algo, key).map_err(config_err)? {
-            TrustStatus::Trusted => return Ok(()),
-            TrustStatus::Mismatch => mismatch = mismatch.or(Some((algo, key))),
-            TrustStatus::Unknown => {}
-        }
-    }
-    if let Some((algo, key)) = mismatch {
-        return Err(key_error("host_key_mismatch", algo, key));
-    }
-    match keys.first() {
-        Some((algo, key)) => Err(key_error("host_key_unknown", algo, key)),
-        None => Ok(()),
-    }
+    sigrun_core::trust::evaluate_trust(kh, host, port, keys).map_err(|e| match e {
+        sigrun_core::error::Error::HostKeyUnknown {
+            fingerprint,
+            algorithm,
+            key,
+        } => CommandError {
+            code: "host_key_unknown".into(),
+            message: format!("{fingerprint} {algorithm} {key}"),
+            payload: Some(serde_json::json!({
+                "fingerprint": fingerprint,
+                "algorithm": algorithm,
+                "key": key,
+            })),
+        },
+        sigrun_core::error::Error::HostKeyMismatch {
+            fingerprint,
+            algorithm,
+            key,
+        } => CommandError {
+            code: "host_key_mismatch".into(),
+            message: format!("{fingerprint} {algorithm} {key}"),
+            payload: Some(serde_json::json!({
+                "fingerprint": fingerprint,
+                "algorithm": algorithm,
+                "key": key,
+            })),
+        },
+        other => config_err(other),
+    })
 }
 
 /// Pre-flight TOFU gate deciding whether Sigrun launches the terminal. Fails closed
 /// if `ssh-keyscan` is missing, blocked, or fails to scan the host keys.
+#[allow(dead_code)]
 async fn check_trust(state: &HostState, host: &str, port: u16) -> Result<(), CommandError> {
     let Some(keys) = probe_host_key(host, port).await else {
         return Err(CommandError {
             code: "host_key_probe_failed".into(),
             message: format!("could not scan host keys for {host}:{port}"),
+            payload: None,
         });
     };
     evaluate_trust(&state.paths.data_dir.join("known_hosts"), host, port, &keys)
-}
-
-/// Connect after the TOFU host-key check. `print_only` contacts nothing, and `force`
-/// bypasses pre-flight trust verification (e.g. user chose "Connect anyway").
-pub async fn connect_guarded(
-    state: Arc<HostState>,
-    id: String,
-    print_only: bool,
-    force: bool,
-) -> CmdResult {
-    if !print_only && !force {
-        let conns = match list_connections_inner(state.clone()).await? {
-            Response::Connections(c) => c,
-            _ => Vec::new(),
-        };
-        if let Some(c) = conns.iter().find(|c| c.id == id) {
-            check_trust(&state, &c.host, c.port).await?;
-        }
-    }
-    connect_inner(state, id, print_only, force).await
 }
 
 #[tauri::command]
@@ -422,7 +427,7 @@ pub async fn trust_host(
     key_b64: String,
 ) -> CmdResult {
     let kh = state.paths.data_dir.join("known_hosts");
-    trust::record(&kh, &host, port, &algo, &key_b64).map_err(config_err)?;
+    sigrun_core::trust::record(&kh, &host, port, &algo, &key_b64).map_err(config_err)?;
     Ok(Response::Ok)
 }
 #[tauri::command]
@@ -539,6 +544,7 @@ pub async fn open_external(url: String) -> CmdResult {
     allowed_url(&url).map_err(|e| CommandError {
         code: "invalid_input".into(),
         message: e.to_string(),
+        payload: None,
     })?;
     spawn_opener(&url);
     Ok(Response::Ok)
@@ -569,17 +575,13 @@ mod tests {
         let ok = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", KEY)];
         assert!(super::evaluate_trust(&kh, "h", 22, &ok).is_ok());
         let bad = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "BBBB")];
-        assert_eq!(
-            super::evaluate_trust(&kh, "h", 22, &bad).unwrap_err().code,
-            "host_key_mismatch"
-        );
+        let err = super::evaluate_trust(&kh, "h", 22, &bad).unwrap_err();
+        assert_eq!(err.code, "host_key_mismatch");
+        assert!(err.payload.is_some());
         let fresh = [k("ssh-ed25519", KEY)];
-        assert_eq!(
-            super::evaluate_trust(&kh, "other", 22, &fresh)
-                .unwrap_err()
-                .code,
-            "host_key_unknown"
-        );
+        let err = super::evaluate_trust(&kh, "other", 22, &fresh).unwrap_err();
+        assert_eq!(err.code, "host_key_unknown");
+        assert!(err.payload.is_some());
     }
 
     #[test]
@@ -679,7 +681,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connect_guarded_skips_check_trust_when_force_is_true() {
+    async fn connect_guarded_forwards_to_the_host() {
         let dir = tempfile::tempdir().unwrap();
         let paths = sigrun_core::paths::Paths::with_roots(
             dir.path().into(),
@@ -692,14 +694,15 @@ mod tests {
         conn.port = 1;
         state.store.upsert_connection(conn).unwrap();
 
-        // Without force (and print_only = false), check_trust fails because port 1 scan fails.
+        // The host's own TOFU gate refuses when the scan fails.
         let err = super::connect_guarded(state.clone(), "c_test".into(), false, false)
             .await
             .unwrap_err();
-        assert_eq!(err.code, "host_key_probe_failed");
+        assert_eq!(err.code, "invalid_config");
+        assert!(err.message.contains("could not scan host keys"));
 
-        // With force = true (and print_only = true so it prints command instead of launching terminal),
-        // check_trust is skipped and connect succeeds with Response::Command.
+        // With force = true (and print_only = true), the gate is skipped and
+        // connect succeeds with Response::Command.
         let res = super::connect_guarded(state.clone(), "c_test".into(), true, false)
             .await
             .unwrap();

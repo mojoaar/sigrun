@@ -179,6 +179,11 @@
       "disk": "Nycklar på disk ligger kvar där de är. Sigrun skickar -i <sökväg> till ssh och rör aldrig ~/.ssh.",
       "move": "En nyckel på disken kan kopieras in i valvet från sin rad, och en nyckel i valvet kan sparas tillbaka till disken. Sparandet skriver den privata nyckeln okrypterad, så välj plats med omsikt."
     },
+    "trust": {
+      "title": "Värdsnyckelförtroende",
+      "tofu": "Innan en anslutning öppnas kontrollerar Sigrun serverns värdnyckel mot sin egen known_hosts (förtroende vid första användningen). En nyckel som aldrig setts förut efterfrågas — dialogrutan visar dess fingeravtryck — och en nyckel som skiljer sig från den som setts tidigare avvisas: ingen terminal öppnas förrän du bekräftar. En värd vars nyckel inte kan skannas alls avvisas också; sigrun connections connect --force kringgår kontrollen.",
+      "payload": "Ett förtroendeavslag bär fingeravtryck, algoritm och nyckel som strukturerade fält (felkoderna host_key_unknown och host_key_mismatch), vilket är vad förtroendedialogen visar."
+    },
     "credentials": {
       "title": "Inloggningar",
       "summary": "En inloggning är ett användarnamn och sättet att logga in som det: en nyckel, ett lösenord eller båda. Den finns en gång under Inloggningar, och hur många anslutningar som helst kan använda den, så att byta lösenord är en enda ändring i stället för en per värd.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Var data ligger",
       "dir": "Data ligger i användarens datamapp: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux och %APPDATA%\\Sigrun på Windows.",
-      "ssh": "Sigrun ändrar aldrig ~/.ssh."
+      "ssh": "Sigrun ändrar aldrig ~/.ssh.",
+      "config": "Värdar från ~/.ssh/config upptäcks också; både raderna ”Nyckel värde” och ”Nyckel=värde” läses, precis som OpenSSH.",
+      "windows": "På Windows citattecknas argument med mellanslag — en nyckelsökväg som C:\\Users\\My User\\.ssh\\id_rsa — på det sätt cmd.exe tolkar dem, så att de når ssh som ett argument."
     },
     "about": {
       "title": "Om",

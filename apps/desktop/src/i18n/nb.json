@@ -179,6 +179,11 @@
       "disk": "Nøkler på disk blir liggende der de er. Sigrun sender -i <sti> til ssh og rører aldri ~/.ssh.",
       "move": "En nøkkel på disken kan kopieres inn i hvelvet fra raden sin, og en nøkkel i hvelvet kan lagres tilbake til disken. Lagring skriver den private nøkkelen ukryptert, så velg sted med omhu."
     },
+    "trust": {
+      "title": "Vertsnøkkeltillit",
+      "tofu": "Før en tilkobling åpnes, sjekker Sigrun serverens vertsnøkkel mot sin egen known_hosts (tillit ved første bruk). En nøkkel som aldri er sett før, blir du spurt om — dialogen viser fingeravtrykket — og en nøkkel som avviker fra det som ble sett tidligere, avvises: ingen terminal åpnes før du bekrefter. En vert hvis nøkkel ikke kan skannes i det hele tatt, avvises også; sigrun connections connect --force omgår sjekken.",
+      "payload": "Et tillitsavslag bærer fingeravtrykk, algoritme og nøkkel som strukturerte felt (feilkodene host_key_unknown og host_key_mismatch), og det er det tillitsdialogen viser."
+    },
     "credentials": {
       "title": "Pålogginger",
       "summary": "En pålogging er et brukernavn og måten å logge inn som det: en nøkkel, et passord eller begge. Den finnes én gang under Pålogginger, og så mange tilkoblinger som helst kan bruke den, så å bytte passord er én endring i stedet for én per vert.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Hvor dataene ligger",
       "dir": "Dataene ligger i brukerens datamappe: ~/Library/Application Support/Sigrun på macOS, ~/.local/share/sigrun på Linux og %APPDATA%\\Sigrun på Windows.",
-      "ssh": "Sigrun endrer aldri ~/.ssh."
+      "ssh": "Sigrun endrer aldri ~/.ssh.",
+      "config": "Verter fra ~/.ssh/config oppdages også; både «Nøkkel verdi»- og «Nøkkel=verdi»-linjer leses, slik OpenSSH gjør.",
+      "windows": "På Windows settes argumenter med mellomrom — en nøkkelsti som C:\\Users\\My User\\.ssh\\id_rsa — i anførselstegn slik cmd.exe tolker dem, slik at de når ssh som ett argument."
     },
     "about": {
       "title": "Om",

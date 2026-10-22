@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type VaultState = "Uninitialized" | "Locked" | "Unlocked";
-export type CommandError = { code: string; message: string };
+export type CommandError = { code: string; message: string; payload?: { fingerprint: string; algorithm: string; key: string } };
 export type StatusInfo = { version: string; vault: VaultState; agent_socket: string | null; host_addr: string };
 export type Connection = {
   id: string;

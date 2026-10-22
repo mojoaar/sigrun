@@ -163,10 +163,7 @@ where
         let req = match protocol::decode::<Request>(&line) {
             Ok(req) => req,
             Err(e) => {
-                let resp = Response::Error {
-                    code: protocol::error_code(&e).to_string(),
-                    message: e.to_string(),
-                };
+                let resp: Response = e.into();
                 let data = match protocol::encode(&resp) {
                     Ok(data) => data,
                     Err(_) => break,

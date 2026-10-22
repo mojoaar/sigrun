@@ -179,6 +179,11 @@
       "disk": "Disk-backed keys stay where they are. Sigrun passes -i <path> to ssh and leaves your ~/.ssh untouched.",
       "move": "A key on disk can be copied into the vault from its row, and a vault key can be saved back to disk. Saving writes the private key unencrypted, so choose the place deliberately."
     },
+    "trust": {
+      "title": "Host key trust",
+      "tofu": "Before a connection opens, Sigrun checks the server's host key against its own known_hosts (trust on first use). A key never seen before is asked about — the dialog shows its fingerprint — and a key that differs from what was seen before fails closed: no terminal opens until you confirm. A host whose key cannot be scanned at all is refused too; sigrun connections connect --force bypasses the check.",
+      "payload": "A trust refusal carries the fingerprint, algorithm and key as structured fields (error codes host_key_unknown and host_key_mismatch), which is what the trust dialog shows."
+    },
     "credentials": {
       "title": "Credentials",
       "summary": "A credential is a user name and how to sign in as it: a key, a password, or both. It lives once under Credentials, and any number of connections can use it, so rotating a password is one edit instead of one per host.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Where data lives",
       "dir": "Your data lives in the per-user data directory: ~/Library/Application Support/Sigrun on macOS, ~/.local/share/sigrun on Linux, and %APPDATA%\\Sigrun on Windows.",
-      "ssh": "Sigrun never modifies ~/.ssh."
+      "ssh": "Sigrun never modifies ~/.ssh.",
+      "config": "Hosts from ~/.ssh/config are discovered too; both “Key value” and “Key=value” lines are read, matching OpenSSH.",
+      "windows": "On Windows, arguments with spaces — a key path like C:\\Users\\My User\\.ssh\\id_rsa — are quoted the way cmd.exe parses them, so they reach ssh as one argument."
     },
     "about": {
       "title": "About",

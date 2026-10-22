@@ -89,7 +89,8 @@ use **Install SSH key…** — see
 
 - **Manage connections.** Add a host and group it; a `/`-separated path like
   `PVE/Folder 1` nests in the Connections list and the tray menu, and
-  `~/.ssh/config` hosts are listed alongside the ones you manage. A search box
+  `~/.ssh/config` hosts are listed alongside the ones you manage (both
+  `Key value` and `Key=value` lines are read, matching OpenSSH). A search box
   filters the list as you type — matching the label, user, host, port and
   group, case-insensitively — and clearing it shows every connection again; a
   query that matches nothing says so rather than showing the empty-list message.
@@ -187,6 +188,23 @@ never modified.
 
 Once the terminal is open, `ssh` stays the authority on the connection: Sigrun
 only hands it the argv and `SSH_AUTH_SOCK`.
+
+## Host key trust (TOFU)
+
+Before a connection opens, the host verifies the server's host key against
+Sigrun's own `known_hosts` (trust on first use). A key that has never been seen
+is asked about — the dialog shows its fingerprint — and a key that **differs**
+from what was seen before fails closed: no terminal opens until you confirm.
+The gate runs in the host itself, ahead of the reachability probe, so an
+untrusted host is refused before anything else is tried. It also fails closed
+when the key cannot be scanned at all (`ssh-keyscan` missing or failing), and
+`--force` on `sigrun connections connect` bypasses both the gate and the
+probe.
+
+Over IPC, trust refusals carry a structured payload — `fingerprint`,
+`algorithm` and the key itself — alongside the `host_key_unknown` /
+`host_key_mismatch` error codes, so a client renders the trust dialog from
+fields rather than parsing a message string.
 
 ### Where the terminal opens
 
@@ -404,8 +422,7 @@ you select into the vault first.
 
 - Sigrun's host-key (TOFU) prompt only gates whether Sigrun launches the terminal.
   The `ssh` inside that terminal still verifies the host against your own
-  `~/.ssh/known_hosts`; Sigrun does not override it. The pre-flight probe is
-  skipped if `ssh-keyscan` is missing or fails.
+  `~/.ssh/known_hosts`; Sigrun does not override it.
 - `Include` is not followed when parsing `ssh_config`.
 - The reachability probe is a plain TCP connect, so it can report a host as
   unreachable when it is only reachable through a VPN or an `~/.ssh/config`
@@ -432,7 +449,9 @@ you select into the vault first.
   Sigrun's signatures.
 - A live session is tracked on macOS and Linux only. The Windows launch is a
   bare `cmd.exe /k`, which has nowhere to chain the session-end report, so a
-  Windows session never shows the dot.
+  Windows session never shows the dot. Arguments with spaces — a key path like
+  `C:\Users\My User\.ssh\id_rsa` — are quoted the way `cmd.exe` parses them, so
+  they reach `ssh` as one argument.
 - The live-session dot is best-effort. The host checks the launched shell's own
   process every two seconds, so closing the window, closing the tab,
   force-quitting the terminal and crashing all clear the dot within about two

@@ -351,14 +351,19 @@ fn connection_error_payload(
     message: &str,
     host: &str,
     port: u16,
+    payload: Option<&serde_json::Value>,
 ) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "id": id,
         "code": code,
         "message": message,
         "host": host,
         "port": port,
-    })
+    });
+    if let Some(p) = payload {
+        v["payload"] = p.clone();
+    }
+    v
 }
 
 pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
@@ -443,7 +448,12 @@ pub fn build_tray(app: &AppHandle, state: Arc<HostState>) -> tauri::Result<()> {
                                     let _ = app.emit(
                                         "connection-error",
                                         connection_error_payload(
-                                            &cid, &e.code, &e.message, &host, port,
+                                            &cid,
+                                            &e.code,
+                                            &e.message,
+                                            &host,
+                                            port,
+                                            e.payload.as_ref(),
                                         ),
                                     );
                                 }
@@ -642,6 +652,7 @@ mod tests {
             "SHA256:abc ssh-ed25519 AAAA",
             "h",
             22,
+            None,
         );
         assert_eq!(v["id"], "c1");
         assert_eq!(v["code"], "host_key_unknown");
@@ -649,6 +660,20 @@ mod tests {
         assert_eq!(v["host"], "h");
         assert_eq!(v["port"], 22);
         assert!(v["port"].is_u64(), "port must serialize as a JSON number");
+        assert!(v.get("payload").is_none(), "no payload when none given");
+
+        let payload = serde_json::json!({"fingerprint": "SHA256:abc", "algorithm": "ssh-ed25519", "key": "AAAA"});
+        let v = connection_error_payload(
+            "c1",
+            "host_key_unknown",
+            "SHA256:abc ssh-ed25519 AAAA",
+            "h",
+            22,
+            Some(&payload),
+        );
+        assert_eq!(v["payload"]["fingerprint"], "SHA256:abc");
+        assert_eq!(v["payload"]["algorithm"], "ssh-ed25519");
+        assert_eq!(v["payload"]["key"], "AAAA");
     }
 
     #[test]

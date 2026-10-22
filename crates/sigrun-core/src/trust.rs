@@ -87,6 +87,79 @@ pub fn fingerprint(algo: &str, key_b64: &str) -> Option<String> {
     Some(public.fingerprint(Default::default()).to_string())
 }
 
+/// Run `ssh-keyscan` against `host`:`port` and return the offered keys as
+/// `(algo, key_b64)` pairs. Returns `None` when the scan fails or yields no keys.
+pub async fn probe_host_key(host: &str, port: u16) -> Option<Vec<(String, String)>> {
+    let mut cmd = tokio::process::Command::new("ssh-keyscan");
+    cmd.args([
+        "-p",
+        &port.to_string(),
+        "-T",
+        "5",
+        "-t",
+        "ed25519,ecdsa,rsa",
+        "--",
+        host,
+    ])
+    .stdin(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .kill_on_drop(true);
+    let out = tokio::time::timeout(std::time::Duration::from_secs(5), cmd.output())
+        .await
+        .ok()?
+        .ok()?;
+    let keys = parse_keyscan(&String::from_utf8_lossy(&out.stdout));
+    (!keys.is_empty()).then_some(keys)
+}
+
+fn parse_keyscan(out: &str) -> Vec<(String, String)> {
+    out.lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let mut p = l.split_whitespace();
+            let (_, algo, key) = (p.next()?, p.next()?, p.next()?);
+            Some((algo.to_string(), key.to_string()))
+        })
+        .collect()
+}
+
+/// The TOFU gate: evaluate a scanned host key against the known_hosts store.
+///
+/// A recorded key presented by the host wins (extra unrecorded key types are not a
+/// conflict); otherwise any mismatch refuses; otherwise all-unknown prompts.
+///
+/// Returns structured errors so the caller can surface fingerprint, algorithm and
+/// raw key without parsing a message string.
+pub fn evaluate_trust(kh: &Path, host: &str, port: u16, keys: &[(String, String)]) -> Result<()> {
+    let mut mismatch = None;
+    for (algo, key) in keys {
+        match check(kh, host, port, algo, key)? {
+            TrustStatus::Trusted => return Ok(()),
+            TrustStatus::Mismatch => mismatch = mismatch.or(Some((algo, key))),
+            TrustStatus::Unknown => {}
+        }
+    }
+    if let Some((algo, key)) = mismatch {
+        let fp = fingerprint(algo, key).unwrap_or_else(|| "unknown".into());
+        return Err(Error::HostKeyMismatch {
+            fingerprint: fp,
+            algorithm: algo.to_string(),
+            key: key.to_string(),
+        });
+    }
+    match keys.first() {
+        Some((algo, key)) => {
+            let fp = fingerprint(algo, key).unwrap_or_else(|| "unknown".into());
+            Err(Error::HostKeyUnknown {
+                fingerprint: fp,
+                algorithm: algo.to_string(),
+                key: key.to_string(),
+            })
+        }
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,5 +227,108 @@ mod tests {
         assert!(record(&kh, "h", 22, "ssh-ed25519", "AAAA").is_err());
         assert!(check(&kh, "h x", 22, "ssh-ed25519", KEY).is_err());
         assert!(!kh.exists());
+    }
+
+    #[test]
+    fn parses_all_keyscan_lines() {
+        let out = "# h:22 SSH-2.0-x\nh ssh-ed25519 AAAA\nh ssh-rsa ZZZZ\n";
+        assert_eq!(
+            parse_keyscan(out),
+            vec![
+                ("ssh-ed25519".into(), "AAAA".into()),
+                ("ssh-rsa".into(), "ZZZZ".into())
+            ]
+        );
+        assert!(parse_keyscan("# only comment\n").is_empty());
+    }
+
+    #[test]
+    fn multi_key_trust_precedence() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        record(&kh, "h", 22, "ssh-ed25519", KEY).unwrap();
+        let k = |a: &str, b: &str| (a.to_string(), b.to_string());
+        let ok = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", KEY)];
+        assert!(evaluate_trust(&kh, "h", 22, &ok).is_ok());
+        let bad = [k("ssh-rsa", "ZZZZ"), k("ssh-ed25519", "BBBB")];
+        match evaluate_trust(&kh, "h", 22, &bad).unwrap_err() {
+            Error::HostKeyMismatch {
+                fingerprint,
+                algorithm,
+                key,
+            } => {
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert_eq!(key, "BBBB");
+                assert_eq!(fingerprint, "unknown");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        let fresh = [k("ssh-ed25519", KEY)];
+        match evaluate_trust(&kh, "other", 22, &fresh).unwrap_err() {
+            Error::HostKeyUnknown {
+                fingerprint,
+                algorithm,
+                key,
+            } => {
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert_eq!(key, KEY);
+                assert!(fingerprint.starts_with("SHA256:"));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn probe_host_key_returns_none_on_failure() {
+        // Port 0 is invalid; ssh-keyscan will fail.
+        assert!(probe_host_key("127.0.0.1", 0).await.is_none());
+    }
+
+    #[test]
+    fn evaluate_trust_returns_unknown_for_unknown_host() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        let keys = [("ssh-ed25519".into(), KEY.to_string())];
+        match evaluate_trust(&kh, "unknown.example", 22, &keys).unwrap_err() {
+            Error::HostKeyUnknown {
+                fingerprint,
+                algorithm,
+                key,
+            } => {
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert_eq!(key, KEY);
+                assert!(fingerprint.starts_with("SHA256:"));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_trust_returns_mismatch_for_mismatched_host() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        record(&kh, "h", 22, "ssh-ed25519", KEY).unwrap();
+        let keys = [("ssh-ed25519".into(), "BBBB".to_string())];
+        match evaluate_trust(&kh, "h", 22, &keys).unwrap_err() {
+            Error::HostKeyMismatch {
+                fingerprint,
+                algorithm,
+                key,
+            } => {
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert_eq!(key, "BBBB");
+                assert_eq!(fingerprint, "unknown");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_trust_returns_ok_for_known_host() {
+        let dir = tempfile::tempdir().unwrap();
+        let kh = dir.path().join("known_hosts");
+        record(&kh, "h", 22, "ssh-ed25519", KEY).unwrap();
+        let keys = [("ssh-ed25519".into(), KEY.to_string())];
+        assert!(evaluate_trust(&kh, "h", 22, &keys).is_ok());
     }
 }

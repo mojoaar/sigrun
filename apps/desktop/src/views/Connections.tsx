@@ -283,7 +283,14 @@ type TrustRetry = { host: string; port: number; run: () => Promise<void> };
 
 // A connect failure raised outside this view (a tray click), carried in so the
 // same dialog the in-window Connect would show can open here.
-export type ConnectionError = { id: string; code: string; message: string; host: string; port: number };
+export type ConnectionError = {
+  id: string;
+  code: string;
+  message: string;
+  host: string;
+  port: number;
+  payload?: { fingerprint: string; algorithm: string; key: string };
+};
 
 function ProvisionPanel({ conn, keys, onTrustError, onVaultLocked, onError, onClose, onDone }: {
   conn: Connection;
@@ -507,12 +514,19 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   // accept, so the changed key is not recorded.
   useEffect(() => {
     if (!connectionError) return;
-    const { id, code, message, host, port } = connectionError;
+    const { id, code, message, host, port, payload } = connectionError;
     // A stale in-window banner must not sit behind a tray dialog.
     setError(null);
     setMismatch(false);
     if (code === "host_key_unknown") {
-      const [fp, algo, key] = message.split(" ");
+      // Prefer the structured payload; fall back to parsing the message for
+      // backward compatibility with older hosts.
+      let fp: string, algo: string, key: string;
+      if (payload) {
+        ({ fingerprint: fp, algorithm: algo, key } = payload);
+      } else {
+        [fp, algo, key] = message.split(" ");
+      }
       setTrust({ host, port, fp, algo, key, run: () => connectGuarded(id) });
     } else if (code === "host_key_mismatch") {
       setMismatch(true);
@@ -535,7 +549,14 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const handleTrustError = useCallback((err: unknown, retry: TrustRetry) => {
     const e = err as CommandError;
     if (e?.code === "host_key_unknown") {
-      const [fp, algo, key] = e.message.split(" ");
+      // Prefer the structured payload; fall back to parsing the message for
+      // backward compatibility with older hosts.
+      let fp: string, algo: string, key: string;
+      if (e.payload) {
+        ({ fingerprint: fp, algorithm: algo, key } = e.payload as { fingerprint: string; algorithm: string; key: string });
+      } else {
+        [fp, algo, key] = e.message.split(" ");
+      }
       setTrust({ ...retry, fp, algo, key });
     } else if (e?.code === "host_key_mismatch") setMismatch(true);
     else handle(err);

@@ -40,12 +40,20 @@ pub enum Error {
     AlreadyRunning,
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
-    // Bare `<fingerprint> <algo> <key>`: the IPC `code` carries the meaning and
-    // the desktop UI splits the message on spaces, so a prefix would break it.
-    #[error("{0}")]
-    HostKeyUnknown(String),
-    #[error("{0}")]
-    HostKeyMismatch(String),
+    /// Bare `<fingerprint> <algo> <key>`: the IPC `code` carries the meaning and
+    /// the desktop UI splits the message on spaces, so a prefix would break it.
+    #[error("{fingerprint} {algorithm} {key}")]
+    HostKeyUnknown {
+        fingerprint: String,
+        algorithm: String,
+        key: String,
+    },
+    #[error("{fingerprint} {algorithm} {key}")]
+    HostKeyMismatch {
+        fingerprint: String,
+        algorithm: String,
+        key: String,
+    },
     // Bare message for the same reason as `HostKeyUnknown`: the IPC `code`
     // (`unreachable`) carries the meaning.
     #[error("{0}")]

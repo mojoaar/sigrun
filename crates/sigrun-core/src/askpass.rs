@@ -141,6 +141,7 @@ mod tests {
             Response::Error {
                 code: "not_found".into(),
                 message: "not found: c1".into(),
+                payload: None,
             },
         );
         let err = answer(&sock, "c1").unwrap_err();

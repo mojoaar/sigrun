@@ -53,14 +53,24 @@ impl Handler for Gate {
             .ok_or_else(|| Error::Key("malformed host key".into()))?;
         let b64 = rest.split_whitespace().next().unwrap_or("");
         let status = check(&self.known_hosts, &self.host, self.port, algo, b64)?;
-        let detail = || {
-            let fp = fingerprint(algo, b64).unwrap_or_else(|| "unknown".into());
-            format!("{fp} {algo} {b64}")
-        };
         match status {
             TrustStatus::Trusted => Ok(true),
-            TrustStatus::Unknown => Err(Error::HostKeyUnknown(detail())),
-            TrustStatus::Mismatch => Err(Error::HostKeyMismatch(detail())),
+            TrustStatus::Unknown => {
+                let fp = fingerprint(algo, b64).unwrap_or_else(|| "unknown".into());
+                Err(Error::HostKeyUnknown {
+                    fingerprint: fp,
+                    algorithm: algo.to_string(),
+                    key: b64.to_string(),
+                })
+            }
+            TrustStatus::Mismatch => {
+                let fp = fingerprint(algo, b64).unwrap_or_else(|| "unknown".into());
+                Err(Error::HostKeyMismatch {
+                    fingerprint: fp,
+                    algorithm: algo.to_string(),
+                    key: b64.to_string(),
+                })
+            }
         }
     }
 }
@@ -83,7 +93,7 @@ pub async fn authenticate(opts: &ProvisionOptions) -> Result<Handle<Gate>> {
             // Trust failures drive the prompt in the UI, so they keep their code.
             // Everything else here is "could not get a connection", and the bare
             // russh text ("ssh error: No route to host") names no host.
-            Error::HostKeyUnknown(_) | Error::HostKeyMismatch(_) => e,
+            Error::HostKeyUnknown { .. } | Error::HostKeyMismatch { .. } => e,
             other => {
                 Error::Unreachable(format!("cannot reach {}:{}: {other}", opts.host, opts.port))
             }
@@ -504,11 +514,19 @@ mod tests {
     #[test]
     fn error_codes_are_stable() {
         assert_eq!(
-            error_code(&Error::HostKeyUnknown("SHA256:x ssh-ed25519 AAAA".into())),
+            error_code(&Error::HostKeyUnknown {
+                fingerprint: "SHA256:x".into(),
+                algorithm: "ssh-ed25519".into(),
+                key: "AAAA".into(),
+            }),
             "host_key_unknown"
         );
         assert_eq!(
-            error_code(&Error::HostKeyMismatch("SHA256:x ssh-ed25519 AAAA".into())),
+            error_code(&Error::HostKeyMismatch {
+                fingerprint: "SHA256:x".into(),
+                algorithm: "ssh-ed25519".into(),
+                key: "AAAA".into(),
+            }),
             "host_key_mismatch"
         );
     }

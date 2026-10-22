@@ -179,6 +179,11 @@
       "disk": "Schlüssel auf dem Datenträger bleiben, wo sie sind. Sigrun übergibt -i <Pfad> an ssh und lässt ~/.ssh unberührt.",
       "move": "Ein Schlüssel auf dem Datenträger lässt sich über seine Zeile in den Tresor kopieren, und ein Tresorschlüssel lässt sich zurück auf den Datenträger schreiben. Beim Speichern wird der private Schlüssel unverschlüsselt geschrieben — wähle den Ort bewusst."
     },
+    "trust": {
+      "title": "Host-Schlüssel-Vertrauen",
+      "tofu": "Bevor eine Verbindung geöffnet wird, prüft Sigrun den Host-Schlüssel des Servers gegen seine eigene known_hosts (Vertrauen bei erster Nutzung). Ein noch nie gesehener Schlüssel wird abgefragt — der Dialog zeigt seinen Fingerabdruck — und ein Schlüssel, der vom früher gesehenen abweicht, wird abgelehnt: Es öffnet sich kein Terminal, bevor Sie bestätigen. Ein Host, dessen Schlüssel gar nicht gescannt werden kann, wird ebenfalls abgelehnt; sigrun connections connect --force umgeht die Prüfung.",
+      "payload": "Eine Vertrauensablehnung enthält Fingerabdruck, Algorithmus und Schlüssel als strukturierte Felder (Fehlercodes host_key_unknown und host_key_mismatch); genau das zeigt der Vertrauensdialog an."
+    },
     "credentials": {
       "title": "Zugangsdaten",
       "summary": "Zugangsdaten sind ein Benutzername und die Art der Anmeldung: ein Schlüssel, ein Passwort oder beides. Sie liegen einmal unter Zugangsdaten, und beliebig viele Verbindungen können sie verwenden — eine Passwortänderung ist so eine Bearbeitung statt einer pro Host.",
@@ -204,7 +209,9 @@
     "data": {
       "title": "Wo die Daten liegen",
       "dir": "Die Daten liegen im benutzerspezifischen Datenverzeichnis: ~/Library/Application Support/Sigrun unter macOS, ~/.local/share/sigrun unter Linux und %APPDATA%\\Sigrun unter Windows.",
-      "ssh": "Sigrun verändert ~/.ssh nie."
+      "ssh": "Sigrun verändert ~/.ssh nie.",
+      "config": "Hosts aus ~/.ssh/config werden ebenfalls erkannt; sowohl „Schlüssel Wert“- als auch „Schlüssel=Wert“-Zeilen werden gelesen, wie bei OpenSSH.",
+      "windows": "Unter Windows werden Argumente mit Leerzeichen — etwa ein Schlüsselpfad wie C:\\Users\\My User\\.ssh\\id_rsa — so in Anführungszeichen gesetzt, wie cmd.exe sie verarbeitet, damit sie ssh als ein Argument erreichen."
     },
     "about": {
       "title": "Über",

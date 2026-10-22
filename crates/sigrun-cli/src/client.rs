@@ -8,7 +8,7 @@ use sigrun_core::ipc::{Request, Response};
 pub async fn request(addr: &Path, req: &Request) -> anyhow::Result<Response> {
     let resp = sigrun_core::ipc::client::request(addr, req).await?;
     match resp {
-        Response::Error { code, message } => anyhow::bail!("{code}: {message}"),
+        Response::Error { code, message, .. } => anyhow::bail!("{code}: {message}"),
         other => Ok(other),
     }
 }

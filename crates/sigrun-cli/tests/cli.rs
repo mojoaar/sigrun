@@ -190,6 +190,7 @@ fn askpass_fails_on_an_empty_password_and_on_a_host_error() {
         sigrun_core::ipc::protocol::encode(&sigrun_core::ipc::protocol::Response::Error {
             code: "not_found".into(),
             message: "not found: c1".into(),
+            payload: None,
         })
         .unwrap(),
     ];
