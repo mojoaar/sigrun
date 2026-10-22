@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Discovered disk keys are batch-persisted and skip file rewrites when metadata is unchanged.
+- The tray menu caches its model and skips redundant native rebuilds on window focus.
+- Connection and credential views use indexed O(1) maps for row metadata resolution.
+- The auto-lock watcher caches settings in memory and skips disk access when the vault is locked.
 - The TOFU host-key gate now runs in the host, before any connection opens, and trust errors carry a
   structured payload (`fingerprint`, `algorithm`, `key`) over IPC so clients can render the trust
   dialog from fields instead of parsing a message string.
