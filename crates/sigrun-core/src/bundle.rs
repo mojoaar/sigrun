@@ -119,7 +119,18 @@ pub fn write_folder(bundle: &Bundle, dir: &Path) -> Result<()> {
 
 /// Writes the same entries as [`write_folder`], zipped.
 pub fn write_zip(bundle: &Bundle, file: &Path) -> Result<()> {
-    let mut zip = zip::ZipWriter::new(File::create(file)?);
+    let out = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(file)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                Error::AlreadyExists(file.display().to_string())
+            } else {
+                Error::from(e)
+            }
+        })?;
+    let mut zip = zip::ZipWriter::new(out);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
     zip.start_file(EXPORT_FILE, options).map_err(zip_error)?;
@@ -900,6 +911,18 @@ mod tests {
         }
         for name in ["export.json", "keys/id.pub", "a/b/c.txt"] {
             assert!(entry_name_is_safe(name), "{name} should be allowed");
+        }
+    }
+
+    #[test]
+    fn write_zip_fails_if_destination_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let bundle = build_bundle(&data_with_two_connections_and_one_key(), 1_700_000_000);
+        let path = dir.path().join("out.zip");
+        std::fs::write(&path, b"existing").unwrap();
+        match write_zip(&bundle, &path) {
+            Err(Error::AlreadyExists(p)) => assert_eq!(p, path.display().to_string()),
+            other => panic!("expected Error::AlreadyExists, got {other:?}"),
         }
     }
 }

@@ -218,7 +218,7 @@ impl HostState {
         let taken = if zipped {
             dest.exists()
         } else {
-            [bundle::EXPORT_FILE, bundle::README_FILE]
+            [bundle::EXPORT_FILE, bundle::README_FILE, bundle::KEY_DIR]
                 .iter()
                 .any(|name| dest.join(name).exists())
         };
@@ -3247,6 +3247,27 @@ mod tests {
         // alone must still refuse the write.
         std::fs::remove_file(&export_file).unwrap();
         match handle(&state, request()).await {
+            Response::Error { code, .. } => assert_eq!(code, "already_exists"),
+            other => panic!("unexpected {other:?}"),
+        }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn export_folder_refuses_existing_keys_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = host_with_one_connection(dir.path()).await;
+        let target = dir.path().join("sigrun-export");
+        std::fs::create_dir_all(target.join(bundle::KEY_DIR)).unwrap();
+        match handle(
+            &state,
+            Request::ExportBundle {
+                path: target.display().to_string(),
+                zipped: false,
+            },
+        )
+        .await
+        {
             Response::Error { code, .. } => assert_eq!(code, "already_exists"),
             other => panic!("unexpected {other:?}"),
         }
