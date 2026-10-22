@@ -1185,10 +1185,6 @@ async fn connections_connect(
             if failure.blocks() {
                 return Err(failure.into_error());
             }
-            eprintln!(
-                "sigrun: probe inconclusive, letting ssh try: {}",
-                failure.message()
-            );
         }
     }
 
