@@ -48,6 +48,10 @@ async fn serve_unix(addr: &Path, state: Arc<HostState>) -> Result<()> {
             accepted = listener.accept() => {
                 match accepted {
                     Ok((stream, _)) => {
+                        match stream.peer_cred() {
+                            Ok(cred) if cred.uid() == unsafe { libc::getuid() } => {}
+                            _ => continue,
+                        }
                         let state = state.clone();
                         tokio::spawn(handle_conn(stream, state));
                     }

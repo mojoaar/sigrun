@@ -231,4 +231,24 @@ mod tests {
         }
         state.shutdown.cancel();
     }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_socket_verifies_peer_credentials() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("host.sock");
+        let paths = Paths::with_roots(dir.path().into(), dir.path().into(), dir.path().into());
+        let state = std::sync::Arc::new(HostState::new(paths).await.unwrap());
+        let server = tokio::spawn({
+            let state = state.clone();
+            let sock = sock.clone();
+            async move { serve(&sock, state).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let res = client::request(&sock, &Request::Status).await;
+        assert!(res.is_ok());
+        state.shutdown.cancel();
+        let _ = server.await;
+    }
 }
