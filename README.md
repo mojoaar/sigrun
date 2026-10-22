@@ -281,6 +281,29 @@ sigrun credentials remove prod
 
 ## Quick start (CLI)
 
+### Getting the `sigrun` command
+
+The desktop app does not put the CLI on your `PATH`. Pick one:
+
+- **Prebuilt:** download the binary for your platform from the
+  [latest release](https://github.com/mojoaar/sigrun/releases/latest), then
+
+  ```bash
+  chmod +x sigrun-aarch64-apple-darwin
+  mkdir -p ~/.local/bin
+  mv sigrun-aarch64-apple-darwin ~/.local/bin/sigrun
+  xattr -d com.apple.quarantine ~/.local/bin/sigrun   # macOS only
+  ```
+
+  `~/.local/bin` is usually on `PATH` on Linux. On macOS, if `sigrun` is still
+  "command not found", add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc`.
+- **Arch:** the `sigrun-bin` PKGBUILD installs it as `/usr/bin/sigrun`.
+- **From source:** `cargo build -p sigrun-cli --release`, then copy
+  `target/release/sigrun` wherever you keep binaries. Build that one package:
+  a bare `cargo build` writes the desktop app to the same path on macOS.
+
+Confirm with `sigrun --version`.
+
 The CLI talks to the running host (the desktop app, or a headless `sigrun
 host`). To run headless, start the host in its own terminal — it owns the
 vault, the agent, and the IPC socket every other `sigrun` command talks to.

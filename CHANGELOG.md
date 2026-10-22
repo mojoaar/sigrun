@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The README says how to get the `sigrun` command onto `PATH`: release binary, Arch package, or from source.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
