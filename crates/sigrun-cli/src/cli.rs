@@ -461,13 +461,20 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 }
                 None => None,
             };
+            let key_id = match key {
+                Some(arg) => {
+                    let keys = list_keys(&addr).await?;
+                    Some(resolve_key(&keys, &arg)?)
+                }
+                None => None,
+            };
             let connection = Connection {
                 id: String::new(),
                 label,
                 host,
                 user: user.unwrap_or_default(),
                 port: port.unwrap_or(22),
-                key_id: key,
+                key_id,
                 credential_id,
                 group,
                 tags: tag,
@@ -514,7 +521,8 @@ async fn connections(socket: &Option<PathBuf>, cmd: ConnectionsCommand) -> anyho
                 connection.port = v;
             }
             if let Some(v) = key {
-                connection.key_id = Some(v);
+                let keys = list_keys(&addr).await?;
+                connection.key_id = Some(resolve_key(&keys, &v)?);
             }
             if let Some(v) = group {
                 connection.group = Some(v);
@@ -639,11 +647,7 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
     let addr = resolve_addr(socket)?;
     match cmd {
         KeysCommand::List { json } => {
-            let resp = client::request(&addr, &Request::KeysList).await?;
-            let keys = match resp {
-                Response::Keys(k) => k,
-                _ => anyhow::bail!("internal: unexpected response"),
-            };
+            let keys = list_keys(&addr).await?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&keys)?);
             } else {
@@ -701,11 +705,7 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
             }
         }
         KeysCommand::Remove { id_or_name, yes } => {
-            let resp = client::request(&addr, &Request::KeysList).await?;
-            let keys = match resp {
-                Response::Keys(k) => k,
-                _ => anyhow::bail!("internal: unexpected response"),
-            };
+            let keys = list_keys(&addr).await?;
             let id = resolve_key(&keys, &id_or_name)?;
             if !yes && !confirm(&format!("remove key {id_or_name}? [y/N] "))? {
                 anyhow::bail!("aborted");
@@ -791,6 +791,13 @@ async fn credentials(socket: &Option<PathBuf>, cmd: CredentialsCommand) -> anyho
         }
     }
     Ok(())
+}
+
+async fn list_keys(addr: &std::path::Path) -> anyhow::Result<Vec<KeyView>> {
+    match client::request(addr, &Request::KeysList).await? {
+        Response::Keys(k) => Ok(k),
+        _ => anyhow::bail!("internal: unexpected response"),
+    }
 }
 
 async fn list_credentials(addr: &std::path::Path) -> anyhow::Result<Vec<Credential>> {

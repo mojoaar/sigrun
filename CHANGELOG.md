@@ -33,9 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   structured payload (`fingerprint`, `algorithm`, `key`) over IPC so clients can render the trust
   dialog from fields instead of parsing a message string.
 - Settings read and save use typed IPC requests (`settings_get` / `settings_set`) and response (`settings`) rather than smuggling JSON strings.
+- Removed unused agent_enabled setting and dead public core vault/agent APIs.
 
 ### Fixed
 
+- CLI connection commands resolve key names to IDs instead of storing names verbatim.
+- Agent state recovers gracefully from poisoned read/write locks instead of permanently panicking.
+- Language switching in the desktop app only updates UI localization without competing with settings persistence.
 - Parse `Key=Value` syntax (with optional spaces around `=`) in `~/.ssh/config`, matching OpenSSH.
 - Quote arguments containing spaces the way `cmd.exe` parses them on Windows, so a key path like `C:\Users\My User\.ssh\id_rsa` reaches `ssh` as one argument.
 - Fall back cleanly to the default theme (`nordlys`) if an invalid or tampered theme is configured.

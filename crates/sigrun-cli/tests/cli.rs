@@ -822,3 +822,183 @@ fn session_started_takes_exactly_an_id_and_a_pid() {
             .failure();
     }
 }
+
+#[test]
+fn connections_add_and_edit_resolve_key_name_to_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    let run = |args: &[&str], stdin: &str| {
+        let mut cmd = Command::cargo_bin("sigrun").unwrap();
+        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+            .arg("--socket")
+            .arg(&sock)
+            .args(args)
+            .write_stdin(stdin);
+        cmd
+    };
+
+    run(&["vault", "init", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+    run(&["vault", "unlock", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+
+    run(
+        &[
+            "keys",
+            "generate",
+            "--name",
+            "my-key",
+            "--algorithm",
+            "ed25519",
+            "--passphrase-stdin",
+        ],
+        "\n",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["keys", "list", "--json"], "").output().unwrap();
+    assert!(out.status.success());
+    let keys: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let key_id = keys[0]["id"].as_str().expect("key id").to_string();
+
+    // connections add with key name resolves to key_id
+    run(
+        &[
+            "connections",
+            "add",
+            "--label",
+            "srv1",
+            "--host",
+            "srv1.example.com",
+            "--user",
+            "deploy",
+            "--key",
+            "my-key",
+        ],
+        "",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["connections", "list", "--json"], "")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let conns: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let conn1 = conns
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["label"] == "srv1")
+        .unwrap();
+    assert_eq!(conn1["key_id"].as_str().unwrap(), key_id);
+    let conn1_id = conn1["id"].as_str().unwrap().to_string();
+
+    // Generate a second key with a different name to test edit
+    run(
+        &[
+            "keys",
+            "generate",
+            "--name",
+            "other-key",
+            "--algorithm",
+            "ed25519",
+            "--passphrase-stdin",
+        ],
+        "\n",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["keys", "list", "--json"], "").output().unwrap();
+    let keys: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let other_key = keys
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["name"] == "other-key")
+        .unwrap();
+    let other_key_id = other_key["id"].as_str().unwrap().to_string();
+
+    // connections edit with key name resolves to key_id
+    run(
+        &["connections", "edit", &conn1_id, "--key", "other-key"],
+        "",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["connections", "list", "--json"], "")
+        .output()
+        .unwrap();
+    let conns: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let updated = conns
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == conn1_id)
+        .unwrap();
+    assert_eq!(updated["key_id"].as_str().unwrap(), other_key_id);
+
+    // Generate a duplicate named key to create ambiguity
+    run(
+        &[
+            "keys",
+            "generate",
+            "--name",
+            "my-key",
+            "--algorithm",
+            "ed25519",
+            "--passphrase-stdin",
+        ],
+        "\n",
+    )
+    .assert()
+    .success();
+
+    // Ambiguous name in connections add errors cleanly
+    run(
+        &[
+            "connections",
+            "add",
+            "--label",
+            "srv2",
+            "--host",
+            "srv2.example.com",
+            "--user",
+            "deploy",
+            "--key",
+            "my-key",
+        ],
+        "",
+    )
+    .assert()
+    .failure()
+    .stderr(predicate::str::contains("ambiguous"));
+
+    // Ambiguous name in connections edit errors cleanly
+    run(&["connections", "edit", &conn1_id, "--key", "my-key"], "")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ambiguous"));
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}

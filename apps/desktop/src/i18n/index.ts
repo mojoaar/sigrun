@@ -1,6 +1,5 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import en from "./en.json";
 import da from "./da.json";
 import de from "./de.json";
@@ -48,14 +47,6 @@ i18n.on("languageChanged", (lng) => {
 
 export async function setLanguage(lng: string): Promise<void> {
   const code = isLanguage(lng) ? lng : "en";
-  try {
-    const res = await invoke<unknown>("get_settings");
-    const raw = typeof res === "string" ? res : (res as { value: string }).value;
-    const settings = JSON.parse(raw);
-    await invoke("save_settings", { settings: { ...settings, language: code } });
-  } catch {
-    // No Tauri runtime (tests, browser) or persistence failed: still switch the UI.
-  }
   await i18n.changeLanguage(code);
 }
 

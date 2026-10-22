@@ -36,28 +36,20 @@ impl AgentState {
 
     /// Replace the entire key set.
     pub fn replace(&self, keys: Vec<AgentKey>) {
-        *self.keys.write().expect("agent lock poisoned") = keys;
+        *self.keys.write().unwrap_or_else(|p| p.into_inner()) = keys;
     }
 
     /// Remove every key.
     pub fn clear(&self) {
-        self.keys.write().expect("agent lock poisoned").clear();
+        self.keys.write().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
     pub fn contains_key_id(&self, key_id: &str) -> bool {
         self.keys
             .read()
-            .expect("agent lock poisoned")
+            .unwrap_or_else(|p| p.into_inner())
             .iter()
             .any(|key| key.key_id == key_id)
-    }
-
-    pub fn len(&self) -> usize {
-        self.keys.read().expect("agent lock poisoned").len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.keys.read().expect("agent lock poisoned").is_empty()
     }
 }
 
@@ -76,7 +68,7 @@ impl SigrunAgent {
 #[ssh_agent_lib::async_trait]
 impl Session for SigrunAgent {
     async fn request_identities(&mut self) -> std::result::Result<Vec<Identity>, AgentError> {
-        let keys = self.state.keys.read().expect("agent lock poisoned");
+        let keys = self.state.keys.read().unwrap_or_else(|p| p.into_inner());
         Ok(keys
             .iter()
             .map(|key| Identity {
@@ -90,7 +82,7 @@ impl Session for SigrunAgent {
         &mut self,
         request: SignRequest,
     ) -> std::result::Result<ssh_key::Signature, AgentError> {
-        let keys = self.state.keys.read().expect("agent lock poisoned");
+        let keys = self.state.keys.read().unwrap_or_else(|p| p.into_inner());
         let key = keys
             .iter()
             .find(|key| key.private_key.public_key().key_data() == request.credential.key_data())
@@ -260,7 +252,12 @@ mod tests {
             comment: "k1".into(),
         }]);
         assert!(state.contains_key_id("k1"));
-        assert_eq!(state.len(), 1);
+        let mut agent = SigrunAgent::new(state.clone());
+        let identities = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(agent.request_identities())
+            .unwrap();
+        assert_eq!(identities.len(), 1);
     }
 
     #[test]
@@ -325,6 +322,48 @@ mod tests {
             flags: 0,
         };
         assert!(Session::sign(&mut agent, req).await.is_err());
+    }
+
+    #[test]
+    fn agent_state_recovers_from_poisoned_lock() {
+        let state = AgentState::new();
+
+        // Intentionally poison the lock by panicking while holding a write lock.
+        let state_clone = state.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = state_clone.keys.write().unwrap();
+            panic!("intentional panic to poison lock");
+        })
+        .join();
+
+        // Verify write recovery via replace
+        let k = generate(KeyAlgorithm::Ed25519, None).unwrap();
+        let key = ssh_key::PrivateKey::from_openssh(&k.private_pem).unwrap();
+        state.replace(vec![AgentKey {
+            key_id: "k1".into(),
+            private_key: key,
+            comment: "k1".into(),
+        }]);
+
+        // Verify read recovery via contains_key_id
+        assert!(state.contains_key_id("k1"));
+
+        // Verify request_identities on agent
+        let mut agent = SigrunAgent::new(state.clone());
+        let identities = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(agent.request_identities())
+            .unwrap();
+        assert_eq!(identities.len(), 1);
+
+        // Verify clear also works
+        state.clear();
+        assert!(!state.contains_key_id("k1"));
+        let identities = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(agent.request_identities())
+            .unwrap();
+        assert!(identities.is_empty());
     }
 
     #[test]
