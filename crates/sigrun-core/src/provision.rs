@@ -254,26 +254,38 @@ trap - INT TERM HUP
     )
 }
 
-async fn harden(handle: &mut Handle<Gate>) -> Result<Hardening> {
-    let (code, stderr) = run(handle, &hardening_script()).await?;
-    let reason = stderr.trim();
+fn hardening_outcome(code: Option<u32>) -> Result<Hardening> {
     match code {
         Some(0) => Ok(Hardening::Applied),
-        Some(c @ (3 | 4)) => Ok(Hardening::Skipped(if !reason.is_empty() {
-            reason.into()
-        } else if c == 3 {
-            "sudo is not available".into()
-        } else {
-            "non-interactive sudo is required".into()
-        })),
-        Some(5..=8) => Err(Error::Config(format!("sshd hardening failed: {reason}"))),
+        Some(3) => Ok(Hardening::Skipped("sudo is not available".into())),
+        Some(4) => Ok(Hardening::Skipped(
+            "non-interactive sudo is required".into(),
+        )),
+        Some(5) => Err(Error::Config(
+            "sshd hardening failed: could not write drop-in or sshd config test failed".into(),
+        )),
+        Some(6) => Err(Error::Config(
+            "sshd hardening failed: could not reload sshd service".into(),
+        )),
+        Some(7) => Err(Error::Config(
+            "sshd hardening failed: password authentication remains enabled after configuration"
+                .into(),
+        )),
+        Some(8) => Err(Error::Config(
+            "sshd hardening failed: hardening interrupted or rollback failed".into(),
+        )),
         Some(c) => Err(Error::Config(format!(
-            "sshd hardening failed (exit {c}): {reason}"
+            "sshd hardening failed with exit code {c}"
         ))),
-        None => Err(Error::Config(format!(
-            "sshd hardening failed (exit unknown): {reason}"
-        ))),
+        None => Err(Error::Config(
+            "sshd hardening failed: server terminated session without exit status".into(),
+        )),
     }
+}
+
+async fn harden(handle: &mut Handle<Gate>) -> Result<Hardening> {
+    let (code, _stderr) = run(handle, &hardening_script()).await?;
+    hardening_outcome(code)
 }
 
 pub async fn install_keys(
@@ -293,13 +305,12 @@ pub async fn install_keys(
         .collect::<Result<Vec<_>>>()?;
     let script = authorized_keys_script(&public_keys)?;
     let mut handle = authenticate(opts).await?;
-    let (code, stderr) = run(&mut handle, &script).await?;
+    let (code, _stderr) = run(&mut handle, &script).await?;
     match code {
         Some(0) => {}
         Some(code) => {
             return Err(Error::Config(format!(
-                "authorized_keys update failed (exit {code}): {}",
-                stderr.trim()
+                "authorized_keys update failed with exit code {code}"
             )))
         }
         None => {
@@ -529,5 +540,58 @@ mod tests {
             }),
             "host_key_mismatch"
         );
+    }
+
+    #[test]
+    fn hardening_result_maps_exit_codes_to_sanitized_messages() {
+        assert_eq!(hardening_outcome(Some(0)).unwrap(), Hardening::Applied);
+        assert_eq!(
+            hardening_outcome(Some(3)).unwrap(),
+            Hardening::Skipped("sudo is not available".into())
+        );
+        assert_eq!(
+            hardening_outcome(Some(4)).unwrap(),
+            Hardening::Skipped("non-interactive sudo is required".into())
+        );
+        match hardening_outcome(Some(5)).unwrap_err() {
+            Error::Config(msg) => assert_eq!(
+                msg,
+                "sshd hardening failed: could not write drop-in or sshd config test failed"
+            ),
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+        match hardening_outcome(Some(6)).unwrap_err() {
+            Error::Config(msg) => {
+                assert_eq!(msg, "sshd hardening failed: could not reload sshd service")
+            }
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+        match hardening_outcome(Some(7)).unwrap_err() {
+            Error::Config(msg) => assert_eq!(
+                msg,
+                "sshd hardening failed: password authentication remains enabled after configuration"
+            ),
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+        match hardening_outcome(Some(8)).unwrap_err() {
+            Error::Config(msg) => assert_eq!(
+                msg,
+                "sshd hardening failed: hardening interrupted or rollback failed"
+            ),
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+        match hardening_outcome(Some(9)).unwrap_err() {
+            Error::Config(msg) => {
+                assert_eq!(msg, "sshd hardening failed with exit code 9")
+            }
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+        match hardening_outcome(None).unwrap_err() {
+            Error::Config(msg) => assert_eq!(
+                msg,
+                "sshd hardening failed: server terminated session without exit status"
+            ),
+            other => panic!("unexpected error variant: {other:?}"),
+        }
     }
 }
