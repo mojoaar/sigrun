@@ -28,6 +28,9 @@ pub struct HostState {
     pub paths: Paths,
     pub store: Store,
     pub vault: tokio::sync::Mutex<Option<UnlockedVault>>,
+    /// Serializes vault unlock operations so parallel Argon2 derivations cannot
+    /// exhaust memory.
+    pub unlock_lock: tokio::sync::Mutex<()>,
     pub agent: AgentState,
     pub agent_socket: String,
     /// The IPC address this host actually serves on. `Paths::socket_path()` is
@@ -67,6 +70,7 @@ impl HostState {
             ipc_addr: paths.socket_path().display().to_string(),
             store: Store::new(paths.clone()),
             vault: tokio::sync::Mutex::new(None),
+            unlock_lock: tokio::sync::Mutex::new(()),
             agent: AgentState::new(),
             shutdown: tokio_util::sync::CancellationToken::new(),
             last_vault_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -396,6 +400,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             Ok(Response::Ok)
         }
         Request::VaultUnlock { passphrase } => {
+            let _permit = state.unlock_lock.lock().await;
             let vault_path = state.paths.vault_file().clone();
             let unlocked =
                 tokio::task::spawn_blocking(move || Vault::new(vault_path).unlock(&passphrase))
@@ -3149,6 +3154,38 @@ mod tests {
             Response::Error { code, .. } => assert_eq!(code, "not_found"),
             other => panic!("unexpected {other:?}"),
         }
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn parallel_unlock_requests_are_serialized() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file().clone();
+        Vault::new(path).create("pw").unwrap();
+
+        // Spawn multiple parallel unlock requests
+        let mut handles = Vec::new();
+        for _ in 0..5 {
+            let state_clone = state.clone();
+            handles.push(tokio::spawn(async move {
+                handle(
+                    &state_clone,
+                    Request::VaultUnlock {
+                        passphrase: "pw".into(),
+                    },
+                )
+                .await
+            }));
+        }
+
+        for handle in handles {
+            let res = handle.await.unwrap();
+            assert!(matches!(res, Response::Unlocked { .. }));
+        }
+
+        // Verify unlock_lock exists on HostState
+        let _ = &state.unlock_lock;
         state.shutdown.cancel();
     }
 }
