@@ -158,13 +158,27 @@ impl UnlockedVault {
     }
 
     pub fn put(&mut self, key: &str, secret: Secret) -> Result<()> {
-        self.payload.insert(key.to_string(), secret);
-        self.persist()
+        let prev = self.payload.insert(key.to_string(), secret);
+        if let Err(e) = self.persist() {
+            match prev {
+                Some(old) => {
+                    self.payload.insert(key.to_string(), old);
+                }
+                None => {
+                    self.payload.remove(key);
+                }
+            }
+            return Err(e);
+        }
+        Ok(())
     }
 
     pub fn remove(&mut self, key: &str) -> Result<()> {
-        if self.payload.remove(key).is_some() {
-            self.persist()?;
+        if let Some(removed) = self.payload.remove(key) {
+            if let Err(e) = self.persist() {
+                self.payload.insert(key.to_string(), removed);
+                return Err(e);
+            }
         }
         Ok(())
     }
@@ -251,6 +265,67 @@ mod tests {
         drop(v);
         let v = vault.unlock("pass").unwrap();
         assert!(matches!(v.get("k1"), Some(Secret::Password { password }) if password == "p"));
+    }
+
+    #[test]
+    fn failed_persist_rolls_back_memory_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        // Point vault at a non-existent child dir of a file, or non-creatable path,
+        // so persist fails on both unix and windows.
+        let blocking_file = dir.path().join("blocking_file");
+        std::fs::write(&blocking_file, b"cannot be a directory").unwrap();
+        let invalid_vault_path = blocking_file.join("vault.json");
+
+        // First create a valid vault to unlock
+        let valid_path = dir.path().join("vault.json");
+        let vault = Vault::new(valid_path);
+        vault.create("pass").unwrap();
+
+        let mut v = vault.unlock("pass").unwrap();
+        v.put(
+            "existing",
+            Secret::Password {
+                password: "initial".into(),
+            },
+        )
+        .unwrap();
+
+        // Repoint vault path to invalid path so persist will fail
+        v.path = invalid_vault_path;
+
+        // 1. Test put on new key with persist failure: should roll back to None
+        let put_res = v.put(
+            "new_key",
+            Secret::Password {
+                password: "secret".into(),
+            },
+        );
+        assert!(put_res.is_err(), "put should fail when persist fails");
+        assert!(
+            v.get("new_key").is_none(),
+            "new_key should be rolled back to None"
+        );
+
+        // 2. Test put overwriting existing key with persist failure: should roll back to old value
+        let put_overwrite_res = v.put(
+            "existing",
+            Secret::Password {
+                password: "updated".into(),
+            },
+        );
+        assert!(put_overwrite_res.is_err(), "put overwrite should fail");
+        assert!(
+            matches!(v.get("existing"), Some(Secret::Password { password }) if password == "initial"),
+            "existing key should roll back to original secret"
+        );
+
+        // 3. Test remove with persist failure: should restore the removed key
+        let remove_res = v.remove("existing");
+        assert!(remove_res.is_err(), "remove should fail");
+        assert!(
+            matches!(v.get("existing"), Some(Secret::Password { password }) if password == "initial"),
+            "existing key should be restored on remove failure"
+        );
     }
 
     #[test]
