@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show localized explanation instead of raw translation key `keys.addToVaultBody` when copying a disk key to the vault.
 - Dismiss the unreachable connection modal on overlay backdrop click or Escape key press.
 - Track and surface failed vault unlock attempt count in error responses while redacting passphrase inputs.
+- `ConnectionEnded` cleans up watched sessions alongside active state to prevent stale sweep clears on quick reconnects.
+- `SessionStarted` validates PIDs (rejecting <= 1, own process) and requires active connections, preventing arbitrary process group signaling.
+- Windows IPC server throttles retry loops and respects shutdown when named pipe creation fails.
+- Host Unix IPC socket explicitly enforces `0600` permissions.
+- Bundle export uses atomic file creation (`create_new`) for `.zip` files and guards against pre-existing `keys/` directories.
 
 ## [0.4.0] - 2026-10-21
 
