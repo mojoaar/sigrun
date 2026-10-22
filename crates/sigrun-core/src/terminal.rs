@@ -212,6 +212,21 @@ pub fn render_command(argv: &[String]) -> String {
         .join(" ")
 }
 
+/// Join argv elements into a `cmd.exe` command string: an element containing
+/// a space is wrapped in double quotes, and a literal `"` inside it is doubled.
+pub fn render_command_windows(argv: &[String]) -> String {
+    argv.iter()
+        .map(|a| {
+            if a.contains(' ') {
+                format!("\"{}\"", a.replace('"', "\"\""))
+            } else {
+                a.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Escape a string for embedding inside a double-quoted AppleScript string.
 fn applescript_escape(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
@@ -552,8 +567,9 @@ end tell"#
         }
         Platform::Windows => {
             // `cmd.exe` does not understand POSIX env assignments or the
-            // keep-open chain, so Windows keeps the bare command.
-            let cmd = render_command(argv);
+            // keep-open chain, so Windows keeps the bare command, quoted the
+            // way `cmd.exe` parses it.
+            let cmd = render_command_windows(argv);
             match configured {
                 Some(prog) if !prog.is_empty() => Ok(vec![LaunchSpec {
                     program: prog.to_string(),
@@ -1388,6 +1404,43 @@ mod tests {
                 .unwrap();
         assert_eq!(specs[0].program, "wt.exe");
         assert!(specs.iter().any(|s| s.program == "cmd.exe"));
+    }
+
+    #[test]
+    fn windows_quoting_handles_spaces() {
+        let argv = vec![
+            "ssh".to_string(),
+            "-i".to_string(),
+            "C:\\Users\\My User\\.ssh\\id_rsa".to_string(),
+            "user@example.com".to_string(),
+        ];
+        let cmd = render_command_windows(&argv);
+        assert_eq!(
+            cmd,
+            "ssh -i \"C:\\Users\\My User\\.ssh\\id_rsa\" user@example.com"
+        );
+    }
+
+    #[test]
+    fn windows_quoting_handles_no_spaces() {
+        let argv = vec!["ssh".to_string(), "user@example.com".to_string()];
+        let cmd = render_command_windows(&argv);
+        assert_eq!(cmd, "ssh user@example.com");
+    }
+
+    #[test]
+    fn windows_quoting_escapes_quotes() {
+        let argv = vec![
+            "ssh".to_string(),
+            "-i".to_string(),
+            "C:\\Users\\\"My User\"\\.ssh\\id_rsa".to_string(),
+            "user@example.com".to_string(),
+        ];
+        let cmd = render_command_windows(&argv);
+        assert_eq!(
+            cmd,
+            "ssh -i \"C:\\Users\\\"\"My User\"\"\\.ssh\\id_rsa\" user@example.com"
+        );
     }
 
     #[test]
