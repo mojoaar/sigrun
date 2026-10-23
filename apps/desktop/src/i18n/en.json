@@ -220,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialize a new vault." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lock the vault." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Unlock the vault." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Change the vault passphrase." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Back up the encrypted vault file." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Add a connection." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Open a connection in the terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Store a connection's password." },
@@ -227,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "List vault and discovered keys." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generate a new SSH key." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Import an existing key from disk into the vault." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Export a vault key to disk." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "List credentials and how many connections use each." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Add a credential; a password comes from stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Store or clear a credential's password." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Remove a credential that no connection uses." }
     },
     "data": {

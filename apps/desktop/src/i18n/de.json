@@ -220,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Einen neuen Tresor initialisieren." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Den Tresor sperren." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Den Tresor entsperren." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Die Tresor-Passphrase ändern." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Die verschlüsselte Tresordatei sichern." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Eine Verbindung hinzufügen." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Eine Verbindung im Terminal öffnen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Das Passwort einer Verbindung speichern." },
@@ -227,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Tresor- und gefundene Schlüssel auflisten." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Einen neuen SSH-Schlüssel erzeugen." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Einen vorhandenen Schlüssel vom Datenträger in den Tresor importieren." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Einen Tresorschlüssel auf den Datenträger exportieren." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Zugangsdaten und die Anzahl der Verbindungen auflisten, die sie verwenden." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Zugangsdaten hinzufügen; ein Passwort wird von stdin gelesen." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Das Passwort von Zugangsdaten speichern oder löschen." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Zugangsdaten entfernen, die keine Verbindung verwendet." }
     },
     "data": {

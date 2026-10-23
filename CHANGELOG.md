@@ -23,7 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2026-10-22
 
-### Changed
+### Added
+
+- Copy SSH command button on connection rows in desktop app to quickly copy the command line to clipboard.
+- Vault passphrase change support in core, IPC, desktop Settings view, and CLI (`sigrun vault change-passphrase`).
+- Vault sealed file backup support in core, IPC, desktop Settings view, and CLI (`sigrun vault backup`).
+- CLI command `sigrun credentials password` to set or clear credential passwords.
+- CLI command `sigrun keys export` to export private key half to disk.
+- CLI command reference in Help view and README updated for new vault, keys, and credentials commands.
 
 - Discovered disk keys are batch-persisted and skip file rewrites when metadata is unchanged.
 - The tray menu caches its model and skips redundant native rebuilds on window focus.

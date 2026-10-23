@@ -220,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialiser un nouveau coffre." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Verrouiller le coffre." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Déverrouiller le coffre." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Changer la phrase secrète du coffre." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Sauvegarder le fichier chiffré du coffre." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Ajouter une connexion." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Ouvrir une connexion dans le terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Enregistrer le mot de passe d'une connexion." },
@@ -227,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Lister les clés du coffre et les clés détectées." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Générer une nouvelle clé SSH." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importer une clé existante du disque dans le coffre." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Exporter une clé du coffre sur le disque." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lister les identifiants et le nombre de connexions qui utilisent chacun." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Ajouter un identifiant ; le mot de passe est lu sur stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Enregistrer ou effacer le mot de passe d'un identifiant." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Supprimer un identifiant qu'aucune connexion n'utilise." }
     },
     "data": {

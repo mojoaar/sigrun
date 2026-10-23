@@ -220,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialisér et nyt pengeskab." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås pengeskabet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås pengeskabet op." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Skift adgangssætning til pengeskabet." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Sikkerhedskopiér den krypterede pengeskabsfil." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Tilføj en forbindelse." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åbn en forbindelse i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Gem en forbindelses adgangskode." },
@@ -227,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Vis nøgler i pengeskabet og fundne nøgler." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generér en ny SSH-nøgle." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importér en eksisterende nøgle fra disken til pengeskabet." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Eksportér en nøgle fra pengeskabet til disken." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis logins og hvor mange forbindelser der bruger hvert." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Tilføj et login; en adgangskode læses fra stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Gem eller ryd et logins adgangskode." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern et login, som ingen forbindelse bruger." }
     },
     "data": {
