@@ -310,8 +310,17 @@ mod tests {
         // Connection should be closed by server when line exceeds MAX_LINE
         use tokio::io::AsyncReadExt;
         let mut resp = Vec::new();
-        let read_res = stream.read_to_end(&mut resp).await;
-        assert!(read_res.is_ok());
+        match stream.read_to_end(&mut resp).await {
+            Ok(_) => {}
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::ConnectionReset
+                        | std::io::ErrorKind::BrokenPipe
+                        | std::io::ErrorKind::UnexpectedEof
+                ) => {}
+            Err(e) => panic!("unexpected error waiting for connection closure: {e}"),
+        }
 
         state.shutdown.cancel();
         let _ = server.await;
