@@ -7,21 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- The README says how to get the `sigrun` command onto `PATH`: release binary, Arch package, or from source.
-
-### Fixed
-
-- Verify peer UID on Unix IPC socket connections to prevent unauthenticated local access.
-- Enforce line length limits during IPC stream reading to prevent memory exhaustion from unbounded lines.
-- Serialize concurrent vault unlock operations to prevent parallel Argon2 memory spikes.
-- Apply exponential backoff delay on consecutive failed vault unlock attempts.
-- Validate and clamp vault KDF parameters against safe upper bounds on unlock.
-- Ensure vault `put` and `remove` operations roll back in-memory state if disk persistence fails.
-- Fail closed during TOFU host-key verification if `ssh-keyscan` fails or is unavailable.
-
-## [0.5.0] - 2026-10-22
+## [0.5.0] - 2026-10-23
 
 ### Added
 
@@ -31,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI command `sigrun credentials password` to set or clear credential passwords.
 - CLI command `sigrun keys export` to export private key half to disk.
 - CLI command reference in Help view and README updated for new vault, keys, and credentials commands.
+- The README says how to get the `sigrun` command onto `PATH`: release binary, Arch package, or from source.
+
+### Changed
 
 - Discovered disk keys are batch-persisted and skip file rewrites when metadata is unchanged.
 - The tray menu caches its model and skips redundant native rebuilds on window focus.
@@ -47,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Verify peer UID on Unix IPC socket connections to prevent unauthenticated local access.
+- Enforce line length limits during IPC stream reading to prevent memory exhaustion from unbounded lines.
+- Serialize concurrent vault unlock operations to prevent parallel Argon2 memory spikes.
+- Apply exponential backoff delay on consecutive failed vault unlock attempts.
+- Validate and clamp vault KDF parameters against safe upper bounds on unlock.
+- Ensure vault `put` and `remove` operations roll back in-memory state if disk persistence fails.
+- Fail closed during TOFU host-key verification if `ssh-keyscan` fails or is unavailable.
 - CLI connection commands resolve key names to IDs instead of storing names verbatim.
 - Agent state recovers gracefully from poisoned read/write locks instead of permanently panicking.
 - Language switching in the desktop app only updates UI localization without competing with settings persistence.
