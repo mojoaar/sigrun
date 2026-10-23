@@ -1002,3 +1002,185 @@ fn connections_add_and_edit_resolve_key_name_to_id() {
     host.kill().unwrap();
     host.wait().unwrap();
 }
+
+#[test]
+fn credentials_password_set_and_clear() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    let run = |args: &[&str], stdin: &str| {
+        let mut cmd = Command::cargo_bin("sigrun").unwrap();
+        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+            .arg("--socket")
+            .arg(&sock)
+            .args(args)
+            .write_stdin(stdin);
+        cmd
+    };
+
+    run(&["vault", "init", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+    run(&["vault", "unlock", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+
+    run(
+        &[
+            "keys",
+            "generate",
+            "--name",
+            "k1",
+            "--algorithm",
+            "ed25519",
+            "--passphrase-stdin",
+        ],
+        "\n",
+    )
+    .assert()
+    .success();
+
+    let out = run(&["keys", "list", "--json"], "").output().unwrap();
+    let keys: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let key_id = keys[0]["id"].as_str().unwrap();
+
+    run(
+        &[
+            "credentials",
+            "add",
+            "--label",
+            "cred-1",
+            "--user",
+            "deploy",
+            "--key",
+            key_id,
+        ],
+        "",
+    )
+    .assert()
+    .success();
+
+    // Verify method is initially key only
+    run(&["credentials", "list"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cred-1  deploy  key  0"));
+
+    // Set password on credential via label
+    run(
+        &["credentials", "password", "cred-1", "--password-stdin"],
+        "hunter2\n",
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("password saved"));
+
+    // Verify method is now key + password
+    run(&["credentials", "list"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "cred-1  deploy  key + password  0",
+        ));
+
+    // Clear password
+    run(&["credentials", "password", "cred-1", "--clear"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("password cleared"));
+
+    // Verify method is back to key only
+    run(&["credentials", "list"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cred-1  deploy  key  0"));
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}
+
+#[test]
+fn keys_export_writes_private_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut host, sock) = spawn_host(dir.path());
+    wait_until_succeeds(|| {
+        Command::cargo_bin("sigrun")
+            .unwrap()
+            .env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .arg("--socket")
+            .arg(&sock)
+            .arg("status")
+            .output()
+            .unwrap()
+    });
+
+    let run = |args: &[&str], stdin: &str| {
+        let mut cmd = Command::cargo_bin("sigrun").unwrap();
+        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+            .env("SIGRUN_DATA_DIR", dir.path())
+            .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
+            .arg("--socket")
+            .arg(&sock)
+            .args(args)
+            .write_stdin(stdin);
+        cmd
+    };
+
+    run(&["vault", "init", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+    run(&["vault", "unlock", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .success();
+
+    run(
+        &[
+            "keys",
+            "generate",
+            "--name",
+            "export-me",
+            "--algorithm",
+            "ed25519",
+            "--passphrase-stdin",
+        ],
+        "\n",
+    )
+    .assert()
+    .success();
+
+    let export_path = dir.path().join("exported_key");
+    run(
+        &[
+            "keys",
+            "export",
+            "export-me",
+            "--out",
+            export_path.to_str().unwrap(),
+        ],
+        "",
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("key exported"));
+
+    assert!(export_path.exists());
+    let content = std::fs::read_to_string(&export_path).unwrap();
+    assert!(content.contains("BEGIN OPENSSH PRIVATE KEY"));
+
+    host.kill().unwrap();
+    host.wait().unwrap();
+}

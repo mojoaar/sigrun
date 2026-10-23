@@ -203,6 +203,12 @@ pub enum KeysCommand {
         #[arg(long)]
         yes: bool,
     },
+    /// Export a key's private half to disk.
+    Export {
+        key: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -221,6 +227,19 @@ pub enum CredentialsCommand {
         /// Read a password from stdin.
         #[arg(long)]
         password_stdin: bool,
+    },
+    /// Store or clear the password for a credential, resolved by id or label.
+    ///
+    /// The password is read from stdin with `--password-stdin`, or prompted for;
+    /// it never appears on argv.
+    Password {
+        credential: String,
+        /// Read the password from stdin instead of prompting.
+        #[arg(long, conflicts_with = "clear")]
+        password_stdin: bool,
+        /// Forget the stored password instead of setting one.
+        #[arg(long)]
+        clear: bool,
     },
     /// Remove a credential by id or label.
     Remove { id_or_label: String },
@@ -716,6 +735,16 @@ async fn keys(socket: &Option<PathBuf>, cmd: KeysCommand) -> anyhow::Result<()> 
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }
+        KeysCommand::Export { key, out } => {
+            let keys = list_keys(&addr).await?;
+            let id = resolve_key(&keys, &key)?;
+            let path = out.to_string_lossy().into_owned();
+            let resp = client::request(&addr, &Request::KeysExport { id, path }).await?;
+            match resp {
+                Response::Ok => println!("key exported"),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
     }
     Ok(())
 }
@@ -780,6 +809,28 @@ async fn credentials(socket: &Option<PathBuf>, cmd: CredentialsCommand) -> anyho
                 _ => anyhow::bail!("internal: unexpected response"),
             }
             println!("credential added");
+        }
+        CredentialsCommand::Password {
+            credential,
+            password_stdin,
+            clear,
+        } => {
+            let password = if clear {
+                None
+            } else {
+                match read_passphrase("password: ", password_stdin, false)? {
+                    Some(p) => Some(p),
+                    None => anyhow::bail!("invalid_input: password must not be empty"),
+                }
+            };
+            let creds = list_credentials(&addr).await?;
+            let id = resolve_credential(&creds, &credential)?;
+            let resp =
+                client::request(&addr, &Request::CredentialsSetPassword { id, password }).await?;
+            match resp {
+                Response::Ok => println!("password {}", if clear { "cleared" } else { "saved" }),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
         }
         CredentialsCommand::Remove { id_or_label } => {
             let id = resolve_credential(&list_credentials(&addr).await?, &id_or_label)?;
