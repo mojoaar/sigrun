@@ -637,6 +637,24 @@ fn end_to_end_host_vault_key_and_connection() {
         .success()
         .stdout(predicate::str::contains("ssh deploy@example.com -p 22"));
 
+    // Vault change-passphrase
+    run(
+        &["vault", "change-passphrase", "--password-stdin"],
+        "pass\nnewpass\n",
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("passphrase changed"));
+
+    // Lock and re-unlock with newpass succeeds
+    run(&["vault", "lock"], "").assert().success();
+    run(&["vault", "unlock", "--passphrase-stdin"], "pass\n")
+        .assert()
+        .failure();
+    run(&["vault", "unlock", "--passphrase-stdin"], "newpass\n")
+        .assert()
+        .success();
+
     host.kill().unwrap();
     host.wait().unwrap();
 }

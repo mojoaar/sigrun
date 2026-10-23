@@ -73,6 +73,11 @@ pub enum VaultCommand {
         #[arg(long)]
         passphrase_stdin: bool,
     },
+    /// Change the vault passphrase.
+    ChangePassphrase {
+        #[arg(long, visible_alias = "passphrase-stdin")]
+        password_stdin: bool,
+    },
     /// Lock the vault.
     Lock,
 }
@@ -389,6 +394,31 @@ async fn vault(socket: &Option<PathBuf>, cmd: VaultCommand) -> anyhow::Result<()
                     }
                     println!("vault unlocked");
                 }
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
+        VaultCommand::ChangePassphrase { password_stdin } => {
+            let current_passphrase = require_passphrase(read_passphrase(
+                "current passphrase: ",
+                password_stdin,
+                false,
+            )?)?;
+            let new_passphrase = require_passphrase(read_passphrase(
+                "new passphrase: ",
+                password_stdin,
+                !password_stdin,
+            )?)?;
+            let resp = client::request(
+                &addr,
+                &Request::VaultChangePassphrase {
+                    current_passphrase,
+                    new_passphrase,
+                },
+            )
+            .await?;
+            match resp {
+                Response::Ok => println!("passphrase changed"),
+                Response::Error { message, .. } => anyhow::bail!("{message}"),
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }

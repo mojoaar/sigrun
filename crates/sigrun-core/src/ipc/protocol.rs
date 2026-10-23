@@ -19,6 +19,10 @@ pub enum Request {
     VaultUnlock {
         passphrase: String,
     },
+    VaultChangePassphrase {
+        current_passphrase: String,
+        new_passphrase: String,
+    },
     VaultLock,
     ConnectionsList,
     ConnectionsAdd {
@@ -273,6 +277,17 @@ pub fn error_code(err: &Error) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vault_change_passphrase_roundtrips_json() {
+        let req = Request::VaultChangePassphrase {
+            current_passphrase: "old".into(),
+            new_passphrase: "new".into(),
+        };
+        let encoded = encode(&req).unwrap();
+        let decoded: Request = decode(&encoded).unwrap();
+        assert_eq!(decoded, req);
+    }
 
     #[test]
     fn password_response_debug_is_redacted() {

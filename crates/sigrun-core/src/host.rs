@@ -369,6 +369,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         req,
         Request::VaultInit { .. }
             | Request::VaultUnlock { .. }
+            | Request::VaultChangePassphrase { .. }
             | Request::VaultLock
             | Request::KeysGenerate { .. }
             | Request::KeysImport { .. }
@@ -451,6 +452,57 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             *state.vault.lock().await = Some(unlocked);
             let warnings = reload_agent(state).await?;
             Ok(Response::Unlocked { warnings })
+        }
+        Request::VaultChangePassphrase {
+            current_passphrase,
+            new_passphrase,
+        } => {
+            let _permit = state.unlock_lock.lock().await;
+            let vault_path = state.paths.vault_file().clone();
+            let change_res = tokio::task::spawn_blocking(move || {
+                let vault = Vault::new(vault_path);
+                let mut unlocked = vault.unlock(&current_passphrase)?;
+                unlocked.change_passphrase(&new_passphrase)?;
+                Ok::<UnlockedVault, Error>(unlocked)
+            })
+            .await
+            .map_err(|e| Error::Ipc(e.to_string()))?;
+
+            let updated_unlocked = match change_res {
+                Ok(u) => {
+                    state
+                        .failed_unlocks
+                        .store(0, std::sync::atomic::Ordering::SeqCst);
+                    u
+                }
+                Err(e) => {
+                    let attempts = state
+                        .failed_unlocks
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                        + 1;
+                    let millis = (500u64 * (1u64 << (attempts.min(6) - 1))).min(30_000);
+                    eprintln!(
+                        "sigrun-host: failed vault passphrase change attempt {} (backoff {}ms)",
+                        attempts, millis
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+                    return Ok(Response::Error {
+                        code: "invalid_passphrase".to_string(),
+                        message: e.to_string(),
+                        payload: Some(serde_json::json!({
+                            "attempts": attempts,
+                            "backoff_ms": millis,
+                        })),
+                    });
+                }
+            };
+
+            // If vault was previously unlocked in memory, update it with the new unlocked vault.
+            let mut guard = state.vault.lock().await;
+            if guard.is_some() {
+                *guard = Some(updated_unlocked);
+            }
+            Ok(Response::Ok)
         }
         Request::VaultLock => {
             state.lock_vault().await;
@@ -3607,6 +3659,82 @@ mod tests {
             elapsed3 < elapsed2,
             "reset backoff should be shorter than second failure: elapsed3 {elapsed3:?} < elapsed2 {elapsed2:?}"
         );
+
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn vault_change_passphrase_flow() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("orig_pw").unwrap();
+
+        // 1. First unlock with orig_pw
+        let res_unlock = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "orig_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock, Response::Unlocked { .. }));
+
+        // 2. Wrong current passphrase fails with backoff and doesn't change
+        let res_wrong = handle(
+            &state,
+            Request::VaultChangePassphrase {
+                current_passphrase: "wrong_pw".into(),
+                new_passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_wrong, Response::Error { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+
+        // 3. Correct change passphrase succeeds and resets failed_unlocks counter
+        let res_ok = handle(
+            &state,
+            Request::VaultChangePassphrase {
+                current_passphrase: "orig_pw".into(),
+                new_passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_ok, Response::Ok));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+
+        // 4. Memory vault is updated and lock + re-unlock with new_pw works
+        let res_lock = handle(&state, Request::VaultLock).await;
+        assert!(matches!(res_lock, Response::Ok));
+
+        let res_unlock_old = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "orig_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock_old, Response::Error { .. }));
+
+        let res_unlock_new = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock_new, Response::Unlocked { .. }));
 
         state.shutdown.cancel();
     }
