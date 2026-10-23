@@ -28,6 +28,8 @@
     "edit": "Rediger tilkobling",
     "remove": "Fjern tilkobling",
     "connect": "Koble til",
+    "copyCommand": "Kopier SSH-kommando",
+    "commandCopied": "Kommando kopiert",
     "unreachable": "Verten kan ikke nås",
     "connectAnyway": "Koble til likevel",
     "active": "Tilkoblet",
@@ -141,7 +143,15 @@
     "transferImportZip": "Importer fra en .zip-fil…",
     "transferZipFilter": "Zip-arkiv",
     "transferExported": "Eksporterte {{connections}} tilkoblinger og {{keys}} nøkler.",
-    "transferImported": "Importerte: {{added}} lagt til, {{skipped}} hoppet over, {{invalid}} ugyldige, {{unresolved}} uløste nøkler."
+    "transferImported": "Importerte: {{added}} lagt til, {{skipped}} hoppet over, {{invalid}} ugyldige, {{unresolved}} uløste nøkler.",
+    "vaultTitle": "Hvelv",
+    "changePassphrase": "Endre passfrase",
+    "backupVault": "Sikkerhetskopier hvelv",
+    "currentPassphrase": "Nåværende passfrase",
+    "newPassphrase": "Ny passfrase",
+    "confirmNewPassphrase": "Bekreft ny passfrase",
+    "passphraseChanged": "Hvelvets passfrase er endret.",
+    "backupSuccess": "Sikkerhetskopi av hvelv opprettet."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
@@ -210,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Opprett et nytt hvelv." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås hvelvet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås opp hvelvet." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Endre hvelvets passfrase." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Sikkerhetskopier den krypterte hvelvfilen." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Legg til en tilkobling." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Åpne en tilkobling i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Lagre passordet til en tilkobling." },
@@ -217,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Vis nøkler i hvelvet og oppdagede nøkler." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generer en ny SSH-nøkkel." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importer en eksisterende nøkkel fra disken til hvelvet." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Eksporter en nøkkel fra hvelvet til disken." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Vis pålogginger og hvor mange tilkoblinger som bruker hver." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Legg til en pålogging; et passord leses fra stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Lagre eller fjern en påloggings passord." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Fjern en pålogging som ingen tilkobling bruker." }
     },
     "data": {

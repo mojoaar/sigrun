@@ -183,6 +183,24 @@ impl UnlockedVault {
         self.payload.iter()
     }
 
+    pub fn change_passphrase(&mut self, new_passphrase: &str) -> Result<()> {
+        let mut salt = [0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+        let new_kdf = KdfParams::new(salt);
+        let new_key = derive_key(new_passphrase, &new_kdf)?;
+
+        let old_key = std::mem::replace(&mut self.key, new_key);
+        let old_kdf = std::mem::replace(&mut self.kdf, new_kdf);
+
+        if let Err(e) = self.persist() {
+            self.key = old_key;
+            self.kdf = old_kdf;
+            return Err(e);
+        }
+
+        Ok(())
+    }
+
     fn persist(&self) -> Result<()> {
         let check = seal(&self.key, CHECK_PLAINTEXT)?;
         let plaintext = serde_json::to_vec(&self.payload)?;
@@ -318,6 +336,76 @@ mod tests {
             matches!(v.get("existing"), Some(Secret::Password { password }) if password == "initial"),
             "existing key should be restored on remove failure"
         );
+    }
+
+    #[test]
+    fn change_passphrase_updates_key_and_persists() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Vault::new(dir.path().join("vault.json"));
+        vault.create("old_pass").unwrap();
+        let mut v = vault.unlock("old_pass").unwrap();
+        v.put(
+            "secret_key",
+            Secret::Password {
+                password: "my_secret".into(),
+            },
+        )
+        .unwrap();
+
+        v.change_passphrase("new_pass").unwrap();
+        drop(v);
+
+        // Old passphrase must fail
+        assert!(matches!(
+            vault.unlock("old_pass"),
+            Err(Error::InvalidPassphrase)
+        ));
+
+        // New passphrase succeeds and payload is preserved
+        let v2 = vault.unlock("new_pass").unwrap();
+        assert!(matches!(
+            v2.get("secret_key"),
+            Some(Secret::Password { password }) if password == "my_secret"
+        ));
+    }
+
+    #[test]
+    fn change_passphrase_rollback_on_failed_persist() {
+        let dir = tempfile::tempdir().unwrap();
+        let valid_path = dir.path().join("vault.json");
+        let vault = Vault::new(valid_path);
+        vault.create("orig_pass").unwrap();
+
+        let mut v = vault.unlock("orig_pass").unwrap();
+        v.put(
+            "k",
+            Secret::Password {
+                password: "val".into(),
+            },
+        )
+        .unwrap();
+
+        // Repoint path so persist fails
+        let blocking_file = dir.path().join("blocking_file");
+        std::fs::write(&blocking_file, b"cannot be a directory").unwrap();
+        v.path = blocking_file.join("vault.json");
+
+        let res = v.change_passphrase("attempted_new_pass");
+        assert!(
+            res.is_err(),
+            "change_passphrase should fail when persist fails"
+        );
+
+        // Memory key should still be the original derived key, able to persist if path restored
+        v.path = dir.path().join("restored.json");
+        v.persist().unwrap();
+
+        let v_restored = Vault::new(dir.path().join("restored.json"));
+        assert!(v_restored.unlock("orig_pass").is_ok());
+        assert!(matches!(
+            v_restored.unlock("attempted_new_pass"),
+            Err(Error::InvalidPassphrase)
+        ));
     }
 
     #[test]

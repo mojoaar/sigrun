@@ -1,9 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { exportBundle, getSettings, importBundle, saveSettings, setWindowTheme, listTerminals, type CommandError, type Settings as S, type TerminalInfo } from "../api";
+import {
+  exportBundle,
+  getSettings,
+  importBundle,
+  saveSettings,
+  setWindowTheme,
+  listTerminals,
+  vaultBackup,
+  vaultChangePassphrase,
+  type CommandError,
+  type Settings as S,
+  type TerminalInfo,
+} from "../api";
 import { setLanguage, LANGUAGES } from "../i18n";
 import { applyTheme, readModeOverride, resolveMode, THEMES, writeModeOverride, type Mode, type ThemeName } from "../themes";
+import { useDialogFocus } from "../useDialogFocus";
 
 const field = "h-9 rounded border border-border bg-bg px-2 text-text";
 const btn = "h-9 shrink-0 rounded bg-accent px-3 text-bg";
@@ -22,6 +35,19 @@ export default function Settings({ transferRequest, onTransferDone }: {
   const [mode, setMode] = useState<Mode | "system">(readModeOverride() ?? "system");
   const [result, setResult] = useState("");
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [changingPassphrase, setChangingPassphrase] = useState(false);
+  const [currentPass, setCurrentPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [passphraseError, setPassphraseError] = useState<string | null>(null);
+  const closePassphraseModal = () => {
+    setChangingPassphrase(false);
+    setCurrentPass("");
+    setNewPass("");
+    setConfirmPass("");
+    setPassphraseError(null);
+  };
+  const passphraseDialogRef = useDialogFocus(changingPassphrase, closePassphraseModal);
 
   useEffect(() => {
     // Both must land together: the stored open_in is only valid once we know
@@ -68,6 +94,46 @@ export default function Settings({ transferRequest, onTransferDone }: {
       added: done.added, skipped: done.skipped, invalid: done.invalid, unresolved: done.unresolved_keys,
     });
   });
+  const backupTo = () => {
+    setResult("");
+    setTransferError(null);
+    save({ defaultPath: "sigrun-vault.bak", title: t("settings.backupVault") })
+      .then(async (path) => {
+        if (!path) return;
+        await vaultBackup(path);
+        setResult(t("settings.backupSuccess"));
+      })
+      .catch((err) => {
+        console.warn("sigrun: the backup failed", err);
+        setTransferError((err as CommandError)?.message ?? "");
+      });
+  };
+
+  const onSubmitPassphrase = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!currentPass || !newPass) {
+      setPassphraseError(t("vault.passphraseRequired"));
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setPassphraseError(t("vault.passphraseMismatch"));
+      return;
+    }
+    setPassphraseError(null);
+    try {
+      await vaultChangePassphrase(currentPass, newPass);
+      closePassphraseModal();
+      setResult(t("settings.passphraseChanged"));
+    } catch (err) {
+      const cmdErr = err as CommandError;
+      const code = cmdErr?.code;
+      setPassphraseError(
+        code === "invalid_passphrase" || code === "vault_locked"
+          ? t("vault.wrongPassphrase")
+          : cmdErr?.message ?? t("common.error"),
+      );
+    }
+  };
   // The menu hands over a one-shot request; the refs keep the latest handlers
   // out of the effect's dependencies so it runs on the request edge only.
   const runTransfer = useRef<(what: "import" | "export") => void>(() => {});
@@ -153,6 +219,13 @@ export default function Settings({ transferRequest, onTransferDone }: {
         {t("settings.startMinimized")}
       </label>
       <div className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="font-semibold">{t("settings.vaultTitle")}</h3>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btn} onClick={() => setChangingPassphrase(true)}>{t("settings.changePassphrase")}</button>
+          <button type="button" className={btn} onClick={backupTo}>{t("settings.backupVault")}</button>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-border pt-3">
         <h3 className="font-semibold">{t("settings.transferTitle")}</h3>
         <p className="text-xs text-muted">{t("settings.transferBody")}</p>
         <div className="flex flex-wrap gap-2">
@@ -164,6 +237,53 @@ export default function Settings({ transferRequest, onTransferDone }: {
         <p role="status" className="text-xs text-muted">{result}</p>
         {transferError !== null && <p role="alert" className="text-xs text-danger">{transferError || t("common.error")}</p>}
       </div>
+      {changingPassphrase && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div
+            role="dialog"
+            aria-label={t("settings.changePassphrase")}
+            ref={passphraseDialogRef}
+            className="flex w-80 flex-col gap-3 rounded border border-border bg-surface p-4"
+          >
+            <h3 className="font-semibold">{t("settings.changePassphrase")}</h3>
+            {passphraseError && <p role="alert" className="text-xs text-danger">{passphraseError}</p>}
+            <form onSubmit={onSubmitPassphrase} className="flex flex-col gap-2">
+              <label className="flex flex-col gap-1 text-xs">{t("settings.currentPassphrase")}
+                <input
+                  type="password"
+                  aria-label={t("settings.currentPassphrase")}
+                  className={field}
+                  value={currentPass}
+                  onChange={(e) => setCurrentPass(e.target.value)}
+                  autoFocus
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">{t("settings.newPassphrase")}
+                <input
+                  type="password"
+                  aria-label={t("settings.newPassphrase")}
+                  className={field}
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">{t("settings.confirmNewPassphrase")}
+                <input
+                  type="password"
+                  aria-label={t("settings.confirmNewPassphrase")}
+                  className={field}
+                  value={confirmPass}
+                  onChange={(e) => setConfirmPass(e.target.value)}
+                />
+              </label>
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className={field} onClick={closePassphraseModal}>{t("common.cancel")}</button>
+                <button type="submit" className={btn}>{t("common.save")}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

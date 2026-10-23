@@ -71,6 +71,9 @@ export const getStatus = () => call<StatusInfo>("get_status");
 export const vaultInit = (passphrase: string) => call<void>("vault_init", { passphrase });
 export const vaultUnlock = (passphrase: string) => call<void>("vault_unlock", { passphrase });
 export const vaultLock = () => call<void>("vault_lock");
+export const vaultChangePassphrase = (currentPassphrase: string, newPassphrase: string) =>
+  call<void>("vault_change_passphrase", { currentPassphrase, newPassphrase });
+export const vaultBackup = (destination: string) => call<void>("vault_backup", { destination });
 export const listConnections = () => call<Connection[]>("list_connections");
 export const addConnection = (conn: Connection) => call<void>("add_connection", { conn });
 export const updateConnection = (conn: Connection) => call<void>("update_connection", { conn });
@@ -79,6 +82,7 @@ export const setConnectionPassword = (id: string, password: string | null) =>
   call<void>("set_connection_password", { id, password });
 export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false, force: false });
 export const connectForce = (id: string) => call<void>("connect", { id, printOnly: false, force: true });
+export const printCommand = (id: string) => call<string>("connect", { id, printOnly: true, force: false });
 export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>
   call<void>("trust_host", { host, port, algo, keyB64 });
 export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>

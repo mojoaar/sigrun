@@ -269,6 +269,41 @@ impl HostState {
         })?;
         Ok(summary)
     }
+
+    /// Back up the sealed vault file to `destination` at mode `0600`.
+    /// Refuses destinations inside `~/.ssh` or files that already exist.
+    pub fn vault_backup(&self, destination: &Path) -> Result<()> {
+        let vault_file = self.paths.vault_file();
+        if !vault_file.exists() {
+            return Err(Error::NotFound("vault".into()));
+        }
+
+        if !bundle::destination_is_allowed(destination, &self.paths.ssh_dir) {
+            return Err(Error::InvalidInput(
+                "cannot backup inside the SSH directory".into(),
+            ));
+        }
+
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut out = options.open(destination).map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => {
+                Error::AlreadyExists(destination.display().to_string())
+            }
+            _ => Error::Io(e),
+        })?;
+
+        let data = std::fs::read(&vault_file)?;
+        std::io::Write::write_all(&mut out, &data)?;
+        out.sync_all()?;
+        Ok(())
+    }
 }
 
 /// Whether `pid` names a live process. `kill(pid, 0)` sends no signal; it only
@@ -369,6 +404,7 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         req,
         Request::VaultInit { .. }
             | Request::VaultUnlock { .. }
+            | Request::VaultChangePassphrase { .. }
             | Request::VaultLock
             | Request::KeysGenerate { .. }
             | Request::KeysImport { .. }
@@ -452,8 +488,63 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
             let warnings = reload_agent(state).await?;
             Ok(Response::Unlocked { warnings })
         }
+        Request::VaultChangePassphrase {
+            current_passphrase,
+            new_passphrase,
+        } => {
+            let _permit = state.unlock_lock.lock().await;
+            let vault_path = state.paths.vault_file().clone();
+            let change_res = tokio::task::spawn_blocking(move || {
+                let vault = Vault::new(vault_path);
+                let mut unlocked = vault.unlock(&current_passphrase)?;
+                unlocked.change_passphrase(&new_passphrase)?;
+                Ok::<UnlockedVault, Error>(unlocked)
+            })
+            .await
+            .map_err(|e| Error::Ipc(e.to_string()))?;
+
+            let updated_unlocked = match change_res {
+                Ok(u) => {
+                    state
+                        .failed_unlocks
+                        .store(0, std::sync::atomic::Ordering::SeqCst);
+                    u
+                }
+                Err(e) => {
+                    let attempts = state
+                        .failed_unlocks
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                        + 1;
+                    let millis = (500u64 * (1u64 << (attempts.min(6) - 1))).min(30_000);
+                    eprintln!(
+                        "sigrun-host: failed vault passphrase change attempt {} (backoff {}ms)",
+                        attempts, millis
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+                    return Ok(Response::Error {
+                        code: "invalid_passphrase".to_string(),
+                        message: e.to_string(),
+                        payload: Some(serde_json::json!({
+                            "attempts": attempts,
+                            "backoff_ms": millis,
+                        })),
+                    });
+                }
+            };
+
+            // If vault was previously unlocked in memory, update it with the new unlocked vault.
+            let mut guard = state.vault.lock().await;
+            if guard.is_some() {
+                *guard = Some(updated_unlocked);
+            }
+            Ok(Response::Ok)
+        }
         Request::VaultLock => {
             state.lock_vault().await;
+            Ok(Response::Ok)
+        }
+        Request::VaultBackup { destination } => {
+            state.vault_backup(&destination)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsList => {
@@ -3612,6 +3703,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn vault_change_passphrase_flow() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("orig_pw").unwrap();
+
+        // 1. First unlock with orig_pw
+        let res_unlock = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "orig_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock, Response::Unlocked { .. }));
+
+        // 2. Wrong current passphrase fails with backoff and doesn't change
+        let res_wrong = handle(
+            &state,
+            Request::VaultChangePassphrase {
+                current_passphrase: "wrong_pw".into(),
+                new_passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_wrong, Response::Error { .. }));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+
+        // 3. Correct change passphrase succeeds and resets failed_unlocks counter
+        let res_ok = handle(
+            &state,
+            Request::VaultChangePassphrase {
+                current_passphrase: "orig_pw".into(),
+                new_passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_ok, Response::Ok));
+        assert_eq!(
+            state
+                .failed_unlocks
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+
+        // 4. Memory vault is updated and lock + re-unlock with new_pw works
+        let res_lock = handle(&state, Request::VaultLock).await;
+        assert!(matches!(res_lock, Response::Ok));
+
+        let res_unlock_old = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "orig_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock_old, Response::Error { .. }));
+
+        let res_unlock_new = handle(
+            &state,
+            Request::VaultUnlock {
+                passphrase: "new_pw".into(),
+            },
+        )
+        .await;
+        assert!(matches!(res_unlock_new, Response::Unlocked { .. }));
+
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
     async fn failed_unlock_returns_attempt_count_in_payload() {
         let dir = tempfile::tempdir().unwrap();
         let state = std::sync::Arc::new(state_in(dir.path()).await);
@@ -3678,6 +3845,58 @@ mod tests {
                 .load(std::sync::atomic::Ordering::Relaxed),
             15
         );
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn vault_backup_success_and_safeguards() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("orig_pw").unwrap();
+
+        // 1. Success backup
+        let backup_dest = dir.path().join("backup.bak");
+        state.vault_backup(&backup_dest).unwrap();
+        assert!(backup_dest.exists());
+        let original_bytes = std::fs::read(state.paths.vault_file()).unwrap();
+        let backup_bytes = std::fs::read(&backup_dest).unwrap();
+        assert_eq!(original_bytes, backup_bytes);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&backup_dest)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+
+        // 2. Refuses if destination already exists
+        let res_exists = state.vault_backup(&backup_dest);
+        assert!(matches!(res_exists, Err(Error::AlreadyExists(_))));
+
+        // 3. Refuses inside ~/.ssh
+        std::fs::create_dir_all(&state.paths.ssh_dir).unwrap();
+        let ssh_dest = state.paths.ssh_dir.join("vault.bak");
+        let res_ssh = state.vault_backup(&ssh_dest);
+        assert!(matches!(res_ssh, Err(Error::InvalidInput(_))));
+        assert!(!ssh_dest.exists());
+
+        // 4. Over IPC Request::VaultBackup
+        let backup_dest_ipc = dir.path().join("backup_ipc.bak");
+        let res_ipc = handle(
+            &state,
+            Request::VaultBackup {
+                destination: backup_dest_ipc.clone(),
+            },
+        )
+        .await;
+        assert!(matches!(res_ipc, Response::Ok));
+        assert!(backup_dest_ipc.exists());
+
         state.shutdown.cancel();
     }
 }

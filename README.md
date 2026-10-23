@@ -100,7 +100,8 @@ use **Install SSH key…** — see
   tracked, so no dot appears.
 - **Keep keys in an encrypted vault.** Generate Ed25519, RSA, or ECDSA keys,
   import or discover the ones already in `~/.ssh`, move a key between the vault
-  and disk from its row, and let an in-process OpenSSH agent serve vault keys
+  and disk from its row, change the vault passphrase or back up the sealed vault
+  file from Settings or CLI, and let an in-process OpenSSH agent serve vault keys
   to `ssh`.
 - **Reach password-only servers.** Store a password on the connection or in a
   credential, or install a key on a server with **Install SSH key…** using the
@@ -294,6 +295,8 @@ of silently falling back to your own keys.
 sigrun credentials list
 printf '%s\n' "$PASSWORD" | sigrun credentials add --label prod --user deploy --password-stdin
 sigrun credentials add --label prod --user deploy --key <key-id>
+sigrun credentials password prod                   # prompt (never argv)
+sigrun credentials password prod --clear
 sigrun connections add --label web --host example.com --credential prod
 sigrun credentials remove prod
 ```
@@ -342,9 +345,13 @@ sigrun status
 # Then keys and passwords for the servers that need them
 sigrun keys generate --name work --algorithm ed25519
 sigrun keys import ~/.ssh/id_ed25519 --name personal
+sigrun keys export work --out ~/work_key_backup
 sigrun connections password web            # prompt (never argv)
 # Or define one identity once and share it
 sigrun credentials add --label prod --user deploy --key <key-id>
+sigrun credentials password prod           # prompt (never argv)
+sigrun vault change-passphrase             # prompt for old and new passphrases
+sigrun vault backup --out ~/sigrun-vault.backup
 sigrun vault lock
 ```
 
@@ -442,9 +449,8 @@ you select into the vault first.
   and Ghostty tabs via AppleScript — do not inherit it (the Ghostty tab is
   created by the long-lived app, not by the `osascript` Sigrun spawns), so a
   connect that way does not see the agent.
-- The CLI can create a credential and attach it to a connection, but rotating a
-  credential's saved password is done in the Credentials tab; `sigrun
-  credentials` offers `list`, `add` and `remove` only.
+- The CLI can create a credential and attach it to a connection, and rotate a
+  credential's saved password via `sigrun credentials password <credential>`.
 - RSA agent signing always uses SHA-256: ssh-key 0.6 cannot emit a legacy
   `ssh-rsa`/SHA-1 signature, so a client that only offers SHA-1 will reject
   Sigrun's signatures.

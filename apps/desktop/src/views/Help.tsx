@@ -8,6 +8,8 @@ const CLI = [
   "vaultInit",
   "vaultLock",
   "vaultUnlock",
+  "vaultChangePassphrase",
+  "vaultBackup",
   "connectionsAdd",
   "connectionsConnect",
   "connectionsPassword",
@@ -15,8 +17,10 @@ const CLI = [
   "keysList",
   "keysGenerate",
   "keysImport",
+  "keysExport",
   "credentialsList",
   "credentialsAdd",
+  "credentialsPassword",
   "credentialsRemove",
 ] as const;
 

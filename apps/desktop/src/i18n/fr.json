@@ -28,6 +28,8 @@
     "edit": "Modifier la connexion",
     "remove": "Supprimer la connexion",
     "connect": "Connecter",
+    "copyCommand": "Copier la commande SSH",
+    "commandCopied": "Commande copiée",
     "unreachable": "L'hôte est injoignable",
     "connectAnyway": "Connecter quand même",
     "active": "Connectée",
@@ -141,7 +143,15 @@
     "transferImportZip": "Importer depuis un fichier .zip…",
     "transferZipFilter": "Archive ZIP",
     "transferExported": "{{connections}} connexions et {{keys}} clés exportées.",
-    "transferImported": "Importation : {{added}} ajoutées, {{skipped}} ignorées, {{invalid}} invalides, {{unresolved}} clés non résolues."
+    "transferImported": "Importation : {{added}} ajoutées, {{skipped}} ignorées, {{invalid}} invalides, {{unresolved}} clés non résolues.",
+    "vaultTitle": "Coffre",
+    "changePassphrase": "Changer la phrase secrète",
+    "backupVault": "Sauvegarder le coffre",
+    "currentPassphrase": "Phrase secrète actuelle",
+    "newPassphrase": "Nouvelle phrase secrète",
+    "confirmNewPassphrase": "Confirmer la nouvelle phrase secrète",
+    "passphraseChanged": "Phrase secrète du coffre modifiée.",
+    "backupSuccess": "Sauvegarde du coffre créée."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
@@ -210,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Initialiser un nouveau coffre." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Verrouiller le coffre." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Déverrouiller le coffre." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Changer la phrase secrète du coffre." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Sauvegarder le fichier chiffré du coffre." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Ajouter une connexion." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Ouvrir une connexion dans le terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Enregistrer le mot de passe d'une connexion." },
@@ -217,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Lister les clés du coffre et les clés détectées." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Générer une nouvelle clé SSH." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importer une clé existante du disque dans le coffre." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Exporter une clé du coffre sur le disque." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lister les identifiants et le nombre de connexions qui utilisent chacun." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Ajouter un identifiant ; le mot de passe est lu sur stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Enregistrer ou effacer le mot de passe d'un identifiant." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Supprimer un identifiant qu'aucune connexion n'utilise." }
     },
     "data": {

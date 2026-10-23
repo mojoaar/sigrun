@@ -28,6 +28,8 @@
     "edit": "Redigera anslutning",
     "remove": "Ta bort anslutning",
     "connect": "Anslut",
+    "copyCommand": "Kopiera SSH-kommando",
+    "commandCopied": "Kommando kopierat",
     "unreachable": "Värden går inte att nå",
     "connectAnyway": "Anslut ändå",
     "active": "Ansluten",
@@ -141,7 +143,15 @@
     "transferImportZip": "Importera från en .zip-fil…",
     "transferZipFilter": "Zip-arkiv",
     "transferExported": "Exporterade {{connections}} anslutningar och {{keys}} nycklar.",
-    "transferImported": "Importerade: {{added}} tillagda, {{skipped}} överhoppade, {{invalid}} ogiltiga, {{unresolved}} olösta nycklar."
+    "transferImported": "Importerade: {{added}} tillagda, {{skipped}} överhoppade, {{invalid}} ogiltiga, {{unresolved}} olösta nycklar.",
+    "vaultTitle": "Valv",
+    "changePassphrase": "Ändra lösenfras",
+    "backupVault": "Säkerhetskopiera valv",
+    "currentPassphrase": "Nuvarande lösenfras",
+    "newPassphrase": "Ny lösenfras",
+    "confirmNewPassphrase": "Bekräfta ny lösenfras",
+    "passphraseChanged": "Valvets lösenfras har ändrats.",
+    "backupSuccess": "Säkerhetskopia av valvet har skapats."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
@@ -210,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Initiera ett nytt valv." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Lås valvet." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Lås upp valvet." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Ändra valvets lösenfras." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Säkerhetskopiera den krypterade valvfilen." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Lägg till en anslutning." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Öppna en anslutning i terminalen." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Spara en anslutnings lösenord." },
@@ -217,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Lista valv- och upptäckta nycklar." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generera en ny SSH-nyckel." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importera en befintlig nyckel från disken till valvet." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Exportera en valvnyckel till disken." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Lista inloggningar och hur många anslutningar som använder varje." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Lägg till en inloggning; ett lösenord läses från stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Spara eller ta bort en inloggnings lösenord." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Ta bort en inloggning som ingen anslutning använder." }
     },
     "data": {

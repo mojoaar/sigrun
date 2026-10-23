@@ -28,6 +28,8 @@
     "edit": "Editar conexión",
     "remove": "Eliminar conexión",
     "connect": "Conectar",
+    "copyCommand": "Copiar comando SSH",
+    "commandCopied": "Comando copiado",
     "unreachable": "El host no es accesible",
     "connectAnyway": "Conectar de todos modos",
     "active": "Conectada",
@@ -141,7 +143,15 @@
     "transferImportZip": "Importar desde un archivo .zip…",
     "transferZipFilter": "Archivo ZIP",
     "transferExported": "Se exportaron {{connections}} conexiones y {{keys}} claves.",
-    "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver."
+    "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver.",
+    "vaultTitle": "Bóveda",
+    "changePassphrase": "Cambiar frase de contraseña",
+    "backupVault": "Copia de seguridad de la bóveda",
+    "currentPassphrase": "Frase de contraseña actual",
+    "newPassphrase": "Nueva frase de contraseña",
+    "confirmNewPassphrase": "Confirmar nueva frase de contraseña",
+    "passphraseChanged": "Frase de contraseña de la bóveda cambiada.",
+    "backupSuccess": "Copia de seguridad de la bóveda creada."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
@@ -210,6 +220,8 @@
       "vaultInit": { "cmd": "sigrun vault init", "desc": "Inicializar una nueva bóveda." },
       "vaultLock": { "cmd": "sigrun vault lock", "desc": "Bloquear la bóveda." },
       "vaultUnlock": { "cmd": "sigrun vault unlock", "desc": "Desbloquear la bóveda." },
+      "vaultChangePassphrase": { "cmd": "sigrun vault change-passphrase", "desc": "Cambiar la frase de contraseña de la bóveda." },
+      "vaultBackup": { "cmd": "sigrun vault backup", "desc": "Hacer copia de seguridad del archivo cifrado de la bóveda." },
       "connectionsAdd": { "cmd": "sigrun connections add", "desc": "Añadir una conexión." },
       "connectionsConnect": { "cmd": "sigrun connections connect", "desc": "Abrir una conexión en el terminal." },
       "connectionsPassword": { "cmd": "sigrun connections password", "desc": "Guardar la contraseña de una conexión." },
@@ -217,8 +229,10 @@
       "keysList": { "cmd": "sigrun keys list", "desc": "Listar las claves de la bóveda y las descubiertas." },
       "keysGenerate": { "cmd": "sigrun keys generate", "desc": "Generar una nueva clave SSH." },
       "keysImport": { "cmd": "sigrun keys import", "desc": "Importar a la bóveda una clave existente del disco." },
+      "keysExport": { "cmd": "sigrun keys export", "desc": "Exportar una clave de la bóveda al disco." },
       "credentialsList": { "cmd": "sigrun credentials list", "desc": "Listar las credenciales y cuántas conexiones usa cada una." },
       "credentialsAdd": { "cmd": "sigrun credentials add", "desc": "Añadir una credencial; la contraseña se lee de stdin." },
+      "credentialsPassword": { "cmd": "sigrun credentials password", "desc": "Guardar o borrar la contraseña de una credencial." },
       "credentialsRemove": { "cmd": "sigrun credentials remove", "desc": "Eliminar una credencial que ninguna conexión usa." }
     },
     "data": {

@@ -63,6 +63,29 @@ pub async fn vault_unlock_inner(state: Arc<HostState>, passphrase: String) -> Cm
 pub async fn vault_lock_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::VaultLock).await
 }
+pub async fn vault_change_passphrase_inner(
+    state: Arc<HostState>,
+    current_passphrase: String,
+    new_passphrase: String,
+) -> CmdResult {
+    call(
+        state,
+        Request::VaultChangePassphrase {
+            current_passphrase,
+            new_passphrase,
+        },
+    )
+    .await
+}
+pub async fn vault_backup_inner(state: Arc<HostState>, destination: String) -> CmdResult {
+    call(
+        state,
+        Request::VaultBackup {
+            destination: destination.into(),
+        },
+    )
+    .await
+}
 pub async fn list_connections_inner(state: Arc<HostState>) -> CmdResult {
     call(state, Request::ConnectionsList).await
 }
@@ -246,6 +269,18 @@ pub async fn vault_lock(state: St<'_>, app: tauri::AppHandle) -> CmdResult {
     let out = vault_lock_inner(st.clone()).await;
     crate::tray::sync_tray(&app, &st);
     out
+}
+#[tauri::command]
+pub async fn vault_change_passphrase(
+    state: St<'_>,
+    current_passphrase: String,
+    new_passphrase: String,
+) -> CmdResult {
+    vault_change_passphrase_inner(state.inner().clone(), current_passphrase, new_passphrase).await
+}
+#[tauri::command]
+pub async fn vault_backup(state: St<'_>, destination: String) -> CmdResult {
+    vault_backup_inner(state.inner().clone(), destination).await
 }
 #[tauri::command]
 pub async fn list_connections(state: St<'_>) -> CmdResult {
@@ -743,6 +778,47 @@ mod tests {
             out,
             sigrun_core::ipc::protocol::Response::Unlocked { .. }
         ));
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn vault_change_passphrase_and_backup_roundtrip_through_commands() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = sigrun_core::paths::Paths::with_roots(
+            dir.path().into(),
+            dir.path().into(),
+            dir.path().join("ssh"),
+        );
+        let state = crate::host::start_host(paths).await.unwrap();
+        crate::commands::vault_init_inner(state.clone(), "old_pass".into())
+            .await
+            .unwrap();
+
+        // Change passphrase
+        let change_out = crate::commands::vault_change_passphrase_inner(
+            state.clone(),
+            "old_pass".into(),
+            "new_pass".into(),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            change_out,
+            sigrun_core::ipc::protocol::Response::Ok
+        ));
+
+        // Backup
+        let backup_file = dir.path().join("backup.sigrun");
+        let backup_out =
+            crate::commands::vault_backup_inner(state.clone(), backup_file.display().to_string())
+                .await
+                .unwrap();
+        assert!(matches!(
+            backup_out,
+            sigrun_core::ipc::protocol::Response::Ok
+        ));
+        assert!(backup_file.exists());
+
         state.shutdown.cancel();
     }
 }
