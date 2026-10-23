@@ -80,6 +80,11 @@ pub enum VaultCommand {
     },
     /// Lock the vault.
     Lock,
+    /// Back up the sealed vault file.
+    Backup {
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -426,6 +431,27 @@ async fn vault(socket: &Option<PathBuf>, cmd: VaultCommand) -> anyhow::Result<()
             let resp = client::request(&addr, &Request::VaultLock).await?;
             match resp {
                 Response::Ok => println!("vault locked"),
+                _ => anyhow::bail!("internal: unexpected response"),
+            }
+        }
+        VaultCommand::Backup { out } => {
+            let destination = out.unwrap_or_else(|| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                PathBuf::from(format!("./sigrun-vault-{now}.bak"))
+            });
+            let resp = client::request(
+                &addr,
+                &Request::VaultBackup {
+                    destination: destination.clone(),
+                },
+            )
+            .await?;
+            match resp {
+                Response::Ok => println!("vault backed up to {}", destination.display()),
+                Response::Error { message, .. } => anyhow::bail!("{message}"),
                 _ => anyhow::bail!("internal: unexpected response"),
             }
         }

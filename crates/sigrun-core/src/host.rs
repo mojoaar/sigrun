@@ -269,6 +269,41 @@ impl HostState {
         })?;
         Ok(summary)
     }
+
+    /// Back up the sealed vault file to `destination` at mode `0600`.
+    /// Refuses destinations inside `~/.ssh` or files that already exist.
+    pub fn vault_backup(&self, destination: &Path) -> Result<()> {
+        let vault_file = self.paths.vault_file();
+        if !vault_file.exists() {
+            return Err(Error::NotFound("vault".into()));
+        }
+
+        if !bundle::destination_is_allowed(destination, &self.paths.ssh_dir) {
+            return Err(Error::InvalidInput(
+                "cannot backup inside the SSH directory".into(),
+            ));
+        }
+
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut out = options.open(destination).map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => {
+                Error::AlreadyExists(destination.display().to_string())
+            }
+            _ => Error::Io(e),
+        })?;
+
+        let data = std::fs::read(&vault_file)?;
+        std::io::Write::write_all(&mut out, &data)?;
+        out.sync_all()?;
+        Ok(())
+    }
 }
 
 /// Whether `pid` names a live process. `kill(pid, 0)` sends no signal; it only
@@ -506,6 +541,10 @@ async fn handle_inner(state: &HostState, req: Request) -> Result<Response> {
         }
         Request::VaultLock => {
             state.lock_vault().await;
+            Ok(Response::Ok)
+        }
+        Request::VaultBackup { destination } => {
+            state.vault_backup(&destination)?;
             Ok(Response::Ok)
         }
         Request::ConnectionsList => {
@@ -3806,6 +3845,58 @@ mod tests {
                 .load(std::sync::atomic::Ordering::Relaxed),
             15
         );
+        state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn vault_backup_success_and_safeguards() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = std::sync::Arc::new(state_in(dir.path()).await);
+        let path = state.paths.vault_file();
+        Vault::new(path).create("orig_pw").unwrap();
+
+        // 1. Success backup
+        let backup_dest = dir.path().join("backup.bak");
+        state.vault_backup(&backup_dest).unwrap();
+        assert!(backup_dest.exists());
+        let original_bytes = std::fs::read(state.paths.vault_file()).unwrap();
+        let backup_bytes = std::fs::read(&backup_dest).unwrap();
+        assert_eq!(original_bytes, backup_bytes);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&backup_dest)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+
+        // 2. Refuses if destination already exists
+        let res_exists = state.vault_backup(&backup_dest);
+        assert!(matches!(res_exists, Err(Error::AlreadyExists(_))));
+
+        // 3. Refuses inside ~/.ssh
+        std::fs::create_dir_all(&state.paths.ssh_dir).unwrap();
+        let ssh_dest = state.paths.ssh_dir.join("vault.bak");
+        let res_ssh = state.vault_backup(&ssh_dest);
+        assert!(matches!(res_ssh, Err(Error::InvalidInput(_))));
+        assert!(!ssh_dest.exists());
+
+        // 4. Over IPC Request::VaultBackup
+        let backup_dest_ipc = dir.path().join("backup_ipc.bak");
+        let res_ipc = handle(
+            &state,
+            Request::VaultBackup {
+                destination: backup_dest_ipc.clone(),
+            },
+        )
+        .await;
+        assert!(matches!(res_ipc, Response::Ok));
+        assert!(backup_dest_ipc.exists());
+
         state.shutdown.cancel();
     }
 }

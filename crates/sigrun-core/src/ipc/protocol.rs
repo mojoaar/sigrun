@@ -24,6 +24,9 @@ pub enum Request {
         new_passphrase: String,
     },
     VaultLock,
+    VaultBackup {
+        destination: std::path::PathBuf,
+    },
     ConnectionsList,
     ConnectionsAdd {
         connection: Connection,
@@ -277,6 +280,16 @@ pub fn error_code(err: &Error) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vault_backup_roundtrips_json() {
+        let req = Request::VaultBackup {
+            destination: std::path::PathBuf::from("/tmp/sigrun-backup.bak"),
+        };
+        let encoded = encode(&req).unwrap();
+        let decoded: Request = decode(&encoded).unwrap();
+        assert_eq!(decoded, req);
+    }
 
     #[test]
     fn vault_change_passphrase_roundtrips_json() {

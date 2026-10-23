@@ -38,6 +38,7 @@ fn spawn_host(dir: &std::path::Path) -> (std::process::Child, PathBuf) {
         dir.join("host.sock")
     };
     let host = std::process::Command::new(assert_cmd::cargo::cargo_bin("sigrun"))
+        .current_dir(dir)
         .env("SIGRUN_CONFIG_DIR", dir)
         .env("SIGRUN_DATA_DIR", dir)
         .env("SIGRUN_SSH_DIR", dir.join("ssh"))
@@ -557,7 +558,8 @@ fn end_to_end_host_vault_key_and_connection() {
 
     let run = |args: &[&str], stdin: &str| {
         let mut cmd = Command::cargo_bin("sigrun").unwrap();
-        cmd.env("SIGRUN_CONFIG_DIR", dir.path())
+        cmd.current_dir(dir.path())
+            .env("SIGRUN_CONFIG_DIR", dir.path())
             .env("SIGRUN_DATA_DIR", dir.path())
             .env("SIGRUN_SSH_DIR", dir.path().join("ssh"))
             .arg("--socket")
@@ -654,6 +656,41 @@ fn end_to_end_host_vault_key_and_connection() {
     run(&["vault", "unlock", "--passphrase-stdin"], "newpass\n")
         .assert()
         .success();
+
+    // Vault backup with explicit --out
+    let explicit_backup = dir.path().join("my-backup.bak");
+    run(
+        &[
+            "vault",
+            "backup",
+            "--out",
+            explicit_backup.to_str().unwrap(),
+        ],
+        "",
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("vault backed up"));
+    assert!(explicit_backup.exists());
+
+    // Vault backup second time to same destination fails (already exists)
+    run(
+        &[
+            "vault",
+            "backup",
+            "--out",
+            explicit_backup.to_str().unwrap(),
+        ],
+        "",
+    )
+    .assert()
+    .failure();
+
+    // Vault backup default path (timestamped)
+    run(&["vault", "backup"], "")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("vault backed up"));
 
     host.kill().unwrap();
     host.wait().unwrap();
