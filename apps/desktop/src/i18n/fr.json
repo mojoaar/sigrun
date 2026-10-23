@@ -143,7 +143,15 @@
     "transferImportZip": "Importer depuis un fichier .zip…",
     "transferZipFilter": "Archive ZIP",
     "transferExported": "{{connections}} connexions et {{keys}} clés exportées.",
-    "transferImported": "Importation : {{added}} ajoutées, {{skipped}} ignorées, {{invalid}} invalides, {{unresolved}} clés non résolues."
+    "transferImported": "Importation : {{added}} ajoutées, {{skipped}} ignorées, {{invalid}} invalides, {{unresolved}} clés non résolues.",
+    "vaultTitle": "Coffre",
+    "changePassphrase": "Changer la phrase secrète",
+    "backupVault": "Sauvegarder le coffre",
+    "currentPassphrase": "Phrase secrète actuelle",
+    "newPassphrase": "Nouvelle phrase secrète",
+    "confirmNewPassphrase": "Confirmer la nouvelle phrase secrète",
+    "passphraseChanged": "Phrase secrète du coffre modifiée.",
+    "backupSuccess": "Sauvegarde du coffre créée."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

@@ -143,7 +143,15 @@
     "transferImportZip": "Importar desde un archivo .zip…",
     "transferZipFilter": "Archivo ZIP",
     "transferExported": "Se exportaron {{connections}} conexiones y {{keys}} claves.",
-    "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver."
+    "transferImported": "Importación: {{added}} añadidas, {{skipped}} omitidas, {{invalid}} no válidas, {{unresolved}} claves sin resolver.",
+    "vaultTitle": "Bóveda",
+    "changePassphrase": "Cambiar frase de contraseña",
+    "backupVault": "Copia de seguridad de la bóveda",
+    "currentPassphrase": "Frase de contraseña actual",
+    "newPassphrase": "Nueva frase de contraseña",
+    "confirmNewPassphrase": "Confirmar nueva frase de contraseña",
+    "passphraseChanged": "Frase de contraseña de la bóveda cambiada.",
+    "backupSuccess": "Copia de seguridad de la bóveda creada."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

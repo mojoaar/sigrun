@@ -27,6 +27,8 @@ vi.mock("../api", () => ({
   setWindowTheme: vi.fn().mockResolvedValue(undefined),
   exportBundle: vi.fn(),
   importBundle: vi.fn(),
+  vaultChangePassphrase: vi.fn(),
+  vaultBackup: vi.fn(),
 }));
 
 describe("Settings", () => {
@@ -207,5 +209,123 @@ describe("Settings import and export", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("cannot export inside the SSH directory");
     expect(screen.getByRole("status").textContent).toBe("");
+  });
+});
+
+describe("Settings vault section", () => {
+  beforeEach(() => {
+    saveMock.mockReset();
+    vi.mocked(api.vaultChangePassphrase).mockReset();
+    vi.mocked(api.vaultBackup).mockReset();
+  });
+
+  it("opens change passphrase modal and validates required fields and matching confirmation", async () => {
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Change passphrase" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Change passphrase" });
+    expect(dialog).toBeTruthy();
+
+    // Click submit without entering passphrases
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("A passphrase is required.")).toBeTruthy();
+    expect(api.vaultChangePassphrase).not.toHaveBeenCalled();
+
+    // Enter current and new passphrases that don't match confirm
+    fireEvent.change(screen.getByLabelText("Current passphrase"), { target: { value: "old-pass" } });
+    fireEvent.change(screen.getByLabelText("New passphrase"), { target: { value: "new-pass" } });
+    fireEvent.change(screen.getByLabelText("Confirm new passphrase"), { target: { value: "different-pass" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("The passphrases do not match.")).toBeTruthy();
+    expect(api.vaultChangePassphrase).not.toHaveBeenCalled();
+
+    // Matching passphrases
+    vi.mocked(api.vaultChangePassphrase).mockResolvedValueOnce(undefined);
+    fireEvent.change(screen.getByLabelText("Confirm new passphrase"), { target: { value: "new-pass" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(api.vaultChangePassphrase).toHaveBeenCalledWith("old-pass", "new-pass");
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Change passphrase" })).toBeNull();
+    });
+    expect(screen.getByRole("status").textContent).toContain("Vault passphrase changed.");
+  });
+
+  it("shows error when change passphrase fails with invalid passphrase", async () => {
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Change passphrase" }));
+
+    await screen.findByRole("dialog", { name: "Change passphrase" });
+    fireEvent.change(screen.getByLabelText("Current passphrase"), { target: { value: "wrong-pass" } });
+    fireEvent.change(screen.getByLabelText("New passphrase"), { target: { value: "new-pass" } });
+    fireEvent.change(screen.getByLabelText("Confirm new passphrase"), { target: { value: "new-pass" } });
+
+    vi.mocked(api.vaultChangePassphrase).mockRejectedValueOnce({
+      code: "invalid_passphrase",
+      message: "bad pass",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Wrong passphrase. Please try again.")).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Change passphrase" })).toBeTruthy();
+  });
+
+  it("closes change passphrase modal on cancel or escape", async () => {
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Change passphrase" }));
+
+    await screen.findByRole("dialog", { name: "Change passphrase" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Change passphrase" })).toBeNull();
+    });
+  });
+
+  it("backs up vault using save dialog and calls vaultBackup", async () => {
+    saveMock.mockResolvedValueOnce("/path/to/backup.sigrun");
+    vi.mocked(api.vaultBackup).mockResolvedValueOnce(undefined);
+
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Backup vault" }));
+
+    await waitFor(() => {
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultPath: "sigrun-vault.bak" }),
+      );
+    });
+    await waitFor(() => {
+      expect(api.vaultBackup).toHaveBeenCalledWith("/path/to/backup.sigrun");
+    });
+    expect(screen.getByRole("status").textContent).toContain("Vault backup created.");
+  });
+
+  it("handles cancelled backup dialog gracefully", async () => {
+    saveMock.mockResolvedValueOnce(null);
+
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Backup vault" }));
+
+    await waitFor(() => {
+      expect(saveMock).toHaveBeenCalled();
+    });
+    expect(api.vaultBackup).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows error when backup fails", async () => {
+    saveMock.mockResolvedValueOnce("/invalid/path/backup.sigrun");
+    vi.mocked(api.vaultBackup).mockRejectedValueOnce({
+      code: "invalid_input",
+      message: "cannot backup inside the SSH directory",
+    });
+
+    render(<Settings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Backup vault" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("cannot backup inside the SSH directory");
   });
 });

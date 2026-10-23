@@ -225,6 +225,8 @@ pub fn run() {
             commands::vault_init,
             commands::vault_unlock,
             commands::vault_lock,
+            commands::vault_change_passphrase,
+            commands::vault_backup,
             commands::list_connections,
             commands::list_credentials,
             commands::add_connection,

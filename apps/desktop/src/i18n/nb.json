@@ -143,7 +143,15 @@
     "transferImportZip": "Importer fra en .zip-fil…",
     "transferZipFilter": "Zip-arkiv",
     "transferExported": "Eksporterte {{connections}} tilkoblinger og {{keys}} nøkler.",
-    "transferImported": "Importerte: {{added}} lagt til, {{skipped}} hoppet over, {{invalid}} ugyldige, {{unresolved}} uløste nøkler."
+    "transferImported": "Importerte: {{added}} lagt til, {{skipped}} hoppet over, {{invalid}} ugyldige, {{unresolved}} uløste nøkler.",
+    "vaultTitle": "Hvelv",
+    "changePassphrase": "Endre passfrase",
+    "backupVault": "Sikkerhetskopier hvelv",
+    "currentPassphrase": "Nåværende passfrase",
+    "newPassphrase": "Ny passfrase",
+    "confirmNewPassphrase": "Bekreft ny passfrase",
+    "passphraseChanged": "Hvelvets passfrase er endret.",
+    "backupSuccess": "Sikkerhetskopi av hvelv opprettet."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

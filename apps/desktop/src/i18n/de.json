@@ -143,7 +143,15 @@
     "transferImportZip": "Aus einer .zip-Datei importieren…",
     "transferZipFilter": "Zip-Archiv",
     "transferExported": "{{connections}} Verbindungen und {{keys}} Schlüssel exportiert.",
-    "transferImported": "Importiert: {{added}} hinzugefügt, {{skipped}} übersprungen, {{invalid}} ungültig, {{unresolved}} nicht aufgelöste Schlüssel."
+    "transferImported": "Importiert: {{added}} hinzugefügt, {{skipped}} übersprungen, {{invalid}} ungültig, {{unresolved}} nicht aufgelöste Schlüssel.",
+    "vaultTitle": "Tresor",
+    "changePassphrase": "Passphrase ändern",
+    "backupVault": "Tresor sichern",
+    "currentPassphrase": "Aktuelle Passphrase",
+    "newPassphrase": "Neue Passphrase",
+    "confirmNewPassphrase": "Neue Passphrase bestätigen",
+    "passphraseChanged": "Tresor-Passphrase geändert.",
+    "backupSuccess": "Tresor-Sicherung erstellt."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

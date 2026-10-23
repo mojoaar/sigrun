@@ -143,7 +143,15 @@
     "transferImportZip": "Importera från en .zip-fil…",
     "transferZipFilter": "Zip-arkiv",
     "transferExported": "Exporterade {{connections}} anslutningar och {{keys}} nycklar.",
-    "transferImported": "Importerade: {{added}} tillagda, {{skipped}} överhoppade, {{invalid}} ogiltiga, {{unresolved}} olösta nycklar."
+    "transferImported": "Importerade: {{added}} tillagda, {{skipped}} överhoppade, {{invalid}} ogiltiga, {{unresolved}} olösta nycklar.",
+    "vaultTitle": "Valv",
+    "changePassphrase": "Ändra lösenfras",
+    "backupVault": "Säkerhetskopiera valv",
+    "currentPassphrase": "Nuvarande lösenfras",
+    "newPassphrase": "Ny lösenfras",
+    "confirmNewPassphrase": "Bekräfta ny lösenfras",
+    "passphraseChanged": "Valvets lösenfras har ändrats.",
+    "backupSuccess": "Säkerhetskopia av valvet har skapats."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

@@ -143,7 +143,15 @@
     "transferImportZip": "Importér fra en .zip-fil…",
     "transferZipFilter": "Zip-arkiv",
     "transferExported": "Eksporteret {{connections}} forbindelser og {{keys}} nøgler.",
-    "transferImported": "Importeret: {{added}} tilføjede, {{skipped}} sprunget over, {{invalid}} ugyldige, {{unresolved}} uopløste nøgler."
+    "transferImported": "Importeret: {{added}} tilføjede, {{skipped}} sprunget over, {{invalid}} ugyldige, {{unresolved}} uopløste nøgler.",
+    "vaultTitle": "Pengeskab",
+    "changePassphrase": "Skift adgangssætning",
+    "backupVault": "Sikkerhedskopiér pengeskab",
+    "currentPassphrase": "Nuværende adgangssætning",
+    "newPassphrase": "Ny adgangssætning",
+    "confirmNewPassphrase": "Bekræft ny adgangssætning",
+    "passphraseChanged": "Pengeskabets adgangssætning er ændret.",
+    "backupSuccess": "Sikkerhedskopi af pengeskab oprettet."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {

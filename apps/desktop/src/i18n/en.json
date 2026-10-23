@@ -143,7 +143,15 @@
     "transferImportZip": "Import from a .zip file…",
     "transferZipFilter": "Zip archive",
     "transferExported": "Exported {{connections}} connections and {{keys}} keys.",
-    "transferImported": "Imported {{added}} added, {{skipped}} skipped, {{invalid}} invalid, {{unresolved}} unresolved keys."
+    "transferImported": "Imported {{added}} added, {{skipped}} skipped, {{invalid}} invalid, {{unresolved}} unresolved keys.",
+    "vaultTitle": "Vault",
+    "changePassphrase": "Change passphrase",
+    "backupVault": "Backup vault",
+    "currentPassphrase": "Current passphrase",
+    "newPassphrase": "New passphrase",
+    "confirmNewPassphrase": "Confirm new passphrase",
+    "passphraseChanged": "Vault passphrase changed.",
+    "backupSuccess": "Vault backup created."
   },
   "theme": { "nordlys": "Nordlys", "fjord": "Fjord", "ravn": "Ravn", "skumring": "Skumring" },
   "trust": {
