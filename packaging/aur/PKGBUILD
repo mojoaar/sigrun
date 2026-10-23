@@ -1,6 +1,6 @@
 # Maintainer: mojoaar <hello@johansen.foo>
 pkgname=sigrun-bin
-pkgver=0.4.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="SSH connections and keys in a local encrypted vault, served to ssh through a built-in agent"
 arch=('x86_64')
@@ -17,8 +17,8 @@ source=(
   "sigrun.desktop"
 )
 sha256sums=(
-  '0160a378f1aaef7741f420c9ac671ecc6a5702bb0f9111847af731f82b95b97a'
-  '3bc6011d9180816e65e512810159043515123dec9fb4e172fa744e9b7083b4fa'
+  '02e56d65dce979470a5a082435e723804793b665e4f8fa6a66e4a11df2edbd97'
+  '402b05584f2f31559b235b062c8f9732155a41adb326cc36cdda40585fb48947'
   'e6d75327821de225b4d424615221c87a3023dc34b519d8623232fb7de06e163a'
   '1517894c4a205c205016650ce85405da9eab8351e30faf357b99dd38a7d19195'
 )
