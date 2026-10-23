@@ -28,6 +28,8 @@
     "edit": "Rediger forbindelse",
     "remove": "Fjern forbindelse",
     "connect": "Forbind",
+    "copyCommand": "Kopier SSH-kommando",
+    "commandCopied": "Kommando kopieret",
     "unreachable": "Værten kan ikke nås",
     "connectAnyway": "Forbind alligevel",
     "active": "Forbundet",

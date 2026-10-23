@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
-import { addConnection, connectForce, connectGuarded, importKey, listConnections, listCredentials, listKeys, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type Credential, type KeyView, type ProvisionOutcome } from "../api";
+import { addConnection, connectForce, connectGuarded, importKey, listConnections, listCredentials, listKeys, printCommand, provisionConnection, removeConnection, setConnectionPassword, trustHost, updateConnection, type CommandError, type Connection, type Credential, type KeyView, type ProvisionOutcome } from "../api";
 import ConnectionRow from "../components/ConnectionRow";
 import { useDialogFocus } from "../useDialogFocus";
 
@@ -463,6 +463,7 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
   const [mismatch, setMismatch] = useState(false);
   const [unreachable, setUnreachable] = useState<{ message: string; retry: () => Promise<void> } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<Connection | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const formSync = useRef<((disablePasswordAuth: boolean) => void) | null>(null);
   const bindProvisioned = useCallback((sync: ((disablePasswordAuth: boolean) => void) | null) => {
     formSync.current = sync;
@@ -562,6 +563,17 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
     else handle(err);
   }, [handle]);
 
+  const copyCommand = async (c: Connection) => {
+    try {
+      const cmd = await printCommand(c.id);
+      await navigator.clipboard.writeText(cmd);
+      setCopiedId(c.id);
+      setTimeout(() => setCopiedId((curr) => (curr === c.id ? null : curr)), 2000);
+    } catch (err) {
+      handle(err);
+    }
+  };
+
   const doConnect = (c: Connection, force = false): Promise<void> => {
     setUnreachable(null);
     const attempt = force ? connectForce(c.id) : connectGuarded(c.id);
@@ -623,8 +635,10 @@ export default function Connections({ onVaultLocked, onGoToKeys, connectionError
               credentialUser={credentialUser(c.credential_id)}
               keyName={keyName(c)}
               canProvision={hasUsableKey}
+              copied={copiedId === c.id}
               onProvision={() => openProvision(c)}
               onConnect={() => { setMismatch(false); void doConnect(c); }}
+              onCopyCommand={() => void copyCommand(c)}
               onEdit={() => setForm({ edit: c })}
               onRemove={() => setConfirmRemove(c)}
               onGoToKeys={onGoToKeys}

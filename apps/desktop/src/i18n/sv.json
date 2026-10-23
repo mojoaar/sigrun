@@ -28,6 +28,8 @@
     "edit": "Redigera anslutning",
     "remove": "Ta bort anslutning",
     "connect": "Anslut",
+    "copyCommand": "Kopiera SSH-kommando",
+    "commandCopied": "Kommando kopierat",
     "unreachable": "Värden går inte att nå",
     "connectAnyway": "Anslut ändå",
     "active": "Ansluten",

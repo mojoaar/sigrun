@@ -22,6 +22,7 @@ vi.mock("../api", () => ({
   importKey: vi.fn(),
   provisionConnection: vi.fn(),
   setConnectionPassword: vi.fn(),
+  printCommand: vi.fn(),
 }));
 
 const vaultKey = {
@@ -1223,5 +1224,35 @@ describe("Connections", () => {
 
     // Row 3 should show missing credential indicator
     expect(within(row3).getByText(/not here: gone/)).toBeTruthy();
+  });
+
+  it("copies ssh command to clipboard and shows transient feedback", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    vi.mocked(api.listConnections).mockResolvedValue([
+      { ...conn, id: "c1", label: "web", user: "deploy", host: "web.example.com", port: 22 },
+    ]);
+    vi.mocked(api.printCommand).mockResolvedValue("ssh -p 22 deploy@web.example.com");
+
+    render(<Connections onVaultLocked={() => {}} onGoToKeys={() => {}} />);
+    const copyBtn = await screen.findByRole("button", { name: "Copy SSH command" });
+    expect(copyBtn).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
+
+    expect(api.printCommand).toHaveBeenCalledWith("c1");
+    expect(writeText).toHaveBeenCalledWith("ssh -p 22 deploy@web.example.com");
+    expect(screen.getByRole("button", { name: "Command copied" })).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.getByRole("button", { name: "Copy SSH command" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Command copied" })).toBeNull();
+    vi.useRealTimers();
   });
 });

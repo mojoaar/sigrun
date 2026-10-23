@@ -28,6 +28,8 @@
     "edit": "Modifier la connexion",
     "remove": "Supprimer la connexion",
     "connect": "Connecter",
+    "copyCommand": "Copier la commande SSH",
+    "commandCopied": "Commande copiée",
     "unreachable": "L'hôte est injoignable",
     "connectAnyway": "Connecter quand même",
     "active": "Connectée",

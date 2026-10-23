@@ -1,6 +1,6 @@
 import { beforeEach, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { exportBundle, getSettings, importBundle, saveSettings, type Settings } from "./api";
+import { exportBundle, getSettings, importBundle, printCommand, saveSettings, type Settings } from "./api";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -48,4 +48,10 @@ test("importBundle asks the host to merge the bundle at the picked path", async 
   vi.mocked(invoke).mockResolvedValue({ type: "import", value: summary });
   expect(await importBundle("/tmp/backup.zip")).toEqual(summary);
   expect(invoke).toHaveBeenCalledWith("import_bundle", { path: "/tmp/backup.zip" });
+});
+
+test("printCommand asks host to render the ssh command for connection", async () => {
+  vi.mocked(invoke).mockResolvedValue({ type: "command", value: "ssh -p 22 deploy@prod.example.com" });
+  expect(await printCommand("c1")).toBe("ssh -p 22 deploy@prod.example.com");
+  expect(invoke).toHaveBeenCalledWith("connect", { id: "c1", printOnly: true, force: false });
 });

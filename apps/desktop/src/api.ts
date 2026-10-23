@@ -79,6 +79,7 @@ export const setConnectionPassword = (id: string, password: string | null) =>
   call<void>("set_connection_password", { id, password });
 export const connectGuarded = (id: string) => call<void>("connect", { id, printOnly: false, force: false });
 export const connectForce = (id: string) => call<void>("connect", { id, printOnly: false, force: true });
+export const printCommand = (id: string) => call<string>("connect", { id, printOnly: true, force: false });
 export const trustHost = (host: string, port: number, algo: string, keyB64: string) =>
   call<void>("trust_host", { host, port, algo, keyB64 });
 export const provisionConnection = (id: string, password: string, keyIds: string[], disablePasswordAuth: boolean) =>
